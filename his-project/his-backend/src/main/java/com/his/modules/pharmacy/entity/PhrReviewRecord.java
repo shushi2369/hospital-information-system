@@ -1,0 +1,25 @@
+package com.his.modules.pharmacy.entity;
+
+import com.baomidou.mybatisplus.annotation.FieldFill;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.Version;
+import com.his.common.BaseEntity;
+import lombok.Getter;
+import lombok.Setter;
+
+/** 处方审核记录（留痕）。 */
+@Getter
+@Setter
+@TableName("phr_review_record")
+public class PhrReviewRecord extends BaseEntity {
+    private Long prescriptionId;
+    private Long reviewerId;
+    private Integer reviewAction;
+    private String comment;
+
+    @Version
+    private Integer version;
+}
