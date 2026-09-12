@@ -1,0 +1,67 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: his-backend
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:his}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${DB_USER:root}
+    password: ${DB_PASSWORD:root123}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+  flyway:
+    enabled: true
+    # demo 目录仅放演示数据；生产环境通过 FLYWAY_LOCATIONS 覆盖为 classpath:db/migration
+    locations: ${FLYWAY_LOCATIONS:classpath:db/migration,classpath:db/demo}
+    baseline-on-migrate: false
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 3000ms
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+
+his:
+  jwt:
+    # 仅开发默认值；生产必须通过 JWT_SECRET 环境变量注入（长度 >= 32 字符）
+    secret: ${JWT_SECRET:dev-only-jwt-secret-please-change-0123456789abcdef}
+    expire-minutes: 30
+  crypto:
+    # 身份证 AES-256-GCM 密钥(Base64, 32字节)；仅开发默认值，生产必须通过 AES_KEY 注入
+    aes-key: ${AES_KEY:QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUE=}
+  registration:
+    # 诊查费收费项目编码（挂号时取价快照；演示数据为 ITEM001/ITEM002）
+    consult-item-normal: ${CONSULT_ITEM_NORMAL:ITEM001}
+    consult-item-expert: ${CONSULT_ITEM_EXPERT:ITEM002}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+# 健康检查：仅暴露 health（供 docker-compose/运维探活）
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    com.his: info

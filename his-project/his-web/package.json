@@ -1,0 +1,27 @@
+{
+  "name": "his-web",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "医院信息系统（HIS）一期 · 阶段一基础底座前端工程",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.1",
+    "axios": "^1.7.7",
+    "element-plus": "^2.7.8",
+    "pinia": "^2.2.2",
+    "vue": "^3.4.38",
+    "vue-router": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.15",
+    "@vitejs/plugin-vue": "^5.1.2",
+    "typescript": "~5.4.5",
+    "vite": "^5.4.2",
+    "unplugin-vue-components": "^0.26.0"
+  }
+}

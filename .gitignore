@@ -1,0 +1,26 @@
+# 依赖与构建产物（可随时重建，不入库）
+node_modules/
+target/
+dist/
+
+# 运行时目录：Maven 引导工具 / MySQL·Redis 运行数据与备份（含数据，绝不入库）
+.tools/
+.runtime/
+
+# 日志
+*.log
+logs/
+
+# 环境配置（生产密钥，安全红线 §7）
+.env
+
+# IDE / 系统
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Flask/Python 缓存（e2e/perf 脚本运行残留）
+__pycache__/
+*.pyc
+账号密码.txt
