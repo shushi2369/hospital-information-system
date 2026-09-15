@@ -1,0 +1,35 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  backend:
+    name: 后端编译与单测
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: mvn test
+        working-directory: his-project/his-backend
+        run: mvn -B test
+  frontend:
+    name: 前端构建
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: his-project/his-web/package-lock.json
+      - name: npm ci & build
+        working-directory: his-project/his-web
+        run: |
+          npm ci --registry=https://registry.npmmirror.com
+          npm run build

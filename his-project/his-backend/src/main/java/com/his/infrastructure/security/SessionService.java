@@ -37,11 +37,11 @@ public class SessionService {
     public LoginUser get(Long userId) {
         String key = KEY_PREFIX + userId;
         try {
-            String json = redis.opsForValue().get(key);
+            // getAndExpire 单次往返完成读取+滑动续期
+            String json = redis.opsForValue().getAndExpire(key, TTL);
             if (json == null) {
                 return null;
             }
-            redis.expire(key, TTL);
             return objectMapper.readValue(json, LoginUser.class);
         } catch (Exception e) {
             log.error("会话读取失败", e);
