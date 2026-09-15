@@ -206,11 +206,14 @@ def main():
     # 交叉复核：日结是结算时点快照，重比对须以日结创建时刻为界
     st, bl = call("GET", "/billing/bills?startDate=%s&endDate=%s&pageSize=200" % (today, today), cashier)
     st, fl = call("GET", "/billing/refunds?startDate=%s&endDate=%s&pageSize=200" % (today, today), cashier)
-    cutoff = settle["createdAt"].replace("T", " ")
+    # 统一截断到秒级再比对：避免退费与日结同秒发生时微秒精度导致误判
+    def to_sec(ts):
+        return (ts or "").replace("T", " ")[:19]
+    cutoff = to_sec(settle["createdAt"])
     charge_sum = sum(float(b["payableAmount"]) for b in bl["data"]["list"]
-                     if b["payTime"] and b["payTime"].replace("T", " ") <= cutoff)
+                     if b["payTime"] and to_sec(b["payTime"]) <= cutoff)
     refund_sum = sum(float(x["refundAmount"]) for x in fl["data"]["list"]
-                     if x["refundTime"] and x["refundTime"].replace("T", " ") <= cutoff)
+                     if x["refundTime"] and to_sec(x["refundTime"]) <= cutoff)
     check("32. 日结金额可由明细复核",
           abs(charge_sum - float(settle["totalChargeAmount"])) < 0.001
           and abs(refund_sum - float(settle["totalRefundAmount"])) < 0.001,

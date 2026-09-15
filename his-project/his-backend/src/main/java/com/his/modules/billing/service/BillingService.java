@@ -148,7 +148,12 @@ public class BillingService {
         bill.setPayTime(now);
         bill.setCashierId(cashierId);
         bill.setStatus(10);
-        billMapper.insert(bill);
+        try {
+            billMapper.insert(bill);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            // 并发收费撞 visit_id 唯一索引：预检查窗口兜底，语义化提示
+            throw new BizException(ErrorCode.B3001);
+        }
 
         Set<Long> rxIds = new HashSet<>();
         Set<Long> applyIds = new HashSet<>();
@@ -214,7 +219,8 @@ public class BillingService {
     /** 退费（B-05，《05》R8~R10：明细级可退校验、已发药先退药、完成后挂号费不可退、联动作废） */
     @Transactional
     public String refund(RefundRequest req) {
-        BilChargeBill bill = billMapper.selectById(req.getBillId());
+        // 行锁序列化同一账单的并发退费（《05》R8~R10 一致性保障）
+        BilChargeBill bill = billMapper.selectByIdForUpdate(req.getBillId());
         if (bill == null) {
             throw new BizException(ErrorCode.B3007);
         }
@@ -331,7 +337,9 @@ public class BillingService {
         } else {
             bill.setStatus(20);
         }
-        billMapper.updateById(bill);
+        if (billMapper.updateById(bill) != 1) {
+            throw new BizException(ErrorCode.C9001, "操作冲突，请刷新后重试");
+        }
 
         // R9 联动：整方费用全退 → 作废处方；挂号费全退且未就诊 → 挂号单置已退号
         linkAfterRefund(bill, visit, detailById);

@@ -52,7 +52,13 @@ public class PatientService {
         patient.setAllergyHistory(req.getAllergyHistory());
         patient.setPastHistory(req.getPastHistory());
         patient.setStatus(1);
-        patientMapper.insert(patient);
+        try {
+            patientMapper.insert(patient);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            // 并发建档撞 id_card_hash 唯一索引：预检查窗口兜底
+            throw new BizException(ErrorCode.B1001,
+                    "该身份证已建档（建档号 " + existing.getPatientNo() + "，患者 " + existing.getName() + "）");
+        }
         return patient.getPatientNo();
     }
 
