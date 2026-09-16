@@ -37,11 +37,12 @@ public class SessionService {
     public LoginUser get(Long userId) {
         String key = KEY_PREFIX + userId;
         try {
-            // getAndExpire 单次往返完成读取+滑动续期
-            String json = redis.opsForValue().getAndExpire(key, TTL);
+            // 注：getAndExpire 需 Redis 6.2+（GETEX），Windows 演示环境为 Redis 5，回退为两步调用
+            String json = redis.opsForValue().get(key);
             if (json == null) {
                 return null;
             }
+            redis.expire(key, TTL);
             return objectMapper.readValue(json, LoginUser.class);
         } catch (Exception e) {
             log.error("会话读取失败", e);
