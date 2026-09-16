@@ -96,6 +96,27 @@ public class InpAppService {
         admissionMapper.updateById(admission);
     }
 
+    /** 医嘱执行计费（执行即记账，source_type=2 医嘱执行） */
+    @Transactional
+    public Long addExecFee(Long admissionId, Integer feeType, String itemName,
+                           java.math.BigDecimal quantity, java.math.BigDecimal unitPrice,
+                           Long sourceDetailId) {
+        InpDailyFee fee = new InpDailyFee();
+        fee.setAdmissionId(admissionId);
+        fee.setFeeDate(java.time.LocalDate.now());
+        fee.setFeeType(feeType);
+        fee.setSourceType(2);
+        fee.setSourceDetailId(sourceDetailId);
+        fee.setItemName(itemName);
+        fee.setQuantity(quantity);
+        fee.setUnitPrice(unitPrice);
+        fee.setAmount(unitPrice.multiply(quantity).setScale(2, java.math.RoundingMode.HALF_UP));
+        fee.setChargeStatus(0);
+        fee.setStatus(1);
+        dailyFeeMapper.insert(fee);
+        return fee.getId();
+    }
+
     /** 在院校验（医嘱/护理模块经此校验操作合法性） */
     public InpAdmission requireInHospital(Long admissionId) {
         InpAdmission admission = requireAdmission(admissionId);

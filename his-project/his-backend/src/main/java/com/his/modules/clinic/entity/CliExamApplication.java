@@ -17,6 +17,7 @@ import java.math.BigDecimal;
 public class CliExamApplication extends BaseEntity {
     private String applyNo;
     private Long visitId;
+    private Long admissionId;
     private Long patientId;
     private Long doctorId;
     private Long chargeItemId;

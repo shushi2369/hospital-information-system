@@ -159,6 +159,35 @@ public class InventoryService {
         return result;
     }
 
+    /** 住院摆药出库（FEFO 扣减 + 流水；供医嘱闭环调用，DOC→PHR 依赖规则） */
+    @org.springframework.transaction.annotation.Transactional
+    public void dispenseForOrder(Long drugId, java.math.BigDecimal quantity, String refNo) {
+        java.math.BigDecimal remaining = quantity;
+        for (InvInventoryBatch batch : batchMapper.selectPickable(drugId)) {
+            if (remaining.compareTo(java.math.BigDecimal.ZERO) <= 0) {
+                break;
+            }
+            InvInventoryBatch locked = batchMapper.selectByIdForUpdate(batch.getId());
+            java.math.BigDecimal take = locked.getQuantity().min(remaining);
+            if (take.compareTo(java.math.BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            java.math.BigDecimal before = locked.getQuantity();
+            java.math.BigDecimal after = before.subtract(take);
+            locked.setQuantity(after);
+            if (after.compareTo(java.math.BigDecimal.ZERO) == 0) {
+                locked.setStatus(4);
+            }
+            batchMapper.updateById(locked);
+            saveMovement(locked, 2, take.negate(), before, after, 2, refNo);
+            remaining = remaining.subtract(take);
+        }
+        if (remaining.compareTo(java.math.BigDecimal.ZERO) > 0) {
+            throw new com.his.common.BizException(com.his.common.ErrorCode.B4004,
+                    "库存不足：药品 " + drugId + "，缺口 " + remaining);
+        }
+    }
+
     /** 库存流水分页（F-11） */
     public PageResult<BatchVO.Movement> movementPage(MovementQuery query) {
         Page<InvStockMovement> page = movementMapper.selectPage(query.toPage(),

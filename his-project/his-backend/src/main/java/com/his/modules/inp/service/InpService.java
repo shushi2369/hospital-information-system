@@ -67,6 +67,7 @@ public class InpService {
     private final InpAppService inpAppService;
     private final PltService pltService;
     private final IdGenerator idGenerator;
+    private final org.springframework.beans.factory.ObjectProvider<com.his.modules.inp.spi.DischargeCheckHook> dischargeHooks;
 
     /** 入院登记（I-04）：无在院记录校验 + 床位条件分配 + 首笔押金，一个事务 */
     @Transactional
@@ -156,7 +157,13 @@ public class InpService {
     @Transactional
     public void discharge(Long admissionId, DischargeRequest req) {
         InpAdmission admission = inpAppService.requireInHospital(admissionId);
-        // TODO(WP2.3/WP2.4): 长期医嘱未停止、住院检查未收费的阻断校验在医嘱模块接入后补充
+        // 出院前置检查（依赖倒置：医嘱/检查模块各自实现钩子，《08》§2 依赖规则）
+        for (com.his.modules.inp.spi.DischargeCheckHook hook : dischargeHooks) {
+            String blocker = hook.checkBlocker(admissionId);
+            if (blocker != null) {
+                throw new BizException(ErrorCode.B6006, blocker);
+            }
+        }
         bedMapper.releaseBed(admission.getBedId(), admissionId);
         admission.setStatus(20);
         admission.setDischargeWay(req.getDischargeWay());
