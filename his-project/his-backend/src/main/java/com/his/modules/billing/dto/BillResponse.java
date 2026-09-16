@@ -16,6 +16,7 @@ public class BillResponse {
     private Long id;
     private String billNo;
     private Long visitId;
+    private Long admissionId;
     private String visitNo;
     private Long patientId;
     private String patientName;

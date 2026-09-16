@@ -18,6 +18,7 @@ import java.time.LocalDateTime;
 public class BilChargeBill extends BaseEntity {
     private String billNo;
     private Long visitId;
+    private Long admissionId;
     private Long patientId;
     private BigDecimal totalAmount;
     private BigDecimal discountAmount;

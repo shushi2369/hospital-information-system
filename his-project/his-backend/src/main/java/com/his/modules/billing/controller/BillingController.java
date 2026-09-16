@@ -68,6 +68,15 @@ public class BillingController {
         return R.ok(billingService.billDetail(id));
     }
 
+    @PostMapping("/admissions/{admissionId}/settle")
+    @PreAuthorize("@ss.hasPerm('billing:charge:create')")
+    @Idempotent
+    @AuditLog(module = "billing", action = "出院结算", bizType = "bil_charge_bill")
+    public R<BillResponse> settleAdmission(@PathVariable Long admissionId,
+                                           @Valid @RequestBody com.his.modules.billing.dto.SettleAdmissionRequest req) {
+        return R.ok(billingService.settleAdmission(admissionId, req.getPayMethod()));
+    }
+
     @PostMapping("/refunds")
     @PreAuthorize("@ss.hasPerm('billing:refund:create')")
     @Idempotent

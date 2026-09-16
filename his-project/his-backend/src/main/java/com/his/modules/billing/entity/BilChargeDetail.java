@@ -17,6 +17,7 @@ import java.math.BigDecimal;
 public class BilChargeDetail extends BaseEntity {
     private Long billId;
     private Long visitId;
+    private Long admissionId;
     private Long patientId;
     private Integer feeType;
     private Integer sourceType;

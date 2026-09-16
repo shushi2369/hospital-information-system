@@ -42,6 +42,20 @@ public class PatientAppService {
         return patientMapper.selectBatchIds(ids).stream().map(this::toDTO).toList();
     }
 
+    /** 按姓名模糊查询患者 ID 集合（EMPI 检索用） */
+    public List<Long> searchIdsByName(String name) {
+        return patientMapper.selectList(new LambdaQueryWrapper<PatPatient>()
+                        .like(PatPatient::getName, name))
+                .stream().map(PatPatient::getId).toList();
+    }
+
+    /** 按建档号精确查询患者 ID 集合 */
+    public List<Long> searchIdsByPatientNo(String patientNo) {
+        return patientMapper.selectList(new LambdaQueryWrapper<PatPatient>()
+                        .eq(PatPatient::getPatientNo, patientNo))
+                .stream().map(PatPatient::getId).toList();
+    }
+
     /** 患者最新有效就诊卡号（无卡返回 null） */
     public String latestCardNo(Long patientId) {
         PatMedicalCard card = cardMapper.selectOne(new LambdaQueryWrapper<PatMedicalCard>()

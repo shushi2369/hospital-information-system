@@ -71,8 +71,10 @@ public class BillingService {
     private final RegistrationAppService registrationAppService;
     private final PatientAppService patientAppService;
     private final SystemAppService systemAppService;
+    private final com.his.modules.plt.service.PltService pltService;
     private final BasedataAppService basedataAppService;
     private final IdGenerator idGenerator;
+    private final com.his.modules.inp.app.InpAppService inpAppService;
 
     /** 未收费就诊列表（B-02 收费窗口工作队列） */
     public List<Map<String, Object>> unpaidVisits() {
@@ -379,6 +381,95 @@ public class BillingService {
         settlement.setStatus(1);
         settlementMapper.insert(settlement);
         return settlement;
+    }
+
+    /** 住院出院结算（I-12）：一日清未结费用 → 住院收费单 + 支付 + 联动，押金返回供抵扣提示 */
+    @Transactional
+    public BillResponse settleAdmission(Long admissionId, Integer payMethod) {
+        var view = inpAppService.getAdmissionView(admissionId);
+        var admission = view.getAdmission();
+        if (admission.getStatus() == 30) {
+            throw new BizException(ErrorCode.B3001, "该住院已结算");
+        }
+        if (admission.getStatus() != 20) {
+            throw new BizException(ErrorCode.B6003, "住院尚未办理出院，不能结算");
+        }
+        if (billMapper.selectCount(new LambdaQueryWrapper<BilChargeBill>()
+                .eq(BilChargeBill::getAdmissionId, admissionId)) > 0) {
+            throw new BizException(ErrorCode.B3001);
+        }
+        List<com.his.modules.inp.app.DailyFeeDTO> fees = inpAppService.listUnpaidDailyFees(admissionId);
+        if (fees.isEmpty()) {
+            throw new BizException(ErrorCode.B3002);
+        }
+        Long cashierId = CurrentUser.id();
+        LocalDateTime now = LocalDateTime.now();
+        BigDecimal total = fees.stream().map(com.his.modules.inp.app.DailyFeeDTO::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BilChargeBill bill = new BilChargeBill();
+        bill.setBillNo(idGenerator.next("SF"));
+        bill.setVisitId(null);
+        bill.setAdmissionId(admissionId);
+        bill.setPatientId(admission.getPatientId());
+        bill.setTotalAmount(total);
+        bill.setDiscountAmount(BigDecimal.ZERO);
+        bill.setPayableAmount(total);
+        bill.setPaidAmount(total);
+        bill.setRefundAmount(BigDecimal.ZERO);
+        bill.setPayMethod(payMethod);
+        bill.setPayTime(now);
+        bill.setCashierId(cashierId);
+        bill.setStatus(10);
+        try {
+            billMapper.insert(bill);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            throw new BizException(ErrorCode.B3001);
+        }
+        for (var fee : fees) {
+            BilChargeDetail detail = new BilChargeDetail();
+            detail.setBillId(bill.getId());
+            detail.setVisitId(null);
+            detail.setAdmissionId(admissionId);
+            detail.setPatientId(admission.getPatientId());
+            detail.setFeeType(fee.getFeeType());
+            detail.setSourceType(4); // 4 住院日费用（《09》source_type 扩展）
+            detail.setSourceDetailId(fee.getId());
+            detail.setItemName(fee.getItemName());
+            detail.setQuantity(fee.getQuantity());
+            detail.setUnitPrice(fee.getUnitPrice());
+            detail.setAmount(fee.getAmount());
+            detail.setRefundStatus(0);
+            detail.setStatus(1);
+            chargeDetailMapper.insert(detail);
+        }
+        BilPaymentRecord payment = new BilPaymentRecord();
+        payment.setBillId(bill.getId());
+        payment.setPayNo(idGenerator.next("ZF"));
+        payment.setPayMethod(payMethod);
+        payment.setAmount(total);
+        payment.setTransactionId("MOCK-" + payment.getPayNo());
+        payment.setPayStatus(1);
+        payment.setPayTime(now);
+        payment.setCashierId(cashierId);
+        payment.setStatus(1);
+        paymentRecordMapper.insert(payment);
+
+        inpAppService.markDailyFeesSettled(admissionId);
+        inpAppService.markSettled(admissionId);
+        pltService.recordEvent("bill.admission.settled", bill.getBillNo(),
+                "{\"admissionId\":" + admissionId + ",\"total\":" + total + "}");
+
+        BillResponse resp = new BillResponse();
+        resp.setId(bill.getId());
+        resp.setBillNo(bill.getBillNo());
+        resp.setAdmissionId(admissionId);
+        resp.setPatientId(admission.getPatientId());
+        resp.setTotalAmount(bill.getTotalAmount());
+        resp.setPayableAmount(bill.getPayableAmount());
+        resp.setPayMethod(bill.getPayMethod());
+        resp.setStatus(bill.getStatus());
+        return resp;
     }
 
     // ---------------- 查询 ----------------

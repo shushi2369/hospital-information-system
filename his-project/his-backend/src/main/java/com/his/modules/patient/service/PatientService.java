@@ -29,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class PatientService {
     private final PatPatientMapper patientMapper;
     private final PatMedicalCardMapper cardMapper;
+    private final com.his.modules.plt.app.PltAppService pltAppService;
     private final CryptoUtil cryptoUtil;
     private final IdGenerator idGenerator;
 
@@ -54,6 +55,8 @@ public class PatientService {
         patient.setStatus(1);
         try {
             patientMapper.insert(patient);
+            // EMPI：建档即注册患者主索引（平台层）
+            pltAppService.registerMpi(patient.getId());
         } catch (org.springframework.dao.DuplicateKeyException e) {
             // 并发建档撞 id_card_hash 唯一索引：预检查窗口兜底
             throw new BizException(ErrorCode.B1001,
