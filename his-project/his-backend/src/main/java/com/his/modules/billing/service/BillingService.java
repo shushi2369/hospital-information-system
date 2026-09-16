@@ -490,6 +490,7 @@ public class BillingService {
             resp.setId(bill.getId());
             resp.setBillNo(bill.getBillNo());
             resp.setVisitId(bill.getVisitId());
+            resp.setAdmissionId(bill.getAdmissionId());
             resp.setPatientId(bill.getPatientId());
             var patient = patientAppService.getById(bill.getPatientId());
             resp.setPatientName(patient == null ? null : patient.getName());

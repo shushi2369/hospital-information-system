@@ -126,6 +126,14 @@ public class InpAppService {
         return admission;
     }
 
+    /** 按状态集合查住院（病案惰性补建用） */
+    public List<InpAdmission> listAdmissionsByStatuses(List<Integer> statuses) {
+        return admissionMapper.selectList(new LambdaQueryWrapper<InpAdmission>()
+                .in(InpAdmission::getStatus, statuses)
+                .orderByDesc(InpAdmission::getId)
+                .last("LIMIT 500"));
+    }
+
     /** 在院患者视图（护理工作台用） */
     public List<InpAdmission> listInHospitalByWard(Long wardId) {
         return admissionMapper.selectList(new LambdaQueryWrapper<InpAdmission>()
