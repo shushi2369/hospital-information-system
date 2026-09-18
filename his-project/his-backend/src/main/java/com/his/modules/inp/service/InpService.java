@@ -116,9 +116,11 @@ public class InpService {
     public BigDecimal addDeposit(Long admissionId, DepositRequest req) {
         InpAdmission admission = inpAppService.requireInHospital(admissionId);
         BigDecimal added = saveDeposit(admissionId, req.getAmount(), req.getPayMethod());
-        admission.setDepositTotal(admission.getDepositTotal().add(added));
-        admissionMapper.updateById(admission);
-        return admission.getDepositTotal();
+        // 原子递增（并发补押金不丢写，对齐退费行锁同级别的保障）
+        admissionMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<InpAdmission>()
+                .eq(InpAdmission::getId, admissionId)
+                .setSql("deposit_total = deposit_total + {0}", added));
+        return admission.getDepositTotal().add(added);
     }
 
     /** 转科（I-07）：释放原床位 + 占用新床位 + 记录留痕，一个事务 */

@@ -29,6 +29,12 @@ public class InpAppService {
     private final InpAdmissionMapper admissionMapper;
     private final InpDailyFeeMapper dailyFeeMapper;
     private final PatientAppService patientAppService;
+    private final com.his.modules.inp.mapper.InpBedMapper bedMapper;
+
+    private String bedNoById(Long bedId) {
+        var bed = bedMapper.selectById(bedId);
+        return bed == null ? null : bed.getBedNo();
+    }
 
     public InpAdmission getAdmission(Long admissionId) {
         return admissionMapper.selectById(admissionId);
@@ -94,6 +100,12 @@ public class InpAppService {
         }
         admission.setStatus(30);
         admissionMapper.updateById(admission);
+    }
+
+    /** 患者当前床号（医嘱执行单快照用） */
+    public String getBedNo(Long admissionId) {
+        InpAdmission admission = admissionMapper.selectById(admissionId);
+        return admission == null ? null : bedNoById(admission.getBedId());
     }
 
     /** 医嘱执行计费（执行即记账，source_type=2 医嘱执行） */

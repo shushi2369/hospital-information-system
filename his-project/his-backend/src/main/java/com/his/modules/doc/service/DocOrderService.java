@@ -123,15 +123,20 @@ public class DocOrderService {
         List<String> slots = req.getOrderClass() == 2
                 ? List.of("立即")
                 : FREQUENCY_SLOTS.getOrDefault(req.getFrequency() == null ? "qd" : req.getFrequency(), List.of("08:00"));
+        if ("prn".equalsIgnoreCase(req.getFrequency())) {
+            // 按需医嘱同日可多次执行：时段附加时间戳，避免唯一索引冲突
+            slots = List.of("按需" + java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HHmmss")));
+        }
         List<DocOrderItem> insertedItems = itemMapper.selectList(new LambdaQueryWrapper<DocOrderItem>()
                 .eq(DocOrderItem::getOrderId, order.getId()).eq(DocOrderItem::getStatus, 1)
                 .orderByAsc(DocOrderItem::getId));
+        String bedNo = inpAppService.getBedNo(req.getAdmissionId());
         if (drug && order.getSkinTestFlag() == 1 && !insertedItems.isEmpty()) {
-            insertExec(order.getId(), insertedItems.get(0).getId(), LocalDate.now(), "皮试", 3);
+            insertExec(order.getId(), insertedItems.get(0).getId(), LocalDate.now(), "皮试", 3, bedNo);
         }
         for (DocOrderItem item : insertedItems) {
             for (String slot : slots) {
-                insertExec(order.getId(), item.getId(), LocalDate.now(), slot, 2);
+                insertExec(order.getId(), item.getId(), LocalDate.now(), slot, 2, bedNo);
             }
         }
         pltService.recordEvent("order.created", order.getOrderNo(),
@@ -346,15 +351,17 @@ public class DocOrderService {
         return item == null ? null : item.getId();
     }
 
-    private void insertExec(Long orderId, Long itemId, LocalDate date, String slot, int type) {
+    private Long insertExec(Long orderId, Long itemId, LocalDate date, String slot, int type, String bedNo) {
         DocOrderExec exec = new DocOrderExec();
         exec.setOrderId(orderId);
         exec.setItemId(itemId);
         exec.setExecDate(date);
         exec.setExecSlot(slot);
         exec.setExecType(type);
+        exec.setBedNo(bedNo);
         exec.setStatus(1);
         execMapper.insert(exec);
+        return exec.getId();
     }
 
     private void skipFutureExec(Long orderId, LocalDate from) {
