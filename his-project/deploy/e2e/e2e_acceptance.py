@@ -203,8 +203,10 @@ def main():
         check("31. 日结(当日已日结 → B3006 分支)", r["code"] == "B3006", r)
         st, sl = call("GET", "/billing/settlements?settleDate=%s" % today, cashier)
         settle = sl["data"]["list"][0]
-    # 交叉复核：日结是结算时点快照，重比对须以日结创建时刻为界
-    st, bl = call("GET", "/billing/bills?startDate=%s&endDate=%s&pageSize=200" % (today, today), cashier)
+    # 交叉复核：日结按收费员+结算时点快照比对（须限定本收费员，避免他人生成的账单混入）
+    st, me = call("GET", "/auth/me", cashier)
+    cashier_id = me["data"]["userId"]
+    st, bl = call("GET", "/billing/bills?startDate=%s&endDate=%s&cashierId=%d&pageSize=200" % (today, today, cashier_id), cashier)
     st, fl = call("GET", "/billing/refunds?startDate=%s&endDate=%s&pageSize=200" % (today, today), cashier)
     # 统一截断到秒级再比对：避免退费与日结同秒发生时微秒精度导致误判
     def to_sec(ts):
@@ -213,7 +215,8 @@ def main():
     charge_sum = sum(float(b["payableAmount"]) for b in bl["data"]["list"]
                      if b["payTime"] and to_sec(b["payTime"]) <= cutoff)
     refund_sum = sum(float(x["refundAmount"]) for x in fl["data"]["list"]
-                     if x["refundTime"] and to_sec(x["refundTime"]) <= cutoff)
+                     if x["refundTime"] and to_sec(x["refundTime"]) <= cutoff
+                     and x.get("operatorName") == "李楠")
     check("32. 日结金额可由明细复核",
           abs(charge_sum - float(settle["totalChargeAmount"])) < 0.001
           and abs(refund_sum - float(settle["totalRefundAmount"])) < 0.001,
