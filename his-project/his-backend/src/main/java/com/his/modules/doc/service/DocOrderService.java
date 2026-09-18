@@ -68,6 +68,10 @@ public class DocOrderService {
             throw new BizException(ErrorCode.A0001, "医嘱明细不能为空");
         }
         boolean drug = req.getCategory() == 1;
+        // 频次白名单：非法频次会静默按默认时段调度（《09》§6.3），必须前置拦截
+        if (req.getOrderClass() == 1 && !FREQUENCY_SLOTS.containsKey(req.getFrequency())) {
+            throw new BizException(ErrorCode.A0001, "长期医嘱频次仅支持 qd/bid/tid/q8h/prn");
+        }
         DocOrder order = new DocOrder();
         order.setOrderNo(idGenerator.next("YZ"));
         order.setAdmissionId(req.getAdmissionId());

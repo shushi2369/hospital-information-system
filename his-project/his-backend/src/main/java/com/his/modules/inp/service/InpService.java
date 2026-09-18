@@ -254,6 +254,11 @@ public class InpService {
         if (dup != null && dup > 0) {
             throw new BizException(ErrorCode.B5001, "床号已存在");
         }
+        // 床位费必须选床位费类项目（类别8），否则每日记账类别错乱
+        ChargeItemDTO bedFee = basedataAppService.getChargeItem(req.getChargeItemId());
+        if (bedFee == null || bedFee.getCategory() == null || bedFee.getCategory() != 8) {
+            throw new BizException(ErrorCode.A0001, "床位费必须选择类别为床位费的收费项目");
+        }
         InpBed bed = new InpBed();
         bed.setWardId(req.getWardId());
         bed.setBedNo(req.getBedNo());

@@ -96,6 +96,18 @@ public class EmrService {
         }
         record.setStatus(20);
         record.setRecordTime(LocalDateTime.now());
+        // 入院记录 24h 时限（《09》§7.1：超时自动标记，不阻断）
+        if (record.getDocType() == 1) {
+            var admission = inpAppService.getAdmission(record.getAdmissionId());
+            if (admission != null && admission.getAdmissionTime() != null
+                    && record.getRecordTime().isAfter(admission.getAdmissionTime().plusHours(24))) {
+                try {
+                    record.setQcIssues(objectMapper.writeValueAsString(
+                            List.of("入院记录超24小时提交（系统自动标记）")));
+                } catch (Exception ignored) {
+                }
+            }
+        }
         recordMapper.updateById(record);
     }
 
