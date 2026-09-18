@@ -158,7 +158,10 @@ public class DocOrderService {
         order.setReviewBy(CurrentUser.id());
         order.setReviewAt(LocalDateTime.now());
         order.setReviewComment(req.getComment());
-        orderMapper.updateById(order);
+        // 并发双药师审核窗口：乐观锁失败即冲突，不得静默成功
+        if (orderMapper.updateById(order) != 1) {
+            throw new BizException(ErrorCode.B4008, "医嘱状态已变化，请刷新后重试");
+        }
         pltService.recordEvent("order.reviewed", order.getOrderNo(),
                 "{\"pass\":" + req.getPass() + "}");
     }
@@ -257,7 +260,9 @@ public class DocOrderService {
         order.setStatus(50);
         order.setStopTime(LocalDateTime.now());
         order.setStopReason(req.getReason());
-        orderMapper.updateById(order);
+        if (orderMapper.updateById(order) != 1) {
+            throw new BizException(ErrorCode.B6101, "医嘱状态已变化，请刷新后重试");
+        }
         skipFutureExec(order.getId(), LocalDate.now());
         pltService.recordEvent("order.stopped", order.getOrderNo(), "{}");
     }

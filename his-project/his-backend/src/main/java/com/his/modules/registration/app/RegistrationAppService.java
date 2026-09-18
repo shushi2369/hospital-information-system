@@ -45,7 +45,9 @@ public class RegistrationAppService {
             throw new BizException(ErrorCode.B1004, "该挂号单已退号或已就诊，不能重复接诊");
         }
         reg.setStatus(30);
-        registrationMapper.updateById(reg);
+        if (registrationMapper.updateById(reg) != 1) {
+            throw new BizException(ErrorCode.B1004, "挂号单状态已变化（可能已退号），请刷新后重试");
+        }
         return toDTO(reg);
     }
 

@@ -206,7 +206,9 @@ public class MrcService {
         }
         record.setArchiveStatus(20);
         record.setArchiveTime(LocalDateTime.now());
-        recordMapper.updateById(record);
+        if (recordMapper.updateById(record) != 1) {
+            throw new BizException(ErrorCode.A0001, "病案状态已变化，请刷新后重试");
+        }
         pltService.recordEvent("mrc.archived", record.getMrcNo(), "{}");
     }
 

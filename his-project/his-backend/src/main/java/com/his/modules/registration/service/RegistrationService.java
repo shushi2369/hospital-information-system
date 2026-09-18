@@ -77,8 +77,11 @@ public class RegistrationService {
                 req.getDoctorId(), req.getRegDate(), req.getPeriod());
         int queueNo = (maxQueue == null ? 0 : maxQueue) + 1;
 
-        // 号费快照 + 诊查费快照
+        // 号费快照 + 诊查费快照；专家号必须挂专家医生（防收费错配/资质违规）
         boolean expert = req.getRegType() == 2;
+        if (expert && doctor.getIsExpert() == 0) {
+            throw new BizException(ErrorCode.A0001, "该医生为普通号源，不能挂专家号");
+        }
         BigDecimal regFee = expert ? doctor.getExpertFee() : doctor.getNormalFee();
         ChargeItemDTO consult = basedataAppService.getChargeItemByCode(expert ? consultItemExpert : consultItemNormal);
         if (consult == null || consult.getStatus() == 0) {
@@ -113,7 +116,10 @@ public class RegistrationService {
             throw new BizException(ErrorCode.B1004);
         }
         reg.setStatus(20);
-        registrationMapper.updateById(reg);
+        // 并发接诊/退号窗口：乐观锁更新失败即冲突，不得静默成功
+        if (registrationMapper.updateById(reg) != 1) {
+            throw new BizException(ErrorCode.B1004, "挂号单状态已变化（可能已接诊），请刷新后重试");
+        }
     }
 
     public PageResult<RegistrationResponse> page(RegistrationQuery query) {
