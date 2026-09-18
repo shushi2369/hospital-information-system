@@ -475,6 +475,11 @@ public class BillingService {
     // ---------------- 查询 ----------------
 
     public PageResult<BillResponse> billPage(BillQuery query) {
+        // 数据范围（《04》§4）：收费员仅本人经办；管理员/对账员全量
+        com.his.infrastructure.security.LoginUser user = com.his.infrastructure.security.CurrentUser.get();
+        if (!user.getRoleCodes().contains("ADMIN") && !user.getRoleCodes().contains("AUDITOR")) {
+            query.setCashierId(user.getUserId());
+        }
         Page<BilChargeBill> page = billMapper.selectPage(query.toPage(),
                 new LambdaQueryWrapper<BilChargeBill>()
                         .like(query.getBillNo() != null && !query.getBillNo().isBlank(), BilChargeBill::getBillNo, query.getBillNo())
@@ -579,6 +584,11 @@ public class BillingService {
     }
 
     public PageResult<BillResponse.Refund> refundPage(RefundQuery query) {
+        // 数据范围：收费员仅本人经办退费
+        com.his.infrastructure.security.LoginUser user = com.his.infrastructure.security.CurrentUser.get();
+        if (!user.getRoleCodes().contains("ADMIN") && !user.getRoleCodes().contains("AUDITOR")) {
+            query.setOperatorId(user.getUserId());
+        }
         Page<BilRefundBill> page = refundBillMapper.selectPage(query.toPage(),
                 new LambdaQueryWrapper<BilRefundBill>()
                         .like(query.getRefundNo() != null && !query.getRefundNo().isBlank(), BilRefundBill::getRefundNo, query.getRefundNo())
@@ -602,6 +612,11 @@ public class BillingService {
     }
 
     public PageResult<BilDailySettlement> settlementPage(SettlementQuery query) {
+        // 数据范围：收费员仅本人日结
+        com.his.infrastructure.security.LoginUser user = com.his.infrastructure.security.CurrentUser.get();
+        if (!user.getRoleCodes().contains("ADMIN") && !user.getRoleCodes().contains("AUDITOR")) {
+            query.setCashierId(user.getUserId());
+        }
         Page<BilDailySettlement> page = settlementMapper.selectPage(query.toPage(),
                 new LambdaQueryWrapper<BilDailySettlement>()
                         .eq(query.getSettleDate() != null, BilDailySettlement::getSettleDate, query.getSettleDate())

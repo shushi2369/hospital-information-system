@@ -176,6 +176,8 @@ public class DocOrderService {
         if (order.getStatus() != 20) {
             throw new BizException(ErrorCode.B6102);
         }
+        // 在院校验：出院/结算后摆药会产生结算外孤儿费用与库存扣减（高危）
+        inpAppService.requireInHospital(order.getAdmissionId());
         if (order.getSkinTestFlag() == 1) {
             DocOrderExec skin = execMapper.selectList(new LambdaQueryWrapper<DocOrderExec>()
                             .eq(DocOrderExec::getOrderId, orderId)
@@ -210,6 +212,8 @@ public class DocOrderService {
         }
         DocOrder order = requireOrder(exec.getOrderId());
         validateExecutable(order);
+        // 在院校验：出院/结算后执行会产生结算外孤儿费用（高危）
+        inpAppService.requireInHospital(order.getAdmissionId());
         if (exec.getExecType() == 3) {
             throw new BizException(ErrorCode.A0001, "皮试结果请通过皮试登记接口录入");
         }

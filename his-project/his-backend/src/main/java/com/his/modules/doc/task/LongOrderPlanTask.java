@@ -47,6 +47,10 @@ public class LongOrderPlanTask {
                 .in(DocOrder::getStatus, 20, 30));
         int created = 0;
         for (DocOrder order : orders) {
+            var admission = inpAppService.getAdmission(order.getAdmissionId());
+            if (admission == null || admission.getStatus() != 10) {
+                continue; // 非在院不生成（理论上出院前已停嘱，防御性跳过）
+            }
             String bedNo = inpAppService.getBedNo(order.getAdmissionId());
             List<String> slots = FREQUENCY_SLOTS.getOrDefault(
                     order.getFrequency() == null ? "qd" : order.getFrequency(), List.of("08:00"));
