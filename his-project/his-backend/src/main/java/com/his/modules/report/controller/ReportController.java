@@ -125,6 +125,10 @@ public class ReportController {
         if (value == null) {
             return "";
         }
+        // CSV formula injection guard: prefix ' for =+-@ leading cells
+        if (value.startsWith("=") || value.startsWith("+") || value.startsWith("-") || value.startsWith("@")) {
+            value = "'" + value;
+        }
         if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
             return "\"" + value.replace("\"", "\"\"") + "\"";
         }

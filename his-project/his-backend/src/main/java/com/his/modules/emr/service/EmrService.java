@@ -194,11 +194,17 @@ public class EmrService {
     }
 
     private String toJson(Map<String, Object> content) {
+        String json;
         try {
-            return objectMapper.writeValueAsString(content);
+            json = objectMapper.writeValueAsString(content);
         } catch (Exception e) {
             throw new BizException(ErrorCode.A0001, "文书内容格式错误");
         }
+        // 资源保护：单份文书上限 64KB，防止异常超大载荷写入
+        if (json.length() > 64 * 1024) {
+            throw new BizException(ErrorCode.A0001, "文书内容过大（上限 64KB）");
+        }
+        return json;
     }
 
     @SuppressWarnings("unchecked")
