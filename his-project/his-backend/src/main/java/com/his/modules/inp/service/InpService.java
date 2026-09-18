@@ -81,6 +81,13 @@ public class InpService {
         if (ward == null || ward.getStatus() == 0) {
             throw new BizException(ErrorCode.A0001, "病区不存在或已停用");
         }
+        if (!ward.getDeptId().equals(req.getDeptId())) {
+            throw new BizException(ErrorCode.A0001, "科室与病区不匹配（病区归属科室 " + ward.getDeptId() + "）");
+        }
+        InpBed bedCheck = bedMapper.selectById(req.getBedId());
+        if (bedCheck == null || !bedCheck.getWardId().equals(req.getWardId())) {
+            throw new BizException(ErrorCode.A0001, "床位不属于所选病区");
+        }
         // 先插入住院记录（status=10），再条件更新占床；占床失败整体回滚
         InpAdmission admission = new InpAdmission();
         admission.setAdmissionNo(idGenerator.next("ZY"));
@@ -130,6 +137,10 @@ public class InpService {
         InpWard toWard = wardMapper.selectById(req.getToWardId());
         if (toWard == null || toWard.getStatus() == 0) {
             throw new BizException(ErrorCode.A0001, "目标病区不存在或已停用");
+        }
+        InpBed toBed = bedMapper.selectById(req.getToBedId());
+        if (toBed == null || !toBed.getWardId().equals(req.getToWardId())) {
+            throw new BizException(ErrorCode.A0001, "目标床位不属于所选病区");
         }
         int occupy = bedMapper.occupyBed(req.getToBedId(), admissionId);
         if (occupy == 0) {

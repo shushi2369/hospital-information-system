@@ -216,14 +216,16 @@ public class DocOrderService {
         exec.setStatus(2);
         exec.setNurseId(CurrentUser.id());
         execMapper.updateById(exec);
-        // 非药品医嘱：执行即计费（药品费已在摆药时记账）
+        // 非药品医嘱：执行即计费（药品费已在摆药时记账），计费单号回写执行单
         if (order.getCategory() != 1 && exec.getChargeDetailId() == null) {
             DocOrderItem item = itemMapper.selectById(exec.getItemId());
             if (item != null) {
                 ChargeItemDTO c = basedataAppService.getChargeItem(item.getChargeItemId());
-                inpAppService.addExecFee(order.getAdmissionId(),
+                Long feeId = inpAppService.addExecFee(order.getAdmissionId(),
                         c == null ? order.getCategory() : c.getCategory(),
                         item.getItemName(), item.getQuantity(), item.getUnitPrice(), exec.getId());
+                exec.setChargeDetailId(feeId);
+                execMapper.updateById(exec);
             }
         }
         if (order.getStatus() == 20) {
@@ -256,7 +258,7 @@ public class DocOrderService {
         pltService.recordEvent("order.stopped", order.getOrderNo(), "{}");
     }
 
-    /** 恢复长期医嘱（O-06，当日内） */
+    /** 恢复长期医嘱（O-06，当日内）：重建当日被停止置为跳过的执行单 */
     @Transactional
     public void resume(Long orderId) {
         DocOrder order = requireOrder(orderId);
@@ -266,6 +268,22 @@ public class DocOrderService {
         order.setStatus(30);
         order.setStopTime(null);
         orderMapper.updateById(order);
+        LocalDate today = LocalDate.now();
+        List<String> slots = FREQUENCY_SLOTS.getOrDefault(
+                order.getFrequency() == null ? "qd" : order.getFrequency(), List.of("08:00"));
+        for (DocOrderItem item : itemMapper.selectList(new LambdaQueryWrapper<DocOrderItem>()
+                .eq(DocOrderItem::getOrderId, orderId).eq(DocOrderItem::getStatus, 1))) {
+            for (String slot : slots) {
+                execMapper.update(null, new LambdaUpdateWrapper<DocOrderExec>()
+                        .eq(DocOrderExec::getItemId, item.getId())
+                        .eq(DocOrderExec::getExecDate, today)
+                        .eq(DocOrderExec::getExecSlot, slot)
+                        .eq(DocOrderExec::getExecType, 2)
+                        .eq(DocOrderExec::getStatus, 3)
+                        .set(DocOrderExec::getStatus, 1)
+                        .set(DocOrderExec::getUpdatedAt, LocalDateTime.now()));
+            }
+        }
     }
 
     /** 作废（未执行的医嘱） */

@@ -46,26 +46,38 @@ public class MedinsService {
         if (bill.getStatus() != 10) {
             throw new BizException(ErrorCode.B6402, "账单未支付或已退费，不可申报");
         }
-        Long exists = settleMapper.selectCount(new LambdaQueryWrapper<MedinsSettle>()
-                .eq(MedinsSettle::getBillId, billId));
-        if (exists != null && exists > 0) {
+        MedinsSettle existing = settleMapper.selectOne(new LambdaQueryWrapper<MedinsSettle>()
+                .eq(MedinsSettle::getBillId, billId).last("LIMIT 1"));
+        if (existing != null && existing.getStatus() != 30) {
+            // 已申报/对账通过不可重复申报；仅"对账差异"允许调整后重新申报（《10》状态机 2.5）
             throw new BizException(ErrorCode.B6401);
         }
         var admission = inpAppService.requireAdmission(bill.getAdmissionId());
         var split = gateway.apply(bill.getPayableAmount(), insuranceType);
-        MedinsSettle settle = new MedinsSettle();
-        settle.setSettleNo(idGenerator.next("YB"));
-        settle.setBillId(billId);
-        settle.setAdmissionId(admission.getId());
+        MedinsSettle settle;
+        if (existing != null) {
+            settle = existing; // 差异重报：复用原申报单重算并回到待对账
+        } else {
+            settle = new MedinsSettle();
+            settle.setSettleNo(idGenerator.next("YB"));
+            settle.setBillId(billId);
+            settle.setAdmissionId(admission.getId());
+        }
         settle.setInsuranceType(insuranceType);
         settle.setTotalAmount(bill.getPayableAmount());
         settle.setPoolPay(split.poolPay());
         settle.setAccountPay(split.accountPay());
         settle.setSelfPay(split.selfPay());
         settle.setApplyTime(LocalDateTime.now());
+        settle.setReconcileTime(null);
+        settle.setDiffReason(null);
         settle.setOperatorId(CurrentUser.id());
         settle.setStatus(10);
-        settleMapper.insert(settle);
+        if (settle.getId() == null) {
+            settleMapper.insert(settle);
+        } else {
+            settleMapper.updateById(settle);
+        }
         pltService.recordEvent("medins.settle.applied", settle.getSettleNo(),
                 "{\"total\":" + settle.getTotalAmount() + "}");
         return settle.getSettleNo();
