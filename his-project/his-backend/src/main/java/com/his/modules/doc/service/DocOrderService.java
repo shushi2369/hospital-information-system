@@ -68,7 +68,10 @@ public class DocOrderService {
             throw new BizException(ErrorCode.A0001, "医嘱明细不能为空");
         }
         boolean drug = req.getCategory() == 1;
-        // 频次白名单：非法频次会静默按默认时段调度（《09》§6.3），必须前置拦截
+        // 频次白名单 + 大小写归一（非法频次会静默按默认时段调度，《09》§6.3）
+        if (req.getFrequency() != null) {
+            req.setFrequency(req.getFrequency().toLowerCase());
+        }
         if (req.getOrderClass() == 1 && !FREQUENCY_SLOTS.containsKey(req.getFrequency())) {
             throw new BizException(ErrorCode.A0001, "长期医嘱频次仅支持 qd/bid/tid/q8h/prn");
         }
@@ -116,11 +119,19 @@ public class DocOrderService {
             row.setDays(item.getDays());
             row.setQuantity(item.getQuantity());
             row.setAmount(row.getUnitPrice().multiply(item.getQuantity()).setScale(2, RoundingMode.HALF_UP));
+            // 逐行金额上限：DECIMAL(10,2) 溢出收口（先于明细插入）
+            if (row.getAmount().compareTo(new BigDecimal("99999999")) > 0) {
+                throw new BizException(ErrorCode.A0001, "医嘱明细金额超出系统上限（单行 ≤ 99999999）");
+            }
             row.setUsageNote(item.getUsageNote());
             itemMapper.insert(row);
             total = total.add(row.getAmount());
         }
         order.setTotalAmount(total);
+        // 金额上限：DECIMAL(10,2) 溢出收口（巨量数量+单价组合）
+        if (total.compareTo(new BigDecimal("99999999")) > 0) {
+            throw new BizException(ErrorCode.A0001, "医嘱金额超出系统上限（单张 ≤ 99999999）");
+        }
         orderMapper.updateById(order);
 
         // 执行计划：临时医嘱单条；长期医嘱按频次展开今日时段；皮试单独一行

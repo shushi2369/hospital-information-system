@@ -226,6 +226,12 @@ public class BillingService {
         if (bill == null) {
             throw new BizException(ErrorCode.B3007);
         }
+        // 数据范围（《04》§4）：收费员仅能退本人经办账单；管理员豁免（对齐 billPage）
+        com.his.infrastructure.security.LoginUser refundUser = com.his.infrastructure.security.CurrentUser.get();
+        if (!refundUser.getRoleCodes().contains("ADMIN")
+                && !bill.getCashierId().equals(refundUser.getUserId())) {
+            throw new BizException(ErrorCode.A0003, "仅能退本人经办的账单");
+        }
         BillingVisitDTO visit = clinicAppService.getVisitForBilling(bill.getVisitId());
         List<BilChargeDetail> billDetails = chargeDetailMapper.selectList(
                 new LambdaQueryWrapper<BilChargeDetail>().eq(BilChargeDetail::getBillId, bill.getId()));
