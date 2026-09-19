@@ -50,6 +50,7 @@ public class DocOrderService {
     private final InpAppService inpAppService;
     private final BasedataAppService basedataAppService;
     private final com.his.modules.pharmacy.service.InventoryService inventoryService;
+    private final com.his.modules.lis.service.LisService lisAppService;
     private final com.his.modules.plt.service.PltService pltService;
     private final IdGenerator idGenerator;
 
@@ -257,6 +258,11 @@ public class DocOrderService {
         if (order.getOrderClass() == 2 && allExecDone(order.getId())) {
             order.setStatus(40);
             orderMapper.updateById(order);
+        }
+        // 检验医嘱执行 → 生成 LIS 检验申请单（doc → lis 单向，《12》§3）
+        if (order.getCategory() == 3 && exec.getExecType() == 2) {
+            DocOrderItem lisItem = itemMapper.selectById(exec.getItemId());
+            lisAppService.createRequestFromOrder(order, lisItem, CurrentUser.id());
         }
         pltService.recordEvent("order.executed", order.getOrderNo(),
                 "{\"execId\":" + execId + "}");

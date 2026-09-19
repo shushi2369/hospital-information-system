@@ -7,3 +7,4 @@ dist/
 *.iml
 .vscode/
 .DS_Store
+his-project/his-backend/BOOT-INF/
