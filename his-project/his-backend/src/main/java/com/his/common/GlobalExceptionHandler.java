@@ -31,6 +31,15 @@ public class GlobalExceptionHandler {
                 .body(R.fail(e.getErrorCode(), e.getMessage()));
     }
 
+    @ExceptionHandler(jakarta.validation.ConstraintViolationException.class)
+    public ResponseEntity<R<Object>> handleConstraint(jakarta.validation.ConstraintViolationException e) {
+        String detail = e.getConstraintViolations().stream()
+                .map(v -> v.getPropertyPath() + " " + v.getMessage())
+                .reduce((a, b) -> a + "；" + b)
+                .orElse("");
+        return ResponseEntity.badRequest().body(R.fail(ErrorCode.A0001, "参数校验失败：" + detail));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<R<List<FieldErrorItem>>> handleValid(MethodArgumentNotValidException e) {
         List<FieldErrorItem> items = e.getBindingResult().getFieldErrors().stream()

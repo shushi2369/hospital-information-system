@@ -94,7 +94,11 @@ public class MrcService {
                 record.setArchiveStatus(10);
                 record.setQcStatus(0);
                 record.setStatus(1);
-                recordMapper.insert(record);
+                try {
+                    recordMapper.insert(record);
+                } catch (org.springframework.dao.DuplicateKeyException e) {
+                    // 并发惰性补建：唯一索引兜底，另一方已建则忽略
+                }
             }
         }
     }

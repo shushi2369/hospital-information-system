@@ -27,6 +27,7 @@ import java.util.List;
  * 医保对账接口（Y-01~Y-04）。
  */
 @RestController
+@org.springframework.validation.annotation.Validated
 @RequestMapping("/api/v1/medins")
 @RequiredArgsConstructor
 public class MedinsController {
@@ -37,7 +38,11 @@ public class MedinsController {
     @Idempotent
     @AuditLog(module = "medins", action = "医保申报", bizType = "medins_settle")
     public R<String> apply(@RequestParam Long billId,
-                           @RequestParam(defaultValue = "1") Integer insuranceType) {
+                           @RequestParam(defaultValue = "1")
+                           @org.springframework.validation.annotation.Validated
+                           @jakarta.validation.constraints.Min(value = 1, message = "医保类型取值 1职工/2居民")
+                           @jakarta.validation.constraints.Max(value = 2, message = "医保类型取值 1职工/2居民")
+                           Integer insuranceType) {
         return R.ok(medinsService.apply(billId, insuranceType));
     }
 

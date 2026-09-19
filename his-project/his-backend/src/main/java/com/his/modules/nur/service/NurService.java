@@ -63,10 +63,8 @@ public class NurService {
     /** 体征录入（N-02）：范围校验（体温单口径） */
     @Transactional
     public Long addVitalSign(VitalSignRequest req) {
-        InpAdmission admission = inpAppService.getAdmission(req.getAdmissionId());
-        if (admission == null) {
-            throw new BizException(ErrorCode.A0001, "住院记录不存在");
-        }
+        // 体征属住院期间数据：出院/结算后不再录入
+        InpAdmission admission = inpAppService.requireInHospital(req.getAdmissionId());
         validateRange("体温", req.getTemperature(), 30, 42);
         validateRange("脉搏", req.getPulse(), 30, 250);
         validateRange("呼吸", req.getRespiration(), 5, 60);
