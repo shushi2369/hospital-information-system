@@ -43,8 +43,9 @@ public class MedinsService {
         if (bill == null) {
             throw new BizException(ErrorCode.B3007);
         }
-        if (bill.getStatus() != 10) {
-            throw new BizException(ErrorCode.B6402, "账单未支付或已退费，不可申报");
+        if (bill.getStatus() == 30) {
+            // 部分退费(20)允许申报（按净额），全额退费不可申报
+            throw new BizException(ErrorCode.B6402, "账单已全额退费，不可申报");
         }
         MedinsSettle existing = settleMapper.selectOne(new LambdaQueryWrapper<MedinsSettle>()
                 .eq(MedinsSettle::getBillId, billId).last("LIMIT 1"));
@@ -53,7 +54,12 @@ public class MedinsService {
             throw new BizException(ErrorCode.B6401);
         }
         var admission = inpAppService.requireAdmission(bill.getAdmissionId());
-        var split = gateway.apply(bill.getPayableAmount(), insuranceType);
+        // 申报按净额（应收 - 已退），防止退费后医保多付
+        java.math.BigDecimal netAmount = bill.getPayableAmount().subtract(bill.getRefundAmount());
+        if (netAmount.compareTo(java.math.BigDecimal.ZERO) <= 0) {
+            throw new BizException(ErrorCode.B6402, "账单已全额退费，不可申报");
+        }
+        var split = gateway.apply(netAmount, insuranceType);
         MedinsSettle settle;
         if (existing != null) {
             settle = existing; // 差异重报：复用原申报单重算并回到待对账
@@ -64,7 +70,7 @@ public class MedinsService {
             settle.setAdmissionId(admission.getId());
         }
         settle.setInsuranceType(insuranceType);
-        settle.setTotalAmount(bill.getPayableAmount());
+        settle.setTotalAmount(netAmount);
         settle.setPoolPay(split.poolPay());
         settle.setAccountPay(split.accountPay());
         settle.setSelfPay(split.selfPay());
@@ -94,8 +100,9 @@ public class MedinsService {
             throw new BizException(ErrorCode.B6403, "该申报单不在待对账状态");
         }
         BilChargeBill bill = billMapper.selectById(settle.getBillId());
-        boolean pass = gateway.reconcile(settle.getSettleNo(), settle.getTotalAmount(),
-                bill == null ? BigDecimal.ZERO : bill.getPayableAmount());
+        BigDecimal netAmount = bill == null ? BigDecimal.ZERO
+                : bill.getPayableAmount().subtract(bill.getRefundAmount());
+        boolean pass = gateway.reconcile(settle.getSettleNo(), settle.getTotalAmount(), netAmount);
         settle.setStatus(pass ? 20 : 30);
         settle.setReconcileTime(LocalDateTime.now());
         settle.setDiffReason(pass ? null : "申报金额与账单不一致");

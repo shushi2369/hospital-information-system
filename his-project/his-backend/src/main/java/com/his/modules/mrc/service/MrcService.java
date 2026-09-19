@@ -208,6 +208,9 @@ public class MrcService {
         if (record.getQcStatus() == null || record.getQcStatus() != 1) {
             throw new BizException(ErrorCode.B6302);
         }
+        if (record.getArchiveStatus() != 10) {
+            throw new BizException(ErrorCode.A0001, "病案当前状态不可归档（已归档或借阅中）");
+        }
         record.setArchiveStatus(20);
         record.setArchiveTime(LocalDateTime.now());
         if (recordMapper.updateById(record) != 1) {
