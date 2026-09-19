@@ -138,6 +138,7 @@ cd his-project/his-web && npm install --registry=https://registry.npmmirror.com 
 - 号源控制存在理论并发竞态窗口（行锁+计数），三期引入号源表+唯一索引彻底消除；
 - 住院检查走"医嘱→执行→一日清"计费，`cli_exam_application.admission_id` 字段已预留未启用；
 - 医保为 Mock 通道（防腐层接口就绪），真实 SDK 联调按当地平台规范进行；
+- 住院停嘱/退费不回冲已摆药库存（需红冲机制，三期实现）；出院当日床位费按次日任务口径计费；
 - 三期规划：LIS/PACS、手术麻醉（ORIS）、药库/PIVAS、体检、急诊五大中心（见设计文档/07 §5 路线图）。
 
 ## 9. 版本历史（要点）
