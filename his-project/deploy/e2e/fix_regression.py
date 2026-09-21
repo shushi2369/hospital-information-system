@@ -226,6 +226,39 @@ def main():
     check("F20. [十四#1] 取消 reason 引号转义(载荷可解析不畸形)", x_event is not None and '\\"' not in payload_str.replace('\\\\', ''),
           payload_str[:100])
 
+    # ================= 二十二轮：过敏史守门（业界患者安全对标） =================
+    id_card2 = "34010519960101" + uid[-4:]
+    call("POST", "/patients", admin, {"name": "过敏复验人" + uid, "gender": 2,
+         "birthDate": "1996-01-01", "idCardNo": id_card2, "phone": "134" + uid,
+         "allergyHistory": "青霉素（复验）"}, idem="fx-ag1-" + uid)
+    st, pl = call("GET", "/patients?name=" + urllib.parse.quote("过敏复验人" + uid), admin)
+    ag_pid = pl["data"]["list"][0]["id"]
+    # 入院（需在院才能开药医嘱）
+    st, beds = call("GET", "/inp/beds?wardId=1&bedStatus=1", admin)
+    n = 0
+    while not beds["data"]:
+        n += 1
+        call("POST", "/inp/beds", admin, {"wardId": 1, "bedNo": "FX-" + uid + "-" + str(n), "chargeItemId": 10},
+             idem="fx-bed-" + uid + str(n))
+        st, beds = call("GET", "/inp/beds?wardId=1&bedStatus=1", admin)
+    bed = beds["data"][0]
+    st, r = call("POST", "/inp/admissions", admin, {
+        "patientId": ag_pid, "deptId": 1, "wardId": bed["wardId"], "bedId": bed["id"],
+        "doctorId": 2, "admissionType": 1, "plannedDiagnosis": "复验",
+        "depositAmount": 1000, "payMethod": 1}, idem="fx-ag2-" + uid)
+    ag_adm = r["data"]["id"]
+    st, dl = call("GET", "/basedata/drugs?status=1", admin)
+    drugs2 = (dl["data"]["list"] if isinstance(dl["data"], dict) else dl["data"]) or []
+    st, r = call("POST", "/doc/orders", doctor, {
+        "admissionId": ag_adm, "orderClass": 2, "category": 1, "frequency": "qd",
+        "items": [{"drugId": drugs2[0]["id"], "quantity": 1}]}, idem="fx-ag3-" + uid)
+    check("F21. [二十二] 过敏史患者开药：开单成功(提示不阻断)", r["code"] == "OK", r)
+    st, hl = call("GET", "/cdss/hits?pageNum=1&pageSize=10", admin)
+    ag_hit = next((h for h in hl["data"]["list"]
+                   if "过敏史记录" in h["message"] and "青霉素" in h["message"]), None)
+    check("F22. [二十二] 过敏史命中留痕(rule_id=0 患者级)", ag_hit is not None,
+          [h["message"][:40] for h in hl["data"]["list"][:3]])
+
     failed = [n for n, ok, _ in results if not ok]
     print("\n===== 修复回归复验结果: %d/%d 通过 =====" % (len(results) - len(failed), len(results)))
     if failed:

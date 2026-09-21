@@ -37,6 +37,7 @@ public class CdssService {
     private final CdssRuleMapper ruleMapper;
     private final CdssHitMapper hitMapper;
     private final com.his.modules.basedata.app.BasedataAppService basedataAppService;
+    private final com.his.modules.patient.app.PatientAppService patientAppService;
     private final PltService pltService;
     private final IdGenerator idGenerator;
 
@@ -119,6 +120,25 @@ public class CdssService {
                 return;
             }
             List<Long> hitIds = new ArrayList<>();
+            // 过敏史守门提示（患者安全，业界 HIS 高频缺陷对标）：
+            // 药品医嘱 + 患者过敏史非空 → 患者级命中（不依赖规则配置，开药即查）
+            if (order.getCategory() != null && order.getCategory() == 1 && order.getPatientId() != null) {
+                com.his.modules.patient.app.PatientDTO patient =
+                        patientAppService.getById(order.getPatientId());
+                String allergy = patient == null ? null : patient.getAllergyHistory();
+                if (allergy != null && !allergy.isBlank()) {
+                    CdssHit record = new CdssHit();
+                    record.setOrderId(order.getId());
+                    record.setDoctorId(order.getDoctorId());
+                    record.setRuleId(0L); // 0=患者级过敏史提示（非规则表项）
+                    String msg = "患者存在过敏史记录：" + allergy + "，请核对用药";
+                    record.setMessage(msg.length() > 256 ? msg.substring(0, 256) : msg);
+                    record.setIgnored(1);
+                    record.setHitTime(LocalDateTime.now());
+                    hitMapper.insert(record);
+                    hitIds.add(record.getId());
+                }
+            }
             for (CdssRule rule : rules) {
                 String hit = match(rule, items);
                 if (hit != null) {
