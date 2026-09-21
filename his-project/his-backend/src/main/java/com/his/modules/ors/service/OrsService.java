@@ -41,6 +41,7 @@ public class OrsService {
     private final OrsOperateRoomMapper roomMapper;
     private final InpAppService inpAppService;
     private final BasedataAppService basedataAppService;
+    private final com.his.modules.system.app.SystemAppService systemAppService;
     private final PltService pltService;
     private final IdGenerator idGenerator;
     private final ObjectMapper objectMapper;
@@ -123,7 +124,7 @@ public class OrsService {
         }
         if (!approved) {
             pltService.recordEvent("ors.request.rejected", request.getRequestNo(),
-                    "{\"reason\":\"" + (req.getReason() == null ? "" : req.getReason().replace("\"", "'")) + "\"}");
+                    "{\"reason\":\"" + escapeJson(req.getReason()) + "\"}");
         }
     }
 
@@ -186,6 +187,10 @@ public class OrsService {
         }
         if (req.getChecker2Id().equals(CurrentUser.id())) {
             throw new BizException(ErrorCode.A0001, "双人签名须为不同人员");
+        }
+        // 第二签名人必须真实存在（防任意 ID 冒签）
+        if (systemAppService.getUsername(req.getChecker2Id()) == null) {
+            throw new BizException(ErrorCode.A0001, "第二签名人不存在");
         }
         for (CheckSubmitRequest.CheckItem item : req.getItems()) {
             if (!Boolean.TRUE.equals(item.getResult())) {
@@ -389,7 +394,7 @@ public class OrsService {
             }
         }
         pltService.recordEvent("ors.request.cancelled", request.getRequestNo(),
-                reason == null ? "{}" : "{\"reason\":\"" + reason + "\"}");
+                "{\"reason\":\"" + escapeJson(reason) + "\"}");
     }
 
     /** 手术间列表（OR-13） */
@@ -430,5 +435,13 @@ public class OrsService {
         if (method == null || method < 1 || method > 5) {
             throw new BizException(ErrorCode.A0001, "麻醉方式取值 1~5");
         }
+    }
+
+    /** 事件载荷 JSON 字符串转义（引号/反斜杠/换行） */
+    private String escapeJson(String s) {
+        if (s == null) {
+            return "";
+        }
+        return s.replace("\\", "\\\\").replace("\"", "'").replace("\n", " ").replace("\r", "");
     }
 }

@@ -260,7 +260,7 @@ public class RisService {
             report.setStatus(30);
             reportMapper.updateById(report);
             pltService.recordEvent("ris.report.rejected", report.getReportNo(),
-                    "{\"reason\":\"" + (req.getReason() == null ? "" : req.getReason().replace("\"", "'")) + "\"}");
+                    "{\"reason\":\"" + escapeJson(req.getReason()) + "\"}");
             return;
         }
         Long reviewer = CurrentUser.id();
@@ -286,10 +286,21 @@ public class RisService {
         pltService.recordEvent("ris.report.published", report.getReportNo(), "{}");
     }
 
-    /** 报告分页（R-09） */
+    /** 报告分页（R-09）：支持按住院/患者过滤（经申请单关联） */
     public PageResult<RisReport> reportPage(RisRequestQuery query) {
+        List<Long> requestIds = null;
+        if (query.getAdmissionId() != null || query.getPatientId() != null) {
+            List<RisRequest> requests = requestMapper.selectList(new LambdaQueryWrapper<RisRequest>()
+                    .eq(query.getAdmissionId() != null, RisRequest::getAdmissionId, query.getAdmissionId())
+                    .eq(query.getPatientId() != null, RisRequest::getPatientId, query.getPatientId()));
+            requestIds = requests.stream().map(RisRequest::getId).toList();
+            if (requestIds.isEmpty()) {
+                return PageResult.of(new Page<>(query.getPageNum(), query.getPageSize()));
+            }
+        }
         Page<RisReport> page = reportMapper.selectPage(query.toPage(),
                 new LambdaQueryWrapper<RisReport>()
+                        .in(requestIds != null, RisReport::getRequestId, requestIds)
                         .eq(query.getStatus() != null, RisReport::getStatus, query.getStatus())
                         .orderByDesc(RisReport::getId));
         return PageResult.of(page);
@@ -347,5 +358,13 @@ public class RisService {
             case 5 -> "心电检查";
             default -> "DR检查";
         };
+    }
+
+    /** 事件载荷 JSON 字符串转义（引号/反斜杠/换行） */
+    private String escapeJson(String s) {
+        if (s == null) {
+            return "";
+        }
+        return s.replace("\\", "\\\\").replace("\"", "'").replace("\n", " ").replace("\r", "");
     }
 }

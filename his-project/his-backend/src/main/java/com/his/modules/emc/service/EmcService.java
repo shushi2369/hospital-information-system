@@ -99,9 +99,16 @@ public class EmcService {
         visit.setDoctorId(req.getDoctorId());
         visit.setPatientId(triage.getPatientId());
         visit.setVisitId(triage.getVisitId());
-        visit.setStartTime(LocalDateTime.now());
+        // 截断到秒：MySQL DATETIME(0) 对带小数秒的值四舍五入会进位，导致
+        // "节点时间早于登记时刻"校验对同秒节点误拦（十四轮查验回归）
+        visit.setStartTime(LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
         visit.setStatus(10);
-        visitMapper.insert(visit);
+        try {
+            visitMapper.insert(visit);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            // 并发双击撞 uk_emc_visit_triage：预检窗口兜底，语义化提示
+            throw new BizException(ErrorCode.A0001, "该分诊单已登记五大中心病例");
+        }
         pltService.recordEvent("emc.visit.registered", visit.getVisitNo(),
                 "{\"center\":" + req.getCenterType() + "}");
         return visit.getVisitNo();
@@ -150,7 +157,8 @@ public class EmcService {
         if (!node.getCenterType().equals(visit.getCenterType())) {
             throw new BizException(ErrorCode.A0001, "节点不属于该中心的节点集");
         }
-        if (req.getNodeTime().isBefore(visit.getStartTime())) {
+        if (req.getNodeTime().truncatedTo(java.time.temporal.ChronoUnit.SECONDS)
+                .isBefore(visit.getStartTime())) {
             throw new BizException(ErrorCode.A0001, "节点时间早于登记时刻，请核实（时限以登记时刻为基准）");
         }
         EmcTimepoint tp = new EmcTimepoint();
