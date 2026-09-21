@@ -30,6 +30,10 @@ public class EmcTriage extends BaseEntity {
     private LocalDateTime triageTime;
     private Integer status;
 
+    /** 非库字段：该分诊单是否已登记五大中心病例（列表展示用） */
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private Integer registered;
+
     @Version
     private Integer version;
 }

@@ -65,7 +65,7 @@ public class EmcService {
         return triage.getTriageNo();
     }
 
-    /** 分诊列表（E-02） */
+    /** 分诊列表（E-02）：附带已登记五大中心病例标记 */
     public PageResult<EmcTriage> pageTriage(EmcVisitQuery query) {
         Page<EmcTriage> page = triageMapper.selectPage(query.toPage(),
                 new LambdaQueryWrapper<EmcTriage>()
@@ -73,6 +73,13 @@ public class EmcService {
                         .eq(query.getCenterType() != null, EmcTriage::getCenterType, query.getCenterType())
                         .eq(query.getStatus() != null, EmcTriage::getStatus, query.getStatus())
                         .orderByDesc(EmcTriage::getId));
+        if (!page.getRecords().isEmpty()) {
+            java.util.Set<Long> triaged = visitMapper.selectList(new LambdaQueryWrapper<EmcVisit>()
+                            .in(EmcVisit::getTriageId, page.getRecords().stream()
+                                    .map(EmcTriage::getId).toList()))
+                    .stream().map(EmcVisit::getTriageId).collect(java.util.stream.Collectors.toSet());
+            page.getRecords().forEach(t -> t.setRegistered(triaged.contains(t.getId()) ? 1 : 0));
+        }
         return PageResult.of(page);
     }
 

@@ -31,7 +31,8 @@
       <el-table-column prop="triageTime" label="分诊时间" width="150" align="center" show-overflow-tooltip />
       <el-table-column label="操作" width="130" align="center" fixed="right">
         <template #default="{ row }">
-          <el-button v-if="row.status === 1" v-perm="'emc:visit:create'" link type="danger" @click="openRegister(row)">中心登记</el-button>
+          <el-button v-if="row.status === 1 && row.registered !== 1" v-perm="'emc:visit:create'" link type="danger" @click="openRegister(row)">中心登记</el-button>
+          <el-tag v-else-if="row.registered === 1" size="small" type="info">已登记</el-tag>
           <span v-else>-</span>
         </template>
       </el-table-column>
