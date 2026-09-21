@@ -124,9 +124,9 @@ def main():
         "vitalBefore": "T36.5"}, idem="p4-t1b-" + uid)
     check("13a. [二十五#3] 未发血袋输注拦截", r["code"] != "OK", r)
     st, r = call("POST", "/bb/requests/%d/transfusion" % req_id, nurse, {
-        "bagId": new_bag_id, "checker1Id": 6, "checker2Id": 2,
+        "bagId": new_bag_id, "checker2Id": 2,
         "vitalBefore": "T36.5 P80 R18 BP120/80"}, idem="p4-t2-" + uid)
-    check("13. 双签通过开始输注(40→50)", r["code"] == "OK", r)
+    check("13. 双签通过开始输注(40→50, 核对签1=执行护士本人)", r["code"] == "OK", r)
     st, r = call("POST", "/bb/requests/%d/adverse" % req_id, nurse, {
         "type": 1, "severity": 1, "handleNote": "轻度发热，减慢滴速观察"}, idem="p4-a1-" + uid)
     check("14. 不良反应登记", r["code"] == "OK", r)

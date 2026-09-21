@@ -74,6 +74,9 @@ public class CdssService {
         rule.setRuleType(req.getRuleType());
         rule.setRefAId(req.getRefAId());
         rule.setRefBId(req.getRefBId());
+        rule.setAllergyKeyword(req.getAllergyKeyword());
+        rule.setAgeMin(req.getAgeMin());
+        rule.setAgeMax(req.getAgeMax());
         rule.setLevel(req.getLevel() == null ? 1 : req.getLevel());
         rule.setMessage(req.getMessage());
         rule.setStatus(req.getStatus() == null ? 1 : req.getStatus());

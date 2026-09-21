@@ -12,7 +12,7 @@ import lombok.Setter;
 public class TransfusionStartRequest {
     @NotNull(message = "血袋不能为空")
     private Long bagId;
-    @NotNull(message = "核对签 1 不能为空")
+    /** 核对签 1 由服务端强制为当前执行护士（传入值忽略） */
     private Long checker1Id;
     @NotNull(message = "核对签 2 不能为空")
     private Long checker2Id;

@@ -287,7 +287,14 @@ public class BbService {
         if (request.getStatus() != 40) {
             throw new BizException(ErrorCode.A0001, "血液未发血，不能开始输注");
         }
-        if (req.getChecker1Id().equals(req.getChecker2Id())) {
+        // 核对签 1 强制为当前登录执行护士（床边执行者即本人，防代签）
+        if (req.getChecker1Id() != null && !req.getChecker1Id().equals(CurrentUser.id())) {
+            throw new BizException(ErrorCode.A0001, "核对签 1 须为当前执行护士本人");
+        }
+        if (systemAppService.getUsername(req.getChecker2Id()) == null) {
+            throw new BizException(ErrorCode.A0001, "床边核对签 2 不存在");
+        }
+        if (req.getChecker2Id().equals(CurrentUser.id())) {
             throw new BizException(ErrorCode.A0001, "床边核对须双人双签（不得同一人）");
         }
         // 输注血袋必须是本申请实际发出的血袋
@@ -301,7 +308,7 @@ public class BbService {
         tf.setRequestId(id);
         tf.setBagId(req.getBagId());
         tf.setExecutorId(CurrentUser.id());
-        tf.setChecker1Id(req.getChecker1Id());
+        tf.setChecker1Id(CurrentUser.id());
         tf.setChecker2Id(req.getChecker2Id());
         tf.setVitalBefore(req.getVitalBefore());
         tf.setStartTime(LocalDateTime.now());
