@@ -74,9 +74,10 @@ public class KpiService {
                 .ge(InpAdmission::getStatus, 20)
                 .isNotNull(InpAdmission::getDischargeTime)
                 .last("LIMIT 1000"));
+        // 住院日口径：入院登记时间（admission_time）→ 出院时间，非记录创建时间（补录/转科场景会偏差）
         double avgStay = discharged.stream()
-                .filter(a -> a.getDischargeTime() != null && a.getCreatedAt() != null)
-                .mapToLong(a -> java.time.Duration.between(a.getCreatedAt(), a.getDischargeTime()).toDays())
+                .filter(a -> a.getDischargeTime() != null && a.getAdmissionTime() != null)
+                .mapToLong(a -> java.time.Duration.between(a.getAdmissionTime(), a.getDischargeTime()).toDays())
                 .average().orElse(0);
         m.put("dischargedCount", discharged.size());
         m.put("avgStayDays", BigDecimal.valueOf(avgStay).setScale(1, RoundingMode.HALF_UP));
