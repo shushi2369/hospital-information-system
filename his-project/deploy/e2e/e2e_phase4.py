@@ -88,7 +88,7 @@ def main():
     bags = [b for b in av["data"] if b["bagNo"] == "XDJ-FX-" + uid]
     check("6. 可用血袋查询(含新袋)", len(bags) == 1, [b["bagNo"] for b in av["data"]])
     new_bag_id = bags[0]["id"]
-    st, all_bags = call("GET", "/bb/bags?pageNum=1&pageSize=50", bb_tech)
+    st, all_bags = call("GET", "/bb/bags?pageNum=1&pageSize=100", bb_tech)
     demo_bag = next((b for b in all_bags["data"]["list"] if b["bagNo"] == "XDJ20260001"), None)
     check("7. V30 演示血袋存在(在库或已被历轮正常消耗)", demo_bag is not None,
           [b["bagNo"] for b in all_bags["data"]["list"][:5]])
@@ -104,8 +104,11 @@ def main():
     st, rl20 = call("GET", "/bb/requests?status=20", bb_tech)
     check("8b. 不相容不推进状态(仍配血中)", any(x["id"] == req_id for x in rl20["data"]["list"]), "")
     # 二十五#2：血型/成分不匹配（XDJ20260003 为 A 型血浆 vs O 型红细胞申请）→ 配血拦截
-    st, bl3 = call("GET", "/bb/bags?pageNum=1&pageSize=50", bb_tech)
+    st, bl3 = call("GET", "/bb/bags?pageNum=1&pageSize=100", bb_tech)
     mismatch_bag = next((b for b in bl3["data"]["list"] if b["bagNo"] == "XDJ20260003"), None)
+    if mismatch_bag is None:
+        check("10a. [二十五#2] 血型/成分不匹配配血拦截", False, "XDJ20260003 不在袋列表")
+        return
     st, r = call("POST", "/bb/requests/%d/cross-match" % req_id, bb_tech, {
         "bagId": mismatch_bag["id"], "crossMethod": "抗人球", "crossResult": 1}, idem="p4-x2b-" + uid)
     check("10a. [二十五#2] 血型/成分不匹配配血拦截", r["code"] != "OK", r)
@@ -144,7 +147,7 @@ def main():
           len(det["crossMatches"]) == 2 and len(det["issues"]) == 1
           and len(det["transfusions"]) == 1 and len(det["adverses"]) == 1,
           {k: len(det[k]) for k in ("crossMatches", "issues", "transfusions", "adverses")})
-    st, bl = call("GET", "/bb/bags?pageNum=1&pageSize=50", bb_tech)
+    st, bl = call("GET", "/bb/bags?pageNum=1&pageSize=100&status=2", bb_tech)
     used_bag = next((b for b in bl["data"]["list"] if b["id"] == new_bag_id), None)
     check("17. 本轮血袋状态已发用", used_bag is not None and used_bag["status"] == 2,
           (used_bag or {}).get("status"))
@@ -200,7 +203,7 @@ def main():
     # 过敏患者（含磺胺）入院开药 → 精确命中
     id_card = "34010519940101" + uid[-4:]
     call("POST", "/patients", admin, {"name": "四期过敏患者" + uid, "gender": 1,
-         "birthDate": "1994-01-01", "idCardNo": id_card, "phone": "132" + uid,
+         "birthDate": "1994-01-01", "idCardNo": id_card, "phone": "1" + str(int(time.time()*1000))[-10:],
          "allergyHistory": "对磺胺类药物过敏（四期验收）"}, idem="p4-pt1-" + uid)
     st, pl = call("GET", "/patients?name=" + urllib.parse.quote("四期过敏患者" + uid), admin)
     alg_pid = pl["data"]["list"][0]["id"]
@@ -231,7 +234,7 @@ def main():
     check("27. type=3 年龄维度规则创建", r["code"] == "OK", r)
     id_card2 = "34010520200101" + uid[-4:]
     call("POST", "/patients", admin, {"name": "四期儿童患者" + uid, "gender": 1,
-         "birthDate": "2020-06-01", "idCardNo": id_card2, "phone": "131" + uid}, idem="p4-pt2-" + uid)
+         "birthDate": "2020-06-01", "idCardNo": id_card2, "phone": "1" + str(int(time.time()*1000))[-10:]}, idem="p4-pt2-" + uid)
     st, pl = call("GET", "/patients?name=" + urllib.parse.quote("四期儿童患者" + uid), admin)
     kid_pid = pl["data"]["list"][0]["id"]
     st, beds2 = call("GET", "/inp/beds?wardId=1&bedStatus=1", admin)
@@ -267,19 +270,31 @@ def main():
 
     # ================= 四期二批：门诊检查 RIS 闭环 =================
     cashier2 = login("cashier.li")
-    st, r = call("POST", "/registrations", cashier2, {
-        "patientId": alg_pid, "doctorId": 2, "regDate": today, "period": 2,
-        "regType": 1}, idem="p4-op1-" + uid)
-    check("31. 门诊挂号", r["code"] == "OK", r)
-    st, rl = call("GET", "/registrations?patientId=%s&regDate=%s" % (alg_pid, today), cashier2)
+    reg_ok = False
+    doctor_tokens = {2: doctor, 3: login("dr.chen"), 4: login("dr.wang")}
+    for day_off in range(7):  # 号源被多轮回归耗尽：按医生/日期轮换
+        for doc in (2, 3, 4):
+            reg_date = (datetime.datetime.strptime(today, "%Y-%m-%d")
+                        + datetime.timedelta(days=day_off)).strftime("%Y-%m-%d")
+            st, r = call("POST", "/registrations", cashier2, {
+                "patientId": alg_pid, "doctorId": doc, "regDate": reg_date, "period": 2,
+                "regType": 1}, idem="p4-op1-%s-%d" % (uid, day_off * 3 + doc))
+            if r["code"] == "OK":
+                reg_ok = True
+                reg_token = doctor_tokens[doc]
+                break
+        if reg_ok:
+            break
+    check("31. 门诊挂号", reg_ok, r)
+    st, rl = call("GET", "/registrations?patientId=%s" % alg_pid, cashier2)
     reg_id = rl["data"]["list"][0]["id"]
-    st, r = call("POST", "/clinic/visits/%d/start" % reg_id, doctor, idem="p4-op2-" + uid)
+    st, r = call("POST", "/clinic/visits/%d/start" % reg_id, reg_token, idem="p4-op2-" + uid)
     check("32. 就诊开始", r["code"] == "OK", r)
     visit_id = r["data"]  # 就诊开始返回 visitId(int)
     # 开检查申请（胸部DR id=5, category=3 → apply_type=1）
-    call("POST", "/clinic/visits/%d/exam-applications" % visit_id, doctor,
+    call("POST", "/clinic/visits/%d/exam-applications" % visit_id, reg_token,
          {"chargeItemId": 5}, idem="p4-op3-" + uid)
-    call("POST", "/clinic/visits/%d/complete" % visit_id, doctor, idem="p4-op4-" + uid)
+    call("POST", "/clinic/visits/%d/complete" % visit_id, reg_token, idem="p4-op4-" + uid)
     st, r = call("POST", "/billing/bills", cashier2, {
         "visitId": visit_id, "payMethod": 1}, idem="p4-op5-" + uid)
     check("33. 门诊收费（触发 RIS 联动 hook）", r["code"] == "OK", r)

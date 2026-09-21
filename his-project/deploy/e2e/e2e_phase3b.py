@@ -7,6 +7,7 @@ HIS 三期第二批端到端验收脚本（手术麻醉 ORIS + 影像 RIS + 急�
 """
 import json
 import sys
+import random
 import time
 import urllib.request
 import urllib.error
@@ -55,31 +56,30 @@ def charge_item_by_category(token, category):
 
 
 def try_schedule(token, req_id, room_id, seq_start, idem, today):
-    """同日唯一索引(uk_schedule_slot)不含状态，已完成槽位仍占位：递增台次直至成功；
-    当日槽位耗尽（seq 超上限）自动切到次日（跨日槽位全新）"""
-    import datetime
-    tomorrow = (datetime.datetime.strptime(today, "%Y-%m-%d")
-                + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
-    seq = seq_start
-    date = today
-    for _ in range(80):  # 覆盖多日槽位（每日10台×3间，密集回归时向前推进）
+    """全房间×多日搜索可用槽位"""
+    seq, date, room = seq_start, today, room_id
+    for _ in range(120):
         st, r = call("POST", "/ors/requests/%d/schedule" % req_id, token,
-                     {"roomId": room_id, "surgeryDate": date, "seqNo": seq, "surgeonId": 2},
-                     idem="%s-%s-%d" % (idem, date, seq))
+                     {"roomId": room, "surgeryDate": date, "seqNo": seq, "surgeonId": 2},
+                     idem="%s-%s-%d-%d" % (idem, date, room, seq))
         if r["code"] == "OK":
-            return date, seq, r
+            return date, seq, room, r
         seq += 1
-        if seq > 10:  # 台次参数上限：切次日从 1 重来
+        if seq > 10:
             seq = 1
-            date = (datetime.datetime.strptime(date, "%Y-%m-%d")
-                    + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+            room += 1
+            if room > 3:
+                room = 1
+                date = (datetime.datetime.strptime(date, "%Y-%m-%d")
+                        + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+    return date, seq, room, r
     return date, seq, r
 
 
 def main():
-    uid = str(int(time.time() * 1000))[-8:]
+    uid = str(int(time.time() * 1000))[-8:] + str(random.randint(10, 99))
     id_card = "34010519950101" + uid[-4:]
-    phone = "138" + uid
+    phone = "1" + str(int(time.time()*1000))[-10:]
     today = time.strftime("%Y-%m-%d")
     seq_base = int(uid[-1]) % 4 + 1  # 台次按轮次错开：uk_schedule_slot 唯一索引不含状态，已完成排台行仍占位
 
@@ -137,7 +137,7 @@ def main():
     st, r = call("POST", "/ors/requests/%d/review" % or_a_id, doctor, {"approved": True}, idem="p3b-or1rv-" + uid)
     check("6. 审核通过(20)", r["code"] == "OK", r)
 
-    sched_date, or_a_seq, r = try_schedule(or_nurse, or_a_id, 1, seq_base, "p3b-or1sc-" + uid, today)
+    sched_date, or_a_seq, or_a_room, r = try_schedule(or_nurse, or_a_id, 1, seq_base, "p3b-or1sc-" + uid, today)
     check("7. 排台成功(30)", r["code"] == "OK" and str(r.get("data", "")).startswith("PT"), r)
 
     # 单B：门禁测试（排台后不核查直接开始）
@@ -148,7 +148,7 @@ def main():
     st, ol = call("GET", "/ors/requests?admissionId=%d&status=10" % admission_id, doctor)
     or_b_id = [o for o in ol["data"]["list"] if o["surgeryName"] == "清创缝合术"][0]["id"]
     call("POST", "/ors/requests/%d/review" % or_b_id, doctor, {"approved": True}, idem="p3b-or2rv-" + uid)
-    try_schedule(or_nurse, or_b_id, 2, seq_base, "p3b-or2sc-" + uid, today)
+    try_schedule(or_nurse, or_b_id, 2, seq_base, "p3b-or2sc-" + uid, today)  # 返回值不使用
     st, r = call("POST", "/ors/requests/%d/start" % or_b_id, or_nurse, idem="p3b-or2st-" + uid)
     check("8. 门禁：缺核查单禁止开始手术", r["code"] != "OK", r)
 
@@ -161,7 +161,7 @@ def main():
     or_c_id = [o for o in ol["data"]["list"] if o["surgeryName"] == "肿块切除术"][0]["id"]
     call("POST", "/ors/requests/%d/review" % or_c_id, doctor, {"approved": True}, idem="p3b-or3rv-" + uid)
     st, r = call("POST", "/ors/requests/%d/schedule" % or_c_id, or_nurse,
-                 {"roomId": 1, "surgeryDate": sched_date, "seqNo": or_a_seq, "surgeonId": 2}, idem="p3b-or3sc-" + uid)
+                 {"roomId": or_a_room, "surgeryDate": sched_date, "seqNo": or_a_seq, "surgeonId": 2}, idem="p3b-or3sc-" + uid)
     check("9. 同手术间同日同台次冲突拦截(占用中)", r["code"] != "OK", r)
 
     # 单A：三方核查（麻醉前 + 切皮前）

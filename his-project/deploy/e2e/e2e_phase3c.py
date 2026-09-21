@@ -63,13 +63,13 @@ def main():
     # ================= HR 人事 =================
     st, r = call("POST", "/hr/staff", admin, {
         "name": "查验员工" + uid, "deptId": 1, "title": "住院医师",
-        "entryDate": today, "phone": "137" + uid}, idem="p3c-hr1-" + uid)
+        "entryDate": today, "phone": "1" + str(int(time.time()*1000))[-10:]}, idem="p3c-hr1-" + uid)
     check("2. 员工建档(YG)", r["code"] == "OK", r)
     st, pl = call("GET", "/hr/staff?name=" + urllib.parse.quote("查验员工" + uid), admin)
     staff_id = pl["data"]["list"][0]["id"]
     st, r = call("PUT", "/hr/staff/%d" % staff_id, admin, {
         "name": "查验员工" + uid, "deptId": 1, "title": "住院医师",
-        "entryDate": today, "phone": "137" + uid}, idem="p3c-hr2-" + uid)
+        "entryDate": today, "phone": "1" + str(int(time.time()*1000))[-10:]}, idem="p3c-hr2-" + uid)
     check("3. 档案更新", r["code"] == "OK", r)
     st, r = call("POST", "/hr/staff/%d/title-change" % staff_id, admin, {
         "newTitle": "主治医师", "effectiveDate": today, "note": "查验"}, idem="p3c-hr3-" + uid)
@@ -148,7 +148,7 @@ def main():
     # 体检人：复用既有患者（取分诊列表里的患者或建档）
     id_card = "34010519980101" + uid[-4:]
     call("POST", "/patients", admin, {"name": "体检人" + uid, "gender": 1,
-         "birthDate": "1998-01-01", "idCardNo": id_card, "phone": "136" + uid}, idem="p3c-pt-" + uid)
+         "birthDate": "1998-01-01", "idCardNo": id_card, "phone": "1" + str(int(time.time()*1000))[-10:]}, idem="p3c-pt-" + uid)
     st, pl = call("GET", "/patients?name=" + urllib.parse.quote("体检人" + uid), admin)
     pe_patient_id = pl["data"]["list"][0]["id"]
     st, r = call("POST", "/pe/records", pe_nurse, {

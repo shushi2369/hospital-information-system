@@ -66,6 +66,7 @@ import java.util.stream.Collectors;
 public class ClinicService {
     private final CliVisitMapper visitMapper;
     private final CliDiagnosisMapper diagnosisMapper;
+    private final com.his.modules.pub.service.PubService pubService;
     private final CliMedicalOrderMapper orderMapper;
     private final CliPrescriptionMapper prescriptionMapper;
     private final CliPrescriptionItemMapper prescriptionItemMapper;
@@ -163,6 +164,13 @@ public class ClinicService {
                 : req.getDiagnosisType() == null ? 2 : req.getDiagnosisType());
         diagnosis.setStatus(1);
         diagnosisMapper.insert(diagnosis);
+        // 传染病自动报卡触发（四期三批，clinic → pub 单向；pub 内部消化异常）
+        try {
+            pubService.autoCreateCards(visitId, null, visit.getPatientId(),
+                    visit.getDoctorId(), req.getDiagnosisName());
+        } catch (Exception e) {
+            // 触发失败不影响诊断保存
+        }
         return diagnosis.getId();
     }
 

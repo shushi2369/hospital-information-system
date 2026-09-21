@@ -110,6 +110,11 @@ def main():
     req_id = [x["id"] for x in rl["data"]["list"] if x["usePurpose"] == "并发复验"][0]
     call("POST", "/bb/requests/%d/review?approved=true" % req_id, bb_tech, idem="cc-b2-" + uid)
     st, av = call("GET", "/bb/bags/available?bloodType=4&component=1", bb_tech)
+    if not av["data"]:  # 在库耗尽：自动入库新血袋（血袋为一次性资源）
+        call("POST", "/bb/bags", bb_tech, {
+            "bagNo": "CC-BAG-" + uid, "bloodType": 4, "rh": 1, "component": 1,
+            "volumeMl": 200, "expireDate": "2027-12-31"}, idem="cc-bag-" + uid)
+        st, av = call("GET", "/bb/bags/available?bloodType=4&component=1", bb_tech)
     bag_id = av["data"][0]["id"]
     call("POST", "/bb/requests/%d/cross-match" % req_id, bb_tech, {
         "bagId": bag_id, "crossMethod": "盐水介质", "crossResult": 1}, idem="cc-b3-" + uid)
@@ -139,6 +144,11 @@ def main():
     req2 = [x["id"] for x in rl["data"]["list"] if x["usePurpose"] == "竞态复验"][0]
     call("POST", "/bb/requests/%d/review?approved=true" % req2, bb_tech, idem="cc-b5-" + uid)
     st, av = call("GET", "/bb/bags/available?bloodType=4&component=1", bb_tech)
+    if not av["data"]:  # 在库耗尽：再补一袋
+        call("POST", "/bb/bags", bb_tech, {
+            "bagNo": "CC-BAG2-" + uid, "bloodType": 4, "rh": 1, "component": 1,
+            "volumeMl": 200, "expireDate": "2027-12-31"}, idem="cc-bag2-" + uid)
+        st, av = call("GET", "/bb/bags/available?bloodType=4&component=1", bb_tech)
     bag2 = av["data"][0]["id"]
     # 并发：取消 + 配血同时发
     calls = [

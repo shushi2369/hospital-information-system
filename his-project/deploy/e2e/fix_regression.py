@@ -7,6 +7,7 @@ HIS 修复回归复验脚本（fix_regression.py）
 """
 import json
 import sys
+import random
 import time
 import urllib.request
 import urllib.error
@@ -48,22 +49,26 @@ def login(username):
 
 
 def try_schedule(token, req_id, room_id, idem, today):
-    seq, date = 1, today
-    for _ in range(80):  # 日期持续递进（每日10台×3间，密集回归时向前推进）
+    """全房间×多日搜索可用槽位"""
+    seq, date, room = 1, today, room_id
+    for _ in range(120):
         st, r = call("POST", "/ors/requests/%d/schedule" % req_id, token,
-                     {"roomId": room_id, "surgeryDate": date, "seqNo": seq, "surgeonId": 2},
-                     idem="%s-%s-%d" % (idem, date, seq))
+                     {"roomId": room, "surgeryDate": date, "seqNo": seq, "surgeonId": 2},
+                     idem="%s-%s-%d-%d" % (idem, date, room, seq))
         if r["code"] == "OK":
-            return date, r
+            return date, seq, room, r
         seq += 1
         if seq > 10:
-            seq, date = 1, (datetime.datetime.strptime(date, "%Y-%m-%d")
-                            + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
-    return date, r
-
+            seq = 1
+            room += 1
+            if room > 3:
+                room = 1
+                date = (datetime.datetime.strptime(date, "%Y-%m-%d")
+                        + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+    return date, seq, room, r
 
 def main():
-    uid = str(int(time.time() * 1000))[-8:]
+    uid = str(int(time.time() * 1000))[-8:] + str(random.randint(10, 99))
     today = time.strftime("%Y-%m-%d")
     admin = login("admin")
     doctor = login("dr.li")
@@ -109,7 +114,7 @@ def main():
     pkg = next((p for p in pl["data"]["list"] if p["name"] == "复验套餐" + uid), None)
     id_card = "34010519970101" + uid[-4:]
     call("POST", "/patients", admin, {"name": "复验体检人" + uid, "gender": 1,
-         "birthDate": "1997-01-01", "idCardNo": id_card, "phone": "135" + uid}, idem="fx-pt-" + uid)
+         "birthDate": "1997-01-01", "idCardNo": id_card, "phone": "1" + str(int(time.time()*1000))[-10:]}, idem="fx-pt-" + uid)
     st, pl = call("GET", "/patients?name=" + urllib.parse.quote("复验体检人" + uid), admin)
     pid = pl["data"]["list"][0]["id"]
     st, r = call("POST", "/pe/records", admin, {
@@ -135,7 +140,7 @@ def main():
     st, ol = call("GET", "/ors/requests?admissionId=75&status=10", doctor)
     or_id = [o for o in ol["data"]["list"] if o["surgeryName"].startswith("复验手术")][0]["id"]
     call("POST", "/ors/requests/%d/review" % or_id, doctor, {"approved": True}, idem="fx-o2-" + uid)
-    sched_date, r = try_schedule(admin, or_id, 3, "fx-o3-" + uid, today)
+    sched_date, or_a_seq, or_a_room, r = try_schedule(admin, or_id, 1, 1, "fx-o3-" + uid, today)
     check("F07. 前置：排台成功", r["code"] == "OK", r)
     checklist = [{"item": "项%d" % i, "result": True} for i in range(1, 11)]
     st, r = call("POST", "/ors/requests/%d/checks" % or_id, admin,
@@ -228,7 +233,7 @@ def main():
     # ================= 二十二轮：过敏史守门（业界患者安全对标） =================
     id_card2 = "34010519960101" + uid[-4:]
     call("POST", "/patients", admin, {"name": "过敏复验人" + uid, "gender": 2,
-         "birthDate": "1996-01-01", "idCardNo": id_card2, "phone": "134" + uid,
+         "birthDate": "1996-01-01", "idCardNo": id_card2, "phone": "1" + str(int(time.time()*1000))[-10:],
          "allergyHistory": "青霉素（复验）"}, idem="fx-ag1-" + uid)
     st, pl = call("GET", "/patients?name=" + urllib.parse.quote("过敏复验人" + uid), admin)
     ag_pid = pl["data"]["list"][0]["id"]
@@ -262,7 +267,7 @@ def main():
     for tag, nm in [("MA", "合并源患者" + uid), ("MB", "合并目标患者" + uid)]:
         card = ("3401051995010" + ("1" if tag == "MA" else "2")) + uid[-4:]
         call("POST", "/patients", admin, {"name": nm, "gender": 1,
-             "birthDate": "1995-01-01", "idCardNo": card, "phone": ("133" + uid)[:11]},
+             "birthDate": "1995-01-01", "idCardNo": card, "phone": "1" + str(int(time.time()*1000))[-10:]},
              idem="fx-%s-" % tag + uid)
     st, sa = call("GET", "/patients?name=" + urllib.parse.quote("合并源患者" + uid), admin)
     src_pid = sa["data"]["list"][0]["id"]
