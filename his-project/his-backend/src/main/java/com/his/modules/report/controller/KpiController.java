@@ -64,6 +64,8 @@ public class KpiController {
         Map<String, Object> safety = kpiService.safety(from, to);
         csv(sb, "危急值闭环率%", safety.get("alertCloseRate"));
         csv(sb, "手术核查率%", safety.get("surgeryCheckRate"));
+        csv(sb, "输血完成例数", safety.get("transfusionsDone"));
+        csv(sb, "输血不良反应率%", safety.get("adverseRate"));
         response.setContentType("text/csv;charset=UTF-8");
         response.setHeader("Content-Disposition", "attachment; filename=kpi.csv");
         // UTF-8 BOM 便于 Excel 识别

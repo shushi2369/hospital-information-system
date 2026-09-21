@@ -5,6 +5,8 @@ import com.his.modules.alert.entity.AlertCritical;
 import com.his.modules.alert.mapper.AlertCriticalMapper;
 import com.his.modules.billing.entity.BilChargeBill;
 import com.his.modules.billing.entity.BilRefundBill;
+import com.his.modules.bb.entity.BbAdverse;
+import com.his.modules.bb.entity.BbRequest;
 import com.his.modules.billing.mapper.BilRefundBillMapper;
 import com.his.modules.billing.mapper.BilChargeBillMapper;
 import com.his.modules.clinic.entity.CliVisit;
@@ -52,6 +54,8 @@ public class KpiService {
     private final OrsCheckRecordMapper checkMapper;
     private final AlertCriticalMapper alertMapper;
     private final com.his.modules.billing.mapper.BilRefundBillMapper refundBillMapper;
+    private final com.his.modules.bb.mapper.BbRequestMapper bbRequestMapper;
+    private final com.his.modules.bb.mapper.BbAdverseMapper adverseMapper;
     private final DocOrderMapper orderMapper;
 
     /** K-01 工作量 */
@@ -142,7 +146,23 @@ public class KpiService {
         m.put("surgeriesFullyChecked", checked);
         m.put("surgeryCheckRate", done.isEmpty() ? 0 : BigDecimal.valueOf(checked * 100.0 / done.size())
                 .setScale(1, RoundingMode.HALF_UP));
+        // 四期：输血安全（不良反应率 = 不良反应例数 / 输血完成例数）
+        long transfusions = transfusionDoneCount(from, to);
+        long adverseCnt = adverseMapper.selectCount(new LambdaQueryWrapper<BbAdverse>()
+                .ge(from != null, BbAdverse::getReportTime, from)
+                .le(to != null, BbAdverse::getReportTime, to));
+        m.put("transfusionsDone", transfusions);
+        m.put("adverseCount", adverseCnt);
+        m.put("adverseRate", transfusions == 0 ? 0 : BigDecimal.valueOf(adverseCnt * 100.0 / transfusions)
+                .setScale(1, RoundingMode.HALF_UP));
         return m;
+    }
+
+    private Long transfusionDoneCount(LocalDateTime from, LocalDateTime to) {
+        return bbRequestMapper.selectCount(new LambdaQueryWrapper<com.his.modules.bb.entity.BbRequest>()
+                .eq(com.his.modules.bb.entity.BbRequest::getStatus, 60)
+                .ge(from != null, com.his.modules.bb.entity.BbRequest::getUpdatedAt, from)
+                .le(to != null, com.his.modules.bb.entity.BbRequest::getUpdatedAt, to));
     }
 
     private <T> com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<T> between(
