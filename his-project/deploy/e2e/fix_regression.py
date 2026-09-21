@@ -48,9 +48,9 @@ def login(username):
     return r["data"]["token"]
 
 
-def try_schedule(token, req_id, room_id, idem, today):
+def try_schedule(token, req_id, room_id, seq_start, idem, today):
     """全房间×多日搜索可用槽位"""
-    seq, date, room = 1, today, room_id
+    seq, date, room = seq_start, today, room_id
     for _ in range(120):
         st, r = call("POST", "/ors/requests/%d/schedule" % req_id, token,
                      {"roomId": room, "surgeryDate": date, "seqNo": seq, "surgeonId": 2},
