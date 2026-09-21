@@ -138,6 +138,7 @@ public class AuthService {
         if (!passwordEncoder.matches(req.getOldPassword(), user.getPasswordHash())) {
             throw new BizException(ErrorCode.A0001, "旧密码不正确");
         }
+        com.his.modules.system.service.UserService.validatePasswordStrength(req.getNewPassword());
         SysUser update = new SysUser();
         update.setId(user.getId());
         update.setPasswordHash(passwordEncoder.encode(req.getNewPassword()));

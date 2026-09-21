@@ -69,6 +69,10 @@ public class PltService {
         if (source.getMergeFlag() == 1) {
             throw new BizException(ErrorCode.A0001, "该主索引已合并");
         }
+        // 目标须为未合并索引：合并到已合并目标会产生断链（A→B→C 归一需链解析，查验二十七轮）
+        if (target.getMergeFlag() != null && target.getMergeFlag() == 1) {
+            throw new BizException(ErrorCode.A0001, "目标主索引已合并至其他索引，请直接合并至最终索引");
+        }
         source.setMergeFlag(1);
         source.setMergedInto(target.getId());
         masterIndexMapper.updateById(source);

@@ -143,9 +143,10 @@ def main():
           len(det["crossMatches"]) == 2 and len(det["issues"]) == 1
           and len(det["transfusions"]) == 1 and len(det["adverses"]) == 1,
           {k: len(det[k]) for k in ("crossMatches", "issues", "transfusions", "adverses")})
-    st, bl = call("GET", "/bb/bags?bloodType=4&status=2", bb_tech)
-    used = [b for b in bl["data"]["list"] if b["id"] == new_bag_id]
-    check("17. 血袋状态已发用", len(used) == 1, len(used))
+    st, bl = call("GET", "/bb/bags?pageNum=1&pageSize=50", bb_tech)
+    used_bag = next((b for b in bl["data"]["list"] if b["id"] == new_bag_id), None)
+    check("17. 本轮血袋状态已发用", used_bag is not None and used_bag["status"] == 2,
+          (used_bag or {}).get("status"))
 
     # ================= 耗材批次 FEFO =================
     code = "P4B" + uid

@@ -138,10 +138,18 @@ public class UserService {
     }
 
     public void resetPassword(Long id, String newPassword) {
+        validatePasswordStrength(newPassword);
         SysUser user = requireUser(id);
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userMapper.updateById(user);
         sessionService.remove(id);
+    }
+
+    /** 密码强度（等保基线）：≥8 位且同时含字母与数字 */
+    public static void validatePasswordStrength(String pwd) {
+        if (pwd == null || pwd.length() < 8 || !pwd.matches(".*[A-Za-z].*") || !pwd.matches(".*[0-9].*")) {
+            throw new BizException(ErrorCode.A0001, "密码须至少 8 位且同时包含字母与数字");
+        }
     }
 
     private void bindRoles(Long userId, Set<Long> roleIds) {

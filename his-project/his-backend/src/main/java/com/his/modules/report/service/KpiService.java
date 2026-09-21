@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.his.modules.alert.entity.AlertCritical;
 import com.his.modules.alert.mapper.AlertCriticalMapper;
 import com.his.modules.billing.entity.BilChargeBill;
+import com.his.modules.billing.entity.BilRefundBill;
+import com.his.modules.billing.mapper.BilRefundBillMapper;
 import com.his.modules.billing.mapper.BilChargeBillMapper;
 import com.his.modules.clinic.entity.CliVisit;
 import com.his.modules.clinic.mapper.CliVisitMapper;
@@ -49,6 +51,7 @@ public class KpiService {
     private final OrsSurgeryRequestMapper surgeryMapper;
     private final OrsCheckRecordMapper checkMapper;
     private final AlertCriticalMapper alertMapper;
+    private final com.his.modules.billing.mapper.BilRefundBillMapper refundBillMapper;
     private final DocOrderMapper orderMapper;
 
     /** K-01 工作量 */
@@ -70,22 +73,25 @@ public class KpiService {
     public Map<String, Object> efficiency(LocalDateTime from, LocalDateTime to) {
         Map<String, Object> m = new LinkedHashMap<>();
         // 平均住院日：已出院（status>=20）且有出院时间的患者
-        List<InpAdmission> discharged = admissionMapper.selectList(new LambdaQueryWrapper<InpAdmission>()
-                .ge(InpAdmission::getStatus, 20)
-                .isNotNull(InpAdmission::getDischargeTime)
-                .ge(from != null, InpAdmission::getDischargeTime, from)
-                .le(to != null, InpAdmission::getDischargeTime, to)
-                .last("LIMIT 1000"));
-        // 住院日口径：入院登记时间（admission_time）→ 出院时间，非记录创建时间（补录/转科场景会偏差）
-        double avgStay = discharged.stream()
-                .filter(a -> a.getDischargeTime() != null && a.getAdmissionTime() != null)
-                .mapToLong(a -> java.time.Duration.between(a.getAdmissionTime(), a.getDischargeTime()).toDays())
-                .average().orElse(0);
-        m.put("dischargedCount", discharged.size());
-        m.put("avgStayDays", BigDecimal.valueOf(avgStay).setScale(1, RoundingMode.HALF_UP));
+        // 住院日口径：SQL 端聚合（TIMESTAMPDIFF），无 LIMIT 截断（二十七轮：原内存计算 LIMIT 1000 有偏差）
+        com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<InpAdmission> qw =
+                new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<>();
+        qw.select("COUNT(*) AS cnt", "AVG(TIMESTAMPDIFF(DAY, admission_time, discharge_time)) AS avg_days")
+          .ge("status", 20).isNotNull("discharge_time")
+          .ge(from != null, "discharge_time", from).le(to != null, "discharge_time", to);
+        List<Map<String, Object>> agg = admissionMapper.selectMaps(qw);
+        Object cnt = agg.isEmpty() ? 0 : agg.get(0).get("cnt");
+        Object avgDays = agg.isEmpty() ? 0 : agg.get(0).get("avg_days");
+        m.put("dischargedCount", cnt == null ? 0 : cnt);
+        m.put("avgStayDays", avgDays == null ? 0
+                : BigDecimal.valueOf(((Number) avgDays).doubleValue()).setScale(1, RoundingMode.HALF_UP));
         // 床位使用率：占用床/总床（inp_bed status：2 占用——以占用语义过滤）
         long total = bedMapper.selectCount(new LambdaQueryWrapper<>());
         long occupied = bedMapper.selectCount(new LambdaQueryWrapper<InpBed>().eq(InpBed::getBedStatus, 2));
+        // 次均费用口径：账单原额 − 退款（bil_refund_bill），按应收净额
+        BigDecimal refundTotal = refundBillMapper.selectList(new LambdaQueryWrapper<BilRefundBill>()
+                .last("LIMIT 2000")).stream().map(BilRefundBill::getRefundAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
         m.put("bedsTotal", total);
         m.put("bedsOccupied", occupied);
         m.put("bedUsageRate", total == 0 ? 0 : BigDecimal.valueOf(occupied * 100.0 / total)
@@ -97,7 +103,9 @@ public class KpiService {
         BigDecimal totalAmt = bills.stream().map(BilChargeBill::getTotalAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         m.put("billsCount", bills.size());
-        m.put("avgBillAmount", bills.isEmpty() ? 0 : totalAmt.divide(BigDecimal.valueOf(bills.size()),
+        m.put("refundTotal", refundTotal);
+        BigDecimal net = totalAmt.subtract(refundTotal);
+        m.put("avgBillAmount", bills.isEmpty() ? 0 : net.divide(BigDecimal.valueOf(bills.size()),
                 2, RoundingMode.HALF_UP));
         return m;
     }
