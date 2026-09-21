@@ -51,6 +51,7 @@ public class DocOrderService {
     private final BasedataAppService basedataAppService;
     private final com.his.modules.pharmacy.service.InventoryService inventoryService;
     private final com.his.modules.lis.service.LisService lisAppService;
+    private final com.his.modules.ris.service.RisService risAppService;
     private final com.his.modules.plt.service.PltService pltService;
     private final IdGenerator idGenerator;
 
@@ -263,6 +264,11 @@ public class DocOrderService {
         if (order.getCategory() == 3 && exec.getExecType() == 2) {
             DocOrderItem lisItem = itemMapper.selectById(exec.getItemId());
             lisAppService.createRequestFromOrder(order, lisItem, CurrentUser.id());
+        }
+        // 检查医嘱执行 → 生成 RIS 检查申请单（doc → ris 单向，《15》§2.2，同 LIS 模式）
+        if (order.getCategory() == 2 && exec.getExecType() == 2) {
+            DocOrderItem risItem = itemMapper.selectById(exec.getItemId());
+            risAppService.createRequestFromOrder(order, risItem, CurrentUser.id());
         }
         pltService.recordEvent("order.executed", order.getOrderNo(),
                 "{\"execId\":" + execId + "}");

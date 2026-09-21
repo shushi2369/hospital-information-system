@@ -54,6 +54,25 @@ public class AlertService {
                 "{\"item\":\"" + itemName + "\"}");
     }
 
+    /** 影像危急征象生成危急值（ris 调用，source=2 PACS，《16》§3.16） */
+    @Transactional
+    public void createSource2(Long requestId, Long resultId, Long patientId, Long admissionId,
+                              String itemName, String value) {
+        AlertCritical alert = new AlertCritical();
+        alert.setAlertNo(idGenerator.next("WJ"));
+        alert.setSource(2);
+        alert.setRequestId(requestId);
+        alert.setResultId(resultId);
+        alert.setPatientId(patientId);
+        alert.setAdmissionId(admissionId);
+        alert.setItemName(itemName);
+        alert.setCriticalValue(value);
+        alert.setStatus(10);
+        alertMapper.insert(alert);
+        pltService.recordEvent("alert.created", alert.getAlertNo(),
+                "{\"source\":2,\"item\":\"" + itemName + "\"}");
+    }
+
     /** 危急值分页（W-01） */
     public PageResult<AlertCritical> page(Integer status, PageQuery query) {
         Page<AlertCritical> page = alertMapper.selectPage(query.toPage(),
