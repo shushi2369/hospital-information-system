@@ -19,6 +19,7 @@ public class CheckSubmitRequest {
     private Integer checkType;
     @Valid
     @NotEmpty(message = "核查项不能为空")
+    @jakarta.validation.constraints.Size(max = 50, message = "核查项数量过多")
     private List<CheckItem> items;
     @NotNull(message = "第二签名人不能为空")
     private Long checker2Id;

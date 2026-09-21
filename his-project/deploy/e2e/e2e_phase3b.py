@@ -347,6 +347,11 @@ def main():
                  {"nodeCode": "XT_TPN", "nodeTime": past_time}, idem="p3b-x3-" + uid)
     check("55. 时间边界：关档病例节点录入拦截", r["code"] != "OK", r)
 
+    # 十五轮：出院钩子固化（单B 已排台未完结，出院应被 DischargeCheckHook 拦截）
+    st, r = call("POST", "/inp/admissions/%d/discharge" % admission_id, doctor,
+                 {"dischargeWay": 2, "dischargeDiagnosis": "演练出院"}, idem="p3b-dc-" + uid)
+    check("56. 出院拦截：存在未完结手术申请(B6006)", r["code"] != "OK", r)
+
     failed = [n for n, ok, _ in results if not ok]
     print("\n===== 三期第二批 e2e 结果: %d/%d 通过 =====" % (len(results) - len(failed), len(results)))
     if failed:
