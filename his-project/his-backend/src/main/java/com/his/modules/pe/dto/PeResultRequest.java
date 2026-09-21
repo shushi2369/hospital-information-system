@@ -17,6 +17,8 @@ public class PeResultRequest {
     @NotBlank(message = "结果值不能为空")
     @Size(max = 128, message = "结果值过长")
     private String resultValue;
+    @jakarta.validation.constraints.Min(value = 0, message = "异常标记取值 0/1")
+    @jakarta.validation.constraints.Max(value = 1, message = "异常标记取值 0/1")
     private Integer abnormalFlag;
     @Size(max = 256, message = "备注过长")
     private String note;

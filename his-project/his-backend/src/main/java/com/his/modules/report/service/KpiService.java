@@ -87,9 +87,10 @@ public class KpiService {
         m.put("bedsOccupied", occupied);
         m.put("bedUsageRate", total == 0 ? 0 : BigDecimal.valueOf(occupied * 100.0 / total)
                 .setScale(1, RoundingMode.HALF_UP));
-        // 次均费用：账单总额 / 账单数
+        // 次均费用：账单原额口径（status 枚举 10已支付/20部分退/30全额退，无作废态；
+        // 退费金额在 bil_refund_bill 另表，此处按账单原额，退款扣减登记为口径边界）
         List<BilChargeBill> bills = billMapper.selectList(new LambdaQueryWrapper<BilChargeBill>()
-                .ne(BilChargeBill::getStatus, 0).last("LIMIT 2000"));
+                .last("LIMIT 2000"));
         BigDecimal totalAmt = bills.stream().map(BilChargeBill::getTotalAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         m.put("billsCount", bills.size());

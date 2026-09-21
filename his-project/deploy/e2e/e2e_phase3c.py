@@ -227,6 +227,11 @@ def main():
     st, r = call("GET", "/report/kpi/safety", admin)
     sf = r["data"]
     check("40. 安全KPI(危急值闭环率可算)", sf["alertsTotal"] > 0 and "alertCloseRate" in sf, sf)
+    # 数字对账：alertsClosed == 明细口径 status=40 计数（20 号验收"与明细账核对一致"）
+    st, al = call("GET", "/alerts?pageNum=1&pageSize=500", admin)
+    closed_detail = sum(1 for a in al["data"]["list"] if a["status"] == 40)
+    check("40b. 闭环率对账(汇总=明细)", sf["alertsClosed"] == closed_detail,
+          "kpi=%s detail=%s" % (sf["alertsClosed"], closed_detail))
     st, raw_body = call("GET", "/report/kpi/export", admin, raw=True)
     check("41. CSV导出(含指标行)", raw_body.startswith("\\ufeff指标") or "指标" in raw_body[:20], raw_body[:30])
     st, r = call("GET", "/report/kpi/workload", pe_nurse)
