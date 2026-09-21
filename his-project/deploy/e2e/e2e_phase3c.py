@@ -221,6 +221,10 @@ def main():
     st, r = call("GET", "/report/kpi/workload", admin)
     wl = r["data"]
     check("38. 工作量KPI(门诊+住院>0)", wl["outpatientVisits"] > 0 and wl["inpatientAdmissions"] > 0, wl)
+    # 数字对账：门诊人次 == 就诊明细 total（20 号验收"与明细账核对一致"）
+    st, vl = call("GET", "/clinic/visits?pageNum=1&pageSize=1", admin)
+    check("38b. 门诊人次对账(汇总=明细)", wl["outpatientVisits"] == vl["data"]["total"],
+          "kpi=%s detail=%s" % (wl["outpatientVisits"], vl["data"]["total"]))
     st, r = call("GET", "/report/kpi/efficiency", admin)
     ef = r["data"]
     check("39. 效率KPI(床位/次均费用字段齐)", "bedUsageRate" in ef and "avgBillAmount" in ef, ef)
