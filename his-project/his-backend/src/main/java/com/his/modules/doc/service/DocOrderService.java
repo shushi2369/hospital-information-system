@@ -52,6 +52,7 @@ public class DocOrderService {
     private final com.his.modules.pharmacy.service.InventoryService inventoryService;
     private final com.his.modules.lis.service.LisService lisAppService;
     private final com.his.modules.ris.service.RisService risAppService;
+    private final com.his.modules.cdss.service.CdssService cdssAppService;
     private final com.his.modules.plt.service.PltService pltService;
     private final IdGenerator idGenerator;
 
@@ -158,6 +159,12 @@ public class DocOrderService {
         }
         pltService.recordEvent("order.created", order.getOrderNo(),
                 "{\"admissionId\":" + req.getAdmissionId() + ",\"category\":" + req.getCategory() + "}");
+        // CDSS 后置提示（提示不阻断，REQUIRES_NEW+异常隔离，《18》§2.3）
+        try {
+            cdssAppService.check(order, insertedItems);
+        } catch (Exception e) {
+            pltService.recordEvent("cdss.check.failed", order.getOrderNo(), "{}");
+        }
         return order.getOrderNo();
     }
 

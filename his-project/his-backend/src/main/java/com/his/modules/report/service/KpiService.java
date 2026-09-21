@@ -1,0 +1,133 @@
+package com.his.modules.report.service;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.his.modules.alert.entity.AlertCritical;
+import com.his.modules.alert.mapper.AlertCriticalMapper;
+import com.his.modules.billing.entity.BilChargeBill;
+import com.his.modules.billing.mapper.BilChargeBillMapper;
+import com.his.modules.clinic.entity.CliVisit;
+import com.his.modules.clinic.mapper.CliVisitMapper;
+import com.his.modules.doc.entity.DocOrder;
+import com.his.modules.doc.mapper.DocOrderMapper;
+import com.his.modules.inp.entity.InpAdmission;
+import com.his.modules.inp.entity.InpBed;
+import com.his.modules.inp.mapper.InpAdmissionMapper;
+import com.his.modules.inp.mapper.InpBedMapper;
+import com.his.modules.lis.entity.LisRequest;
+import com.his.modules.lis.mapper.LisRequestMapper;
+import com.his.modules.ors.entity.OrsCheckRecord;
+import com.his.modules.ors.entity.OrsSurgeryRequest;
+import com.his.modules.ors.mapper.OrsCheckRecordMapper;
+import com.his.modules.ors.mapper.OrsSurgeryRequestMapper;
+import com.his.modules.ris.entity.RisRequest;
+import com.his.modules.ris.mapper.RisRequestMapper;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * 国考绩效监测服务（《18》§2.4）：三类 KPI 纯只读聚合（0 新表），按时段出数。
+ * 口径（院内演示口径）：危急值闭环率=已闭环/全部；手术核查率=完成手术中三张核查单齐备占比；
+ * 平均住院日=已出院患者（出院-入院）均值；床位使用率=占用/总床位。
+ */
+@Service
+@RequiredArgsConstructor
+public class KpiService {
+    private final CliVisitMapper visitMapper;
+    private final InpAdmissionMapper admissionMapper;
+    private final InpBedMapper bedMapper;
+    private final BilChargeBillMapper billMapper;
+    private final LisRequestMapper lisRequestMapper;
+    private final RisRequestMapper risRequestMapper;
+    private final OrsSurgeryRequestMapper surgeryMapper;
+    private final OrsCheckRecordMapper checkMapper;
+    private final AlertCriticalMapper alertMapper;
+    private final DocOrderMapper orderMapper;
+
+    /** K-01 工作量 */
+    public Map<String, Object> workload(LocalDateTime from, LocalDateTime to) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("outpatientVisits", visitMapper.selectCount(between(CliVisit::getCreatedAt, from, to)));
+        m.put("inpatientAdmissions", admissionMapper.selectCount(between(InpAdmission::getCreatedAt, from, to)));
+        m.put("surgeriesCompleted", surgeryMapper.selectCount(
+                new LambdaQueryWrapper<OrsSurgeryRequest>()
+                        .eq(OrsSurgeryRequest::getStatus, 60)
+                        .between(from != null, OrsSurgeryRequest::getUpdatedAt, from, to == null ? LocalDateTime.now() : to)));
+        m.put("labTests", lisRequestMapper.selectCount(between(LisRequest::getCreatedAt, from, to)));
+        m.put("imagingExams", risRequestMapper.selectCount(between(RisRequest::getCreatedAt, from, to)));
+        m.put("orders", orderMapper.selectCount(between(DocOrder::getCreatedAt, from, to)));
+        return m;
+    }
+
+    /** K-02 效率 */
+    public Map<String, Object> efficiency() {
+        Map<String, Object> m = new LinkedHashMap<>();
+        // 平均住院日：已出院（status>=20）且有出院时间的患者
+        List<InpAdmission> discharged = admissionMapper.selectList(new LambdaQueryWrapper<InpAdmission>()
+                .ge(InpAdmission::getStatus, 20)
+                .isNotNull(InpAdmission::getDischargeTime)
+                .last("LIMIT 1000"));
+        double avgStay = discharged.stream()
+                .filter(a -> a.getDischargeTime() != null && a.getCreatedAt() != null)
+                .mapToLong(a -> java.time.Duration.between(a.getCreatedAt(), a.getDischargeTime()).toDays())
+                .average().orElse(0);
+        m.put("dischargedCount", discharged.size());
+        m.put("avgStayDays", BigDecimal.valueOf(avgStay).setScale(1, RoundingMode.HALF_UP));
+        // 床位使用率：占用床/总床（inp_bed status：2 占用——以占用语义过滤）
+        long total = bedMapper.selectCount(new LambdaQueryWrapper<>());
+        long occupied = bedMapper.selectCount(new LambdaQueryWrapper<InpBed>().eq(InpBed::getBedStatus, 2));
+        m.put("bedsTotal", total);
+        m.put("bedsOccupied", occupied);
+        m.put("bedUsageRate", total == 0 ? 0 : BigDecimal.valueOf(occupied * 100.0 / total)
+                .setScale(1, RoundingMode.HALF_UP));
+        // 次均费用：账单总额 / 账单数
+        List<BilChargeBill> bills = billMapper.selectList(new LambdaQueryWrapper<BilChargeBill>()
+                .ne(BilChargeBill::getStatus, 0).last("LIMIT 2000"));
+        BigDecimal totalAmt = bills.stream().map(BilChargeBill::getTotalAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        m.put("billsCount", bills.size());
+        m.put("avgBillAmount", bills.isEmpty() ? 0 : totalAmt.divide(BigDecimal.valueOf(bills.size()),
+                2, RoundingMode.HALF_UP));
+        return m;
+    }
+
+    /** K-03 安全 */
+    public Map<String, Object> safety() {
+        Map<String, Object> m = new LinkedHashMap<>();
+        long alertTotal = alertMapper.selectCount(new LambdaQueryWrapper<>());
+        long alertClosed = alertMapper.selectCount(new LambdaQueryWrapper<AlertCritical>()
+                .eq(AlertCritical::getStatus, 40));
+        m.put("alertsTotal", alertTotal);
+        m.put("alertsClosed", alertClosed);
+        m.put("alertCloseRate", alertTotal == 0 ? 0 : BigDecimal.valueOf(alertClosed * 100.0 / alertTotal)
+                .setScale(1, RoundingMode.HALF_UP));
+        // 手术核查率：完成手术中三张核查单齐备占比
+        List<OrsSurgeryRequest> done = surgeryMapper.selectList(new LambdaQueryWrapper<OrsSurgeryRequest>()
+                .eq(OrsSurgeryRequest::getStatus, 60).last("LIMIT 500"));
+        long checked = done.stream().filter(s -> {
+            long c = checkMapper.selectCount(new LambdaQueryWrapper<OrsCheckRecord>()
+                    .eq(OrsCheckRecord::getRequestId, s.getId()));
+            return c >= 3;
+        }).count();
+        m.put("surgeriesDone", done.size());
+        m.put("surgeriesFullyChecked", checked);
+        m.put("surgeryCheckRate", done.isEmpty() ? 0 : BigDecimal.valueOf(checked * 100.0 / done.size())
+                .setScale(1, RoundingMode.HALF_UP));
+        return m;
+    }
+
+    private <T> com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<T> between(
+            com.baomidou.mybatisplus.core.toolkit.support.SFunction<T, ?> column,
+            LocalDateTime from, LocalDateTime to) {
+        return new LambdaQueryWrapper<T>()
+                .ge(from != null, column, from)
+                .le(to != null, column, to);
+    }
+}
