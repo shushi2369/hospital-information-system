@@ -61,6 +61,24 @@ public class PeService {
         return pkg.getPackageNo();
     }
 
+    /** 套餐更新（P-01 PUT）：已登记引用不受影响（record 存 packageId 快照关联） */
+    @Transactional
+    public void updatePackage(Long id, PePackageRequest req) {
+        PePackage pkg = packageMapper.selectById(id);
+        if (pkg == null) {
+            throw new BizException(ErrorCode.A0001, "套餐不存在");
+        }
+        if (req.getItems().isEmpty()) {
+            throw new BizException(ErrorCode.A0001, "套餐至少包含一个项目");
+        }
+        pkg.setName(req.getName());
+        pkg.setPrice(req.getPrice());
+        pkg.setItems(writeItems(req.getItems()));
+        if (packageMapper.updateById(pkg) != 1) {
+            throw new BizException(ErrorCode.A0001, "套餐已变化，请刷新后重试");
+        }
+    }
+
     /** 登记分页（P-02） */
     public PageResult<PeRecord> recordPage(PeRecordQuery query) {
         Page<PeRecord> page = recordMapper.selectPage(query.toPage(),
@@ -137,6 +155,16 @@ public class PeService {
         if (record.getStatus() != 20) {
             throw new BizException(ErrorCode.A0001, "体检不在检查中状态");
         }
+        // 录入项目必须在套餐项目集内（防套餐外脏数据影响齐全判定）
+        PePackage pkg = packageMapper.selectById(record.getPackageId());
+        boolean inPackage = pkg != null && readItems(pkg).stream()
+                .map(m -> m.get("chargeItemId"))
+                .filter(Objects::nonNull)
+                .map(o -> ((Number) o).longValue())
+                .anyMatch(id -> id.equals(req.getChargeItemId()));
+        if (!inPackage) {
+            throw new BizException(ErrorCode.A0001, "项目不在套餐内，禁止录入");
+        }
         PeResult result = resultMapper.selectOne(new LambdaQueryWrapper<PeResult>()
                 .eq(PeResult::getRecordId, recordId)
                 .eq(PeResult::getChargeItemId, req.getChargeItemId()).last("LIMIT 1"));
@@ -151,7 +179,12 @@ public class PeService {
         result.setExaminerId(CurrentUser.id());
         result.setNote(req.getNote());
         if (result.getId() == null) {
-            resultMapper.insert(result);
+            try {
+                resultMapper.insert(result);
+            } catch (org.springframework.dao.DuplicateKeyException e) {
+                // 并发双录撞 uk_peresult：预检窗口兜底（bug 模式 13）
+                throw new BizException(ErrorCode.A0001, "该项目已录入，请刷新后重试");
+            }
         } else {
             resultMapper.updateById(result);
         }

@@ -32,6 +32,15 @@ public class PeController {
         return R.ok(peService.createPackage(req));
     }
 
+    @PutMapping("/packages/{id}")
+    @PreAuthorize("@ss.hasPerm('pe:package:manage')")
+    @Idempotent
+    @AuditLog(module = "pe", action = "套餐更新", bizType = "pe_package")
+    public R<Void> updatePackage(@PathVariable Long id, @Valid @RequestBody PePackageRequest req) {
+        peService.updatePackage(id, req);
+        return R.ok();
+    }
+
     @GetMapping("/records")
     @PreAuthorize("@ss.hasPerm('pe:record:query')")
     public R<PageResult<PeRecord>> records(PeRecordQuery query) {

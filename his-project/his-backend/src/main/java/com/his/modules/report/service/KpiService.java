@@ -108,14 +108,17 @@ public class KpiService {
         m.put("alertsClosed", alertClosed);
         m.put("alertCloseRate", alertTotal == 0 ? 0 : BigDecimal.valueOf(alertClosed * 100.0 / alertTotal)
                 .setScale(1, RoundingMode.HALF_UP));
-        // 手术核查率：完成手术中三张核查单齐备占比
+        // 手术核查率：完成手术中三张核查单齐备占比（一次 in 查询批量计数，避免 N+1）
         List<OrsSurgeryRequest> done = surgeryMapper.selectList(new LambdaQueryWrapper<OrsSurgeryRequest>()
                 .eq(OrsSurgeryRequest::getStatus, 60).last("LIMIT 500"));
-        long checked = done.stream().filter(s -> {
-            long c = checkMapper.selectCount(new LambdaQueryWrapper<OrsCheckRecord>()
-                    .eq(OrsCheckRecord::getRequestId, s.getId()));
-            return c >= 3;
-        }).count();
+        long checked = 0;
+        if (!done.isEmpty()) {
+            List<OrsCheckRecord> checks = checkMapper.selectList(new LambdaQueryWrapper<OrsCheckRecord>()
+                    .in(OrsCheckRecord::getRequestId, done.stream().map(OrsSurgeryRequest::getId).toList()));
+            Map<Long, Long> byReq = checks.stream().collect(java.util.stream.Collectors
+                    .groupingBy(OrsCheckRecord::getRequestId, java.util.stream.Collectors.counting()));
+            checked = byReq.values().stream().filter(c -> c >= 3).count();
+        }
         m.put("surgeriesDone", done.size());
         m.put("surgeriesFullyChecked", checked);
         m.put("surgeryCheckRate", done.isEmpty() ? 0 : BigDecimal.valueOf(checked * 100.0 / done.size())

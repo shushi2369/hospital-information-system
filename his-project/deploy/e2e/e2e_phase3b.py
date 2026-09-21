@@ -55,15 +55,23 @@ def charge_item_by_category(token, category):
 
 
 def try_schedule(token, req_id, room_id, seq_start, idem, today):
-    """同日唯一索引(uk_schedule_slot)不含状态，已完成槽位仍占位：递增台次直至成功"""
+    """同日唯一索引(uk_schedule_slot)不含状态，已完成槽位仍占位：递增台次直至成功；
+    当日槽位耗尽（seq 超上限）自动切到次日（跨日槽位全新）"""
+    import datetime
+    tomorrow = (datetime.datetime.strptime(today, "%Y-%m-%d")
+                + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
     seq = seq_start
-    for _ in range(12):
+    date = today
+    for _ in range(24):
         st, r = call("POST", "/ors/requests/%d/schedule" % req_id, token,
-                     {"roomId": room_id, "surgeryDate": today, "seqNo": seq, "surgeonId": 2},
-                     idem="%s-%d" % (idem, seq))
+                     {"roomId": room_id, "surgeryDate": date, "seqNo": seq, "surgeonId": 2},
+                     idem="%s-%s-%d" % (idem, date, seq))
         if r["code"] == "OK":
             return seq, r
         seq += 1
+        if seq > 10:  # 台次参数上限：切次日从 1 重来
+            seq = 1
+            date = tomorrow
     return seq, r
 
 

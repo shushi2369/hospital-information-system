@@ -21,6 +21,7 @@ public class MatPurchaseRequest {
     @Min(1) @Max(100000)
     private Integer quantity;
     @NotNull(message = "单价不能为空")
+    @jakarta.validation.constraints.DecimalMin(value = "0.01", message = "单价须大于 0")
     private BigDecimal unitPrice;
     private LocalDate expectedDate;
 }

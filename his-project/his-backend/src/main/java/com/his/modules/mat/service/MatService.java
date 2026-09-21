@@ -34,6 +34,7 @@ public class MatService {
     private final MatStockMapper stockMapper;
     private final MatPurchaseMapper purchaseMapper;
     private final MatRequisitionMapper requisitionMapper;
+    private final com.his.modules.basedata.app.BasedataAppService basedataAppService;
     private final PltService pltService;
     private final IdGenerator idGenerator;
 
@@ -82,6 +83,26 @@ public class MatService {
         stock.setQuantity(0);
         stockMapper.insert(stock);
         return material.getMaterialCode();
+    }
+
+    /** 物资字典更新（M-01 PUT）：编码不可改 */
+    @Transactional
+    public void updateMaterial(Long id, MatMaterial req) {
+        MatMaterial material = requireMaterial(id);
+        material.setName(req.getName());
+        if (req.getCategory() != null) {
+            if (req.getCategory() < 1 || req.getCategory() > 4) {
+                throw new BizException(ErrorCode.A0001, "物资类别取值 1~4");
+            }
+            material.setCategory(req.getCategory());
+        }
+        material.setUnit(req.getUnit());
+        material.setPrice(req.getPrice());
+        material.setSafeStock(req.getSafeStock());
+        material.setStatus(req.getStatus() == null ? material.getStatus() : req.getStatus());
+        if (materialMapper.updateById(material) != 1) {
+            throw new BizException(ErrorCode.A0001, "物资已变化，请刷新后重试");
+        }
     }
 
     /** 库存查询（M-02） */
@@ -174,6 +195,7 @@ public class MatService {
     @Transactional
     public String requisition(MatRequisitionRequest req) {
         requireMaterial(req.getMaterialId());
+        basedataAppService.getDepartment(req.getDeptId()); // 领用科室须真实存在
         int deducted = stockMapper.update(null, new LambdaUpdateWrapper<MatStock>()
                 .eq(MatStock::getMaterialId, req.getMaterialId())
                 .ge(MatStock::getQuantity, req.getQuantity())

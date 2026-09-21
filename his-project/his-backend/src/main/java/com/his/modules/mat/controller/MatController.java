@@ -33,6 +33,15 @@ public class MatController {
         return R.ok(matService.createMaterial(material));
     }
 
+    @PutMapping("/materials/{id}")
+    @PreAuthorize("@ss.hasPerm('mat:material:manage')")
+    @Idempotent
+    @AuditLog(module = "mat", action = "物资更新", bizType = "mat_material")
+    public R<Void> updateMaterial(@PathVariable Long id, @Valid @RequestBody MatMaterial material) {
+        matService.updateMaterial(id, material);
+        return R.ok();
+    }
+
     @GetMapping("/stocks")
     @PreAuthorize("@ss.hasPerm('mat:stock:query')")
     public R<List<MatStock>> stocks() {
