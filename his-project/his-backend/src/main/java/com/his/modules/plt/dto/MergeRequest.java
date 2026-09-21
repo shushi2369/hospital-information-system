@@ -8,7 +8,9 @@ import lombok.Setter;
 @Setter
 public class MergeRequest {
     @NotNull(message = "源主索引不能为空")
-    private Long sourceMpiId;
+    @jakarta.validation.constraints.NotBlank(message = "源主索引号不能为空")
+    private String sourceMpiNo;
     @NotNull(message = "目标主索引不能为空")
-    private Long targetMpiId;
+    @jakarta.validation.constraints.NotBlank(message = "目标主索引号不能为空")
+    private String targetMpiNo;
 }

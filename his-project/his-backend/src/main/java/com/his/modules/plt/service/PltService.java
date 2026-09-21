@@ -26,6 +26,7 @@ public class PltService {
     private final PltMasterIndexMapper masterIndexMapper;
     private final PltIdMapMapper idMapMapper;
     private final PltEventLogMapper eventLogMapper;
+    private final com.his.modules.patient.mapper.PatPatientMapper patPatientMapper;
     private final IdGenerator idGenerator;
 
     /** 为一期患者注册主索引（建档后调用；幂等：已有则跳过） */
@@ -54,9 +55,14 @@ public class PltService {
 
     /** 患者合并（机制先行：标记合并 + 事件留痕；一期无重复档场景） */
     @Transactional
-    public String merge(Long mpiId, Long targetMpiId) {
-        PltMasterIndex source = masterIndexMapper.selectById(mpiId);
-        PltMasterIndex target = masterIndexMapper.selectById(targetMpiId);
+    public String merge(String sourceMpiNo, String targetMpiNo) {
+        // 按操作员可见的主索引号定位（原 Long id 无任何查询接口暴露，功能不可达——查验二十三轮）
+        PltMasterIndex source = masterIndexMapper.selectOne(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<PltMasterIndex>()
+                        .eq(PltMasterIndex::getMpiNo, sourceMpiNo).last("LIMIT 1"));
+        PltMasterIndex target = masterIndexMapper.selectOne(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<PltMasterIndex>()
+                        .eq(PltMasterIndex::getMpiNo, targetMpiNo).last("LIMIT 1"));
         if (source == null || target == null) {
             throw new BizException(ErrorCode.A0001, "主索引不存在");
         }
@@ -64,8 +70,18 @@ public class PltService {
             throw new BizException(ErrorCode.A0001, "该主索引已合并");
         }
         source.setMergeFlag(1);
-        source.setMergedInto(targetMpiId);
+        source.setMergedInto(target.getId());
         masterIndexMapper.updateById(source);
+        // 联动停用源患者（业界"合并后数据继续分裂"对标）：历史单据保留原 patient_id
+        // （经 EMPI 归一链可见），源患者置停用防止合并后继续产生新单据
+        if (source.getPatientId() != null) {
+            com.his.modules.patient.entity.PatPatient sourcePatient =
+                    patPatientMapper.selectById(source.getPatientId());
+            if (sourcePatient != null && sourcePatient.getStatus() != null && sourcePatient.getStatus() == 1) {
+                sourcePatient.setStatus(0);
+                patPatientMapper.updateById(sourcePatient);
+            }
+        }
         recordEvent("empi.merged", source.getMpiNo(),
                 "{\"from\":\"" + source.getMpiNo() + "\",\"to\":\"" + target.getMpiNo() + "\"}");
         return target.getMpiNo();

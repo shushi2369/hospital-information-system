@@ -67,6 +67,8 @@ public class PatientService {
 
     public PageResult<PatientResponse> page(PatientQuery query) {
         LambdaQueryWrapper<PatPatient> wrapper = new LambdaQueryWrapper<PatPatient>()
+                // 默认仅有效患者：合并/离职停用后源患者不可再被选用（防合并后数据继续分裂）
+                .eq(!(Boolean.TRUE.equals(query.getIncludeDisabled())), PatPatient::getStatus, 1)
                 .like(query.getName() != null && !query.getName().isBlank(), PatPatient::getName, query.getName())
                 .like(query.getPhone() != null && !query.getPhone().isBlank(), PatPatient::getPhone, query.getPhone())
                 .like(query.getPatientNo() != null && !query.getPatientNo().isBlank(), PatPatient::getPatientNo, query.getPatientNo())

@@ -112,7 +112,7 @@ public class PltController {
     @Idempotent
     @AuditLog(module = "plt", action = "患者合并", bizType = "plt_master_index")
     public R<String> merge(@Valid @RequestBody MergeRequest req) {
-        return R.ok(pltService.merge(req.getSourceMpiId(), req.getTargetMpiId()));
+        return R.ok(pltService.merge(req.getSourceMpiNo(), req.getTargetMpiNo()));
     }
 
     @GetMapping("/events")

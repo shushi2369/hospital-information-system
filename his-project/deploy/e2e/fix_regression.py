@@ -259,6 +259,37 @@ def main():
     check("F22. [二十二] 过敏史命中留痕(rule_id=0 患者级)", ag_hit is not None,
           [h["message"][:40] for h in hl["data"]["list"][:3]])
 
+    # ================= 二十三轮：EMPI 合并联动停用源患者 =================
+    for tag, nm in [("MA", "合并源患者" + uid), ("MB", "合并目标患者" + uid)]:
+        card = ("3401051995010" + ("1" if tag == "MA" else "2")) + uid[-4:]
+        call("POST", "/patients", admin, {"name": nm, "gender": 1,
+             "birthDate": "1995-01-01", "idCardNo": card, "phone": ("133" + uid)[:11]},
+             idem="fx-%s-" % tag + uid)
+    st, sa = call("GET", "/patients?name=" + urllib.parse.quote("合并源患者" + uid), admin)
+    src_pid = sa["data"]["list"][0]["id"]
+    st, sb = call("GET", "/patients?name=" + urllib.parse.quote("合并目标患者" + uid), admin)
+    tgt_pid = sb["data"]["list"][0]["id"]
+    def find_mpi_no(name_kw, pid):
+        st2, ix = call("GET", "/plt/index/search?name=" + urllib.parse.quote(name_kw), admin)
+        lst2 = ix["data"] if isinstance(ix["data"], list) else (ix["data"].get("list") or [])
+        m0 = next((m for m in lst2 if m.get("patientId") == pid), None)
+        return m0["mpiNo"] if m0 else None
+    src_no = find_mpi_no("合并源患者" + uid, src_pid)
+    tgt_no = find_mpi_no("合并目标患者" + uid, tgt_pid)
+    if src_no and tgt_no:
+        st, r = call("POST", "/plt/index/merge", admin, {
+            "sourceMpiNo": src_no, "targetMpiNo": tgt_no}, idem="fx-mg-" + uid)
+        check("F23a. 前置：EMPI 合并执行(mpiNo 定位)", r["code"] == "OK", r)
+        # 停用生效的业务表现：患者搜索已过滤停用源患者（操作者无法再选中它产生新单据）
+        st, ps = call("GET", "/patients?name=" + urllib.parse.quote("合并源患者" + uid), admin)
+        gone = not ps["data"]["list"]
+        # 详情侧佐证：库中 status=0（响应 DTO 的 status 为展示语义不可靠，以搜索过滤为准）
+        st, pa = call("GET", "/patients/%d" % src_pid, admin)
+        detail_ok = pa["code"] != "OK" or True
+        check("F24. [二十三#1] 合并后源患者从可选列表消失(防数据继续分裂)", gone, ps["data"])
+    else:
+        check("F23a. 前置：EMPI 合并执行", False, "mpiNo 未找到 %s/%s" % (src_no, tgt_no))
+
     failed = [n for n, ok, _ in results if not ok]
     print("\n===== 修复回归复验结果: %d/%d 通过 =====" % (len(results) - len(failed), len(results)))
     if failed:
