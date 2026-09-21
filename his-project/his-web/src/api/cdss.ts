@@ -30,6 +30,7 @@ export const CDSS_TYPE_OPTIONS = [
   { value: 1, label: '配伍禁忌' },
   { value: 2, label: '重复检查' },
   { value: 3, label: '剂量上限' },
+  { value: 4, label: '过敏映射' },
 ]
 
 export function cdssTypeLabel(t: number): string {

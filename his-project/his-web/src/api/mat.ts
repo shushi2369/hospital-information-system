@@ -111,3 +111,16 @@ export function getRequisitionPage(params: { pageNum?: number; pageSize?: number
 export function createRequisition(data: { materialId: number; deptId: number; quantity: number; purpose?: string }) {
   return post<string>('/mat/requisitions', data)
 }
+
+export interface MatBatchRow {
+  id: number
+  materialId: number
+  batchNo: string
+  expireDate: string
+  quantity: number
+  expireSoon: boolean
+}
+
+export function getBatches(params?: { materialId?: number }) {
+  return get<MatBatchRow[]>('/mat/batches', params)
+}

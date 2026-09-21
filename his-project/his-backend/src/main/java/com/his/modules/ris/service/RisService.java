@@ -237,6 +237,8 @@ public class RisService {
         report.setConclusion(req.getConclusion());
         report.setCriticalSign(req.getCriticalSign());
         report.setCriticalFlag(req.getCriticalSign() == null || req.getCriticalSign().isBlank() ? 0 : 1);
+        report.setMutualFlag(req.getMutualFlag() == null ? 0 : req.getMutualFlag());
+        report.setMutualNote(req.getMutualNote());
         report.setStatus(10);
         if (report.getId() == null) {
             reportMapper.insert(report);

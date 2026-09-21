@@ -41,6 +41,9 @@ export interface LisReport {
   reportTime?: string | null
   /** 20 已发布 */
   status?: number
+  /** 1 纳入互认(HR标识) */
+  mutualFlag?: number
+  mutualNote?: string | null
 }
 
 /** 检验结果行 */

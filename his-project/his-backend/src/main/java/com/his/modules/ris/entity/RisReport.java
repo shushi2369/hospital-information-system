@@ -24,6 +24,10 @@ public class RisReport extends BaseEntity {
     private Long reviewerId;
     private LocalDateTime reviewTime;
     private Integer status;
+    /** 1 纳入互认(HR标识) */
+    private Integer mutualFlag;
+    /** 互认备注 */
+    private String mutualNote;
 
     @Version
     private Integer version;

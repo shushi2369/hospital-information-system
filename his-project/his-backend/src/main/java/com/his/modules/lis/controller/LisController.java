@@ -76,8 +76,10 @@ public class LisController {
     @PreAuthorize("@ss.hasPerm('lab:report:publish')")
     @Idempotent
     @AuditLog(module = "lis", action = "报告发布", bizType = "lis_report")
-    public R<String> publish(@PathVariable Long requestId) {
-        return R.ok(lisService.publish(requestId));
+    public R<String> publish(@PathVariable Long requestId,
+            @RequestParam(required = false) Integer mutualFlag,
+            @RequestParam(required = false) String mutualNote) {
+        return R.ok(lisService.publish(requestId, mutualFlag, mutualNote));
     }
 
     @GetMapping("/reports")

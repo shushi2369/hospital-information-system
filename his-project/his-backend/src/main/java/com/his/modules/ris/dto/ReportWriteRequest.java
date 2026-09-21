@@ -1,6 +1,7 @@
 package com.his.modules.ris.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
@@ -19,4 +20,8 @@ public class ReportWriteRequest {
     private String conclusion;
     @jakarta.validation.constraints.Size(max = 128, message = "危急征象描述过长")
     private String criticalSign;
+    /** 1 纳入互认(HR标识) */
+    private Integer mutualFlag;
+    @Size(max = 128, message = "互认备注过长")
+    private String mutualNote;
 }

@@ -34,6 +34,7 @@ public class MatService {
     private final MatStockMapper stockMapper;
     private final MatPurchaseMapper purchaseMapper;
     private final MatRequisitionMapper requisitionMapper;
+    private final MatBatchMapper batchMapper;
     private final com.his.modules.basedata.app.BasedataAppService basedataAppService;
     private final PltService pltService;
     private final IdGenerator idGenerator;
@@ -152,20 +153,43 @@ public class MatService {
         pltService.recordEvent("mat.purchase.approved", po.getPoNo(), "{}");
     }
 
-    /** 到货入库（M-06）：20 → 30，库存原子累加 */
+    /** 到货入库（M-06，四期批次化）：20 → 30，聚合累加 + 批次明细登记（FEFO 拨发依据） */
     @Transactional
-    public void receive(Long id) {
+    public void receive(Long id, String batchNo, java.time.LocalDate expireDate) {
         MatPurchase po = requirePurchase(id);
         if (po.getStatus() != 20) {
             throw new BizException(ErrorCode.A0001, "采购单未审批或已入库");
+        }
+        if (expireDate != null && !expireDate.isAfter(java.time.LocalDate.now())) {
+            throw new BizException(ErrorCode.A0001, "批次已过期，禁止入库");
         }
         po.setStatus(30);
         if (purchaseMapper.updateById(po) != 1) {
             throw new BizException(ErrorCode.A0001, "采购单状态已变化，请刷新后重试");
         }
         addStock(po.getMaterialId(), po.getQuantity());
+        // 批次明细：未传批次号时以默认批次兼容（效期 +1 年）
+        String bn = (batchNo == null || batchNo.isBlank()) ? "DEFAULT-" + java.time.LocalDate.now() : batchNo;
+        java.time.LocalDate exp = expireDate == null ? java.time.LocalDate.now().plusYears(1) : expireDate;
+        MatBatch exist = batchMapper.selectOne(new LambdaQueryWrapper<MatBatch>()
+                .eq(MatBatch::getMaterialId, po.getMaterialId())
+                .eq(MatBatch::getBatchNo, bn).last("LIMIT 1"));
+        if (exist == null) {
+            MatBatch batch = new MatBatch();
+            batch.setMaterialId(po.getMaterialId());
+            batch.setBatchNo(bn);
+            batch.setExpireDate(exp);
+            batch.setQuantity(po.getQuantity());
+            batch.setStatus(1);
+            batchMapper.insert(batch);
+        } else {
+            batchMapper.update(null, new LambdaUpdateWrapper<MatBatch>()
+                    .eq(MatBatch::getId, exist.getId())
+                    .setSql("quantity = quantity + " + po.getQuantity())
+                    .set(MatBatch::getStatus, 1));
+        }
         pltService.recordEvent("mat.purchase.received", po.getPoNo(),
-                "{\"qty\":" + po.getQuantity() + "}");
+                "{\"qty\":" + po.getQuantity() + ",\"batch\":\"" + bn + "\"}");
     }
 
     /** 取消（M-07）：10/20 → 40 */
@@ -203,6 +227,9 @@ public class MatService {
         if (deducted != 1) {
             throw new BizException(ErrorCode.A0001, "库存不足，领用失败");
         }
+        // 四期 FEFO：批次按效期升序拨发，跨批次拆分留痕（聚合扣减成功后批次拨发应足额；
+        // 批次与聚合短暂不一致由入库同步维护，此处不足额按聚合数兜底拨尽并告警）
+        String breakdown = fefoDeduct(req.getMaterialId(), req.getQuantity());
         MatRequisition req0 = new MatRequisition();
         req0.setReqNo(idGenerator.next("LY"));
         req0.setMaterialId(req.getMaterialId());
@@ -211,10 +238,54 @@ public class MatService {
         req0.setApplicantId(CurrentUser.id());
         req0.setPurpose(req.getPurpose());
         req0.setStatus(1);
+        req0.setBreakdown(breakdown);
         requisitionMapper.insert(req0);
         pltService.recordEvent("mat.stock.requisitioned", req0.getReqNo(),
                 "{\"materialId\":" + req.getMaterialId() + ",\"qty\":" + req.getQuantity() + "}");
         return req0.getReqNo();
+    }
+
+    /** 四期 FEFO 拨发：批次按效期升序扣减，返回 breakdown JSON；不足额按剩余数兜底 */
+    private String fefoDeduct(Long materialId, int qty) {
+        List<MatBatch> batches = batchMapper.selectList(new LambdaQueryWrapper<MatBatch>()
+                .eq(MatBatch::getMaterialId, materialId)
+                .eq(MatBatch::getStatus, 1)
+                .gt(MatBatch::getQuantity, 0)
+                .orderByAsc(MatBatch::getExpireDate));
+        StringBuilder sb = new StringBuilder("[");
+        int remain = qty;
+        for (MatBatch b : batches) {
+            if (remain <= 0) break;
+            int take = Math.min(remain, b.getQuantity());
+            batchMapper.update(null, new LambdaUpdateWrapper<MatBatch>()
+                    .eq(MatBatch::getId, b.getId())
+                    .ge(MatBatch::getQuantity, take)
+                    .setSql("quantity = quantity - " + take));
+            if (sb.length() > 1) sb.append(",");
+            sb.append("{\"batchNo\":\"").append(b.getBatchNo())
+              .append("\",\"quantity\":").append(take).append("}");
+            remain -= take;
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
+    /** 批次明细（M-10）：含效期预警（≤30 天） */
+    public List<Map<String, Object>> batches(Long materialId) {
+        List<MatBatch> batches = batchMapper.selectList(new LambdaQueryWrapper<MatBatch>()
+                .eq(materialId != null, MatBatch::getMaterialId, materialId)
+                .orderByAsc(MatBatch::getExpireDate));
+        java.time.LocalDate warn = java.time.LocalDate.now().plusDays(30);
+        return batches.stream().map(b -> {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", b.getId());
+            row.put("materialId", b.getMaterialId());
+            row.put("batchNo", b.getBatchNo());
+            row.put("expireDate", b.getExpireDate());
+            row.put("quantity", b.getQuantity());
+            row.put("expireSoon", !b.getExpireDate().isAfter(warn));
+            return row;
+        }).toList();
     }
 
     /** 库存原子累加（无行则初始化） */

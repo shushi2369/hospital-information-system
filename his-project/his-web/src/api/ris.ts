@@ -57,6 +57,8 @@ export interface RisReport {
   reviewTime?: string | null
   /** 10 书写中 20 已发布 30 已驳回 */
   status: number
+  mutualFlag?: number
+  mutualNote?: string | null
 }
 
 export interface RisDetail {
@@ -131,6 +133,8 @@ export function writeReport(data: {
   finding: string
   conclusion: string
   criticalSign?: string
+  mutualFlag?: number
+  mutualNote?: string
 }) {
   return post<string>('/ris/reports', data)
 }

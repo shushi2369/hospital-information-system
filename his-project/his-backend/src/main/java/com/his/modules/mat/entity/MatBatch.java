@@ -6,20 +6,16 @@ import com.his.common.BaseEntity;
 import lombok.Getter;
 import lombok.Setter;
 
-/** {code mat_requisition} */
+/** {code mat_batch} */
 @Getter
 @Setter
-@TableName("mat_requisition")
-public class MatRequisition extends BaseEntity {
-    private String reqNo;
+@TableName("mat_batch")
+public class MatBatch extends BaseEntity {
     private Long materialId;
-    private Long deptId;
+    private String batchNo;
+    private java.time.LocalDate expireDate;
     private Integer quantity;
-    private Long applicantId;
-    private String purpose;
     private Integer status;
-    /** FEFO 拨发拆分[{batchNo,quantity}] */
-    private String breakdown;
 
     @Version
     private Integer version;

@@ -51,6 +51,22 @@
         </el-table>
       </el-tab-pane>
 
+      <el-tab-pane label="批次效期" name="batch">
+        <el-table v-loading="batchLoading" :data="batches" border stripe size="small">
+          <el-table-column prop="id" label="ID" width="70" align="center" />
+          <el-table-column prop="materialId" label="物资ID" width="90" align="center" />
+          <el-table-column prop="batchNo" label="批次号" min-width="140" />
+          <el-table-column prop="expireDate" label="效期" width="110" align="center" />
+          <el-table-column prop="quantity" label="数量" width="90" align="center" />
+          <el-table-column label="效期预警" width="100" align="center">
+            <template #default="{ row }">
+              <el-tag v-if="row.expireSoon" size="small" type="danger">≤30天</el-tag>
+              <span v-else>-</span>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
+
       <el-tab-pane label="领用流水" name="req">
         <el-table v-loading="reqLoading" :data="requisitions" border stripe size="small">
           <el-table-column prop="id" label="ID" width="70" align="center" />
@@ -103,7 +119,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  approvePurchase, cancelPurchase, createPurchase, createRequisition,
+  approvePurchase, cancelPurchase, createPurchase, createRequisition, getBatches,
   getMaterialPage, getPurchasePage, getRequisitionPage, matCategoryLabel,
   matPoStatusLabel, matPoStatusTagType, receivePurchase,
 } from '@/api/mat'
@@ -115,6 +131,8 @@ const reqLoading = ref(false)
 const materials = ref<Array<Record<string, unknown>>>([])
 const purchases = ref<Array<Record<string, unknown>>>([])
 const requisitions = ref<Array<Record<string, unknown>>>([])
+const batches = ref<Array<Record<string, unknown>>>([])
+const batchLoading = ref(false)
 
 async function fetchMaterials() {
   loading.value = true
@@ -193,5 +211,10 @@ async function handleReq() {
   fetchReq()
 }
 
-onMounted(() => { fetchMaterials(); fetchPo(); fetchReq() })
+async function fetchBatches() {
+  batchLoading.value = true
+  try { batches.value = await getBatches() } finally { batchLoading.value = false }
+}
+
+onMounted(() => { fetchMaterials(); fetchPo(); fetchReq(); fetchBatches() })
 </script>

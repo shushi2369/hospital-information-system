@@ -75,9 +75,17 @@ public class MatController {
     @PreAuthorize("@ss.hasPerm('mat:purchase:approve')")
     @Idempotent
     @AuditLog(module = "mat", action = "到货入库", bizType = "mat_purchase")
-    public R<Void> receive(@PathVariable Long id) {
-        matService.receive(id);
+    public R<Void> receive(@PathVariable Long id,
+            @RequestParam(required = false) String batchNo,
+            @RequestParam(required = false) java.time.LocalDate expireDate) {
+        matService.receive(id, batchNo, expireDate);
         return R.ok();
+    }
+
+    @GetMapping("/batches")
+    @PreAuthorize("@ss.hasPerm('mat:stock:query') or @ss.hasPerm('mat:batch:query')")
+    public R<List<Map<String, Object>>> batches(@RequestParam(required = false) Long materialId) {
+        return R.ok(matService.batches(materialId));
     }
 
     @PostMapping("/purchases/{id}/cancel")

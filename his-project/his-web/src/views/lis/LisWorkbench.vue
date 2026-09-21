@@ -150,6 +150,12 @@
           <el-descriptions-item label="报告时间">
             {{ reportDetail.report?.reportTime || '-' }}
           </el-descriptions-item>
+          <el-descriptions-item label="互认标识" :span="2">
+            <el-tag v-if="reportDetail.report?.mutualFlag === 1" size="small" type="warning">
+              HR 纳入互认 {{ reportDetail.report?.mutualNote || '' }}
+            </el-tag>
+            <span v-else>未标记</span>
+          </el-descriptions-item>
           <el-descriptions-item label="结果小结" :span="2">
             {{ reportDetail.report?.resultSummary || '-' }}
           </el-descriptions-item>

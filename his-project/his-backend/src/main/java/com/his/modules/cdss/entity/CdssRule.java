@@ -15,6 +15,12 @@ public class CdssRule extends BaseEntity {
     private Integer ruleType;
     private Long refAId;
     private Long refBId;
+    /** type=4 过敏原关键字（患者过敏史包含即匹配） */
+    private String allergyKeyword;
+    /** type=3 生效年龄下限(岁) */
+    private Integer ageMin;
+    /** type=3 生效年龄上限(岁) */
+    private Integer ageMax;
     private Integer level;
     private String message;
     private Integer status;

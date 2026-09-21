@@ -52,8 +52,8 @@ public class CdssService {
 
     /** 规则创建（C-01） */
     public String createRule(CdssRule rule) {
-        if (rule.getRuleType() == null || rule.getRuleType() < 1 || rule.getRuleType() > 3) {
-            throw new BizException(ErrorCode.A0001, "规则类型取值 1~3");
+        if (rule.getRuleType() == null || rule.getRuleType() < 1 || rule.getRuleType() > 4) {
+            throw new BizException(ErrorCode.A0001, "规则类型取值 1~4");
         }
         rule.setId(null);
         rule.setStatus(1);
@@ -120,12 +120,15 @@ public class CdssService {
                 return;
             }
             List<Long> hitIds = new ArrayList<>();
+            // 患者档案一次读取（过敏守门 + type=4 精确映射 + type=3 年龄维度共用）
+            com.his.modules.patient.app.PatientDTO patient =
+                    order.getPatientId() == null ? null : patientAppService.getById(order.getPatientId());
+            String allergyHistory = patient == null ? null : patient.getAllergyHistory();
+            Integer patientAge = calcAge(patient == null ? null : patient.getBirthDate());
             // 过敏史守门提示（患者安全，业界 HIS 高频缺陷对标）：
             // 药品医嘱 + 患者过敏史非空 → 患者级命中（不依赖规则配置，开药即查）
             if (order.getCategory() != null && order.getCategory() == 1 && order.getPatientId() != null) {
-                com.his.modules.patient.app.PatientDTO patient =
-                        patientAppService.getById(order.getPatientId());
-                String allergy = patient == null ? null : patient.getAllergyHistory();
+                String allergy = allergyHistory;
                 if (allergy != null && !allergy.isBlank()) {
                     CdssHit record = new CdssHit();
                     record.setOrderId(order.getId());
@@ -140,6 +143,31 @@ public class CdssService {
                 }
             }
             for (CdssRule rule : rules) {
+                // 四期 type=4：过敏原-药品精确映射（患者过敏史包含关键字 且 医嘱含目标药品）
+                if (rule.getRuleType() != null && rule.getRuleType() == 4) {
+                    String hit = matchAllergy(rule, items, allergyHistory);
+                    if (hit != null) {
+                        CdssHit record = new CdssHit();
+                        record.setOrderId(order.getId());
+                        record.setDoctorId(order.getDoctorId());
+                        record.setRuleId(rule.getId());
+                        record.setMessage(hit);
+                        record.setIgnored(1);
+                        record.setHitTime(LocalDateTime.now());
+                        hitMapper.insert(record);
+                        hitIds.add(record.getId());
+                    }
+                    continue;
+                }
+                // 四期 type=3 年龄维度：规则限定年龄段时，患者年龄不在区间则不生效
+                if (rule.getRuleType() != null && rule.getRuleType() == 3
+                        && (rule.getAgeMin() != null || rule.getAgeMax() != null)) {
+                    if (patientAge == null
+                            || (rule.getAgeMin() != null && patientAge < rule.getAgeMin())
+                            || (rule.getAgeMax() != null && patientAge > rule.getAgeMax())) {
+                        continue;
+                    }
+                }
                 String hit = match(rule, items);
                 if (hit != null) {
                     CdssHit record = new CdssHit();
@@ -161,6 +189,24 @@ public class CdssService {
             // 异常隔离：CDSS 故障只记日志，不向开单事务传播
             log.warn("CDSS check failed for order {}: {}", order.getId(), e.getMessage());
         }
+    }
+
+    /** 四期 type=4：过敏原关键字匹配（患者过敏史包含关键字 且 医嘱含目标药品） */
+    private String matchAllergy(CdssRule rule, List<DocOrderItem> items, String allergyHistory) {
+        if (rule.getAllergyKeyword() == null || rule.getAllergyKeyword().isBlank()
+                || allergyHistory == null || !allergyHistory.contains(rule.getAllergyKeyword())) {
+            return null;
+        }
+        boolean hasDrug = items.stream().anyMatch(i -> rule.getRefAId().equals(i.getDrugId()));
+        return hasDrug ? rule.getMessage() + "（患者过敏史含【" + rule.getAllergyKeyword() + "】）" : null;
+    }
+
+    /** 年龄现算（出生日期→周岁） */
+    private Integer calcAge(java.time.LocalDate birthDate) {
+        if (birthDate == null) {
+            return null;
+        }
+        return java.time.Period.between(birthDate, java.time.LocalDate.now()).getYears();
     }
 
     /** 规则匹配（提示级）：返回命中提示文案，未命中返回 null */

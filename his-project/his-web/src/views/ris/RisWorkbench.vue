@@ -100,6 +100,10 @@
         <el-form-item label="危急征象">
           <el-input v-model="writeForm.criticalSign" placeholder="命中危急征象时填写（如 主动脉夹层征象），将推送危急值" />
         </el-form-item>
+        <el-form-item label="纳入互认">
+          <el-switch v-model="writeForm.mutual" />
+          <span class="mutual-tip">标记后医生站展示 HR 互认标识</span>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="writeVisible = false">取消</el-button>
@@ -117,6 +121,12 @@
           <el-descriptions-item label="影像张数">{{ (reportDetail.image as Record<string, unknown>)?.imageCount ?? '-' }}</el-descriptions-item>
           <el-descriptions-item label="影像所见" :span="2">{{ (reportDetail.report as RisReport)?.finding || '-' }}</el-descriptions-item>
           <el-descriptions-item label="诊断意见" :span="2">{{ (reportDetail.report as RisReport)?.conclusion || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="互认标识" :span="2">
+            <el-tag v-if="(reportDetail.report as RisReport)?.mutualFlag === 1" size="small" type="warning">
+              HR 纳入互认 {{ (reportDetail.report as RisReport)?.mutualNote || '' }}
+            </el-tag>
+            <span v-else>未标记</span>
+          </el-descriptions-item>
           <el-descriptions-item label="危急征象" :span="2">
             <el-tag v-if="(reportDetail.report as RisReport)?.criticalFlag === 1" size="small" type="danger">
               {{ (reportDetail.report as RisReport)?.criticalSign }}
@@ -223,7 +233,7 @@ async function handleFinish(row: RisRequest) {
 }
 
 const writeVisible = ref(false)
-const writeForm = reactive({ finding: '', conclusion: '', criticalSign: '' })
+const writeForm = reactive({ finding: '', conclusion: '', criticalSign: '', mutual: false })
 const existingReport = ref<RisReport | null>(null)
 
 async function openWrite(row: RisRequest) {
@@ -233,6 +243,7 @@ async function openWrite(row: RisRequest) {
   writeForm.finding = (detail.image as Record<string, unknown>)?.impressionText as string || ''
   writeForm.conclusion = existingReport.value?.conclusion ?? ''
   writeForm.criticalSign = existingReport.value?.criticalSign ?? ''
+  writeForm.mutual = existingReport.value?.mutualFlag === 1
   writeVisible.value = true
 }
 
@@ -246,6 +257,8 @@ async function handleWrite() {
     finding: writeForm.finding,
     conclusion: writeForm.conclusion,
     criticalSign: writeForm.criticalSign || undefined,
+    mutualFlag: writeForm.mutual ? 1 : 0,
+    mutualNote: writeForm.mutual ? 'HR 互认' : undefined,
   })
   ElMessage.success('报告已保存（书写中，待审核发布）')
   writeVisible.value = false
@@ -282,4 +295,5 @@ onMounted(fetchList)
 
 <style scoped>
 .mb8 { margin-bottom: 8px; }
+.mutual-tip { margin-left: 8px; color: #909399; font-size: 12px; }
 </style>

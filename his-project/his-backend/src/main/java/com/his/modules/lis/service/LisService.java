@@ -194,7 +194,7 @@ public class LisService {
 
     /** 报告发布（L-06）：申请单 → 已报告 */
     @Transactional
-    public String publish(Long requestId) {
+    public String publish(Long requestId, Integer mutualFlag, String mutualNote) {
         LisRequest request = requireRequest(requestId);
         if (request.getStatus() != 30) {
             throw new BizException(ErrorCode.A0001, "申请单不在检验中状态，不能发布");
@@ -217,6 +217,8 @@ public class LisService {
         report.setReporterId(CurrentUser.id());
         report.setReportTime(LocalDateTime.now());
         report.setStatus(20);
+        report.setMutualFlag(mutualFlag == null ? 0 : mutualFlag);
+        report.setMutualNote(mutualNote);
         reportMapper.insert(report);
         request.setStatus(40);
         requestMapper.updateById(request);
