@@ -80,7 +80,15 @@ public class IdempotentAspect {
             throw new BizException(ErrorCode.A0005, "相同请求正在处理中，请勿重复提交");
         }
 
-        Object result = pjp.proceed();
+        Object result;
+        try {
+            result = pjp.proceed();
+        } catch (Throwable e) {
+            // 业务/系统失败释放幂等锁：失败请求不产生幂等语义，允许用户重试
+            // （不释放则失败 key 残留 TTL 时长，同 key 重试永远 A0005——查验二十五轮）
+            redis.delete(redisKey);
+            throw e;
+        }
         try {
             if (result instanceof R<?> r) {
                 redis.opsForValue().set(redisKey + ":resp", objectMapper.writeValueAsString(r), TTL);

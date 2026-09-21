@@ -62,7 +62,7 @@ def try_schedule(token, req_id, room_id, seq_start, idem, today):
                 + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
     seq = seq_start
     date = today
-    for _ in range(24):
+    for _ in range(80):  # 覆盖多日槽位（每日10台×3间，密集回归时向前推进）
         st, r = call("POST", "/ors/requests/%d/schedule" % req_id, token,
                      {"roomId": room_id, "surgeryDate": date, "seqNo": seq, "surgeonId": 2},
                      idem="%s-%s-%d" % (idem, date, seq))
@@ -71,7 +71,8 @@ def try_schedule(token, req_id, room_id, seq_start, idem, today):
         seq += 1
         if seq > 10:  # 台次参数上限：切次日从 1 重来
             seq = 1
-            date = tomorrow
+            date = (datetime.datetime.strptime(date, "%Y-%m-%d")
+                    + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
     return seq, r
 
 

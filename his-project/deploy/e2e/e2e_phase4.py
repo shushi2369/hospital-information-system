@@ -70,6 +70,10 @@ def main():
     check("3. 过期血袋入库拦截", r["code"] != "OK", r)
 
     st, r = call("POST", "/bb/requests", doctor, {
+        "admissionId": 75, "patientId": 999999999, "bloodType": 4, "rh": 1,
+        "component": 1, "volumeMl": 200, "usePurpose": "跨患者"}, idem="p4-r0-" + uid)
+    check("4a. [二十五#1] 跨患者用血申请拦截", r["code"] != "OK", r)
+    st, r = call("POST", "/bb/requests", doctor, {
         "admissionId": 75, "patientId": 415, "bloodType": 4, "rh": 1,
         "component": 1, "volumeMl": 200, "usePurpose": "四期验收"}, idem="p4-r1-" + uid)
     check("4. 用血申请(XY)", r["code"] == "OK" and str(r.get("data", "")).startswith("XY"), r)
@@ -94,6 +98,12 @@ def main():
     check("8. 不相容配血登记", r["code"] == "OK", r)
     st, rl20 = call("GET", "/bb/requests?status=20", bb_tech)
     check("8b. 不相容不推进状态(仍配血中)", any(x["id"] == req_id for x in rl20["data"]["list"]), "")
+    # 二十五#2：血型/成分不匹配（XDJ20260003 为 A 型血浆 vs O 型红细胞申请）→ 配血拦截
+    st, bl3 = call("GET", "/bb/bags?pageNum=1&pageSize=50", bb_tech)
+    mismatch_bag = next((b for b in bl3["data"]["list"] if b["bagNo"] == "XDJ20260003"), None)
+    st, r = call("POST", "/bb/requests/%d/cross-match" % req_id, bb_tech, {
+        "bagId": mismatch_bag["id"], "crossMethod": "抗人球", "crossResult": 1}, idem="p4-x2b-" + uid)
+    check("10a. [二十五#2] 血型/成分不匹配配血拦截", r["code"] != "OK", r)
     st, r = call("POST", "/bb/requests/%d/cross-match" % req_id, bb_tech, {
         "bagId": new_bag_id, "crossMethod": "抗人球", "crossResult": 1}, idem="p4-x2-" + uid)
     check("10. 相容配血(20→30)", r["code"] == "OK", r)
@@ -109,6 +119,10 @@ def main():
         "bagId": new_bag_id, "checker1Id": 6, "checker2Id": 6,
         "vitalBefore": "T36.5 P80 R18 BP120/80"}, idem="p4-t1-" + uid)
     check("12. 门禁③：同签人拦截", r["code"] != "OK", r)
+    st, r = call("POST", "/bb/requests/%d/transfusion" % req_id, nurse, {
+        "bagId": demo_bag["id"], "checker1Id": 6, "checker2Id": 2,
+        "vitalBefore": "T36.5"}, idem="p4-t1b-" + uid)
+    check("13a. [二十五#3] 未发血袋输注拦截", r["code"] != "OK", r)
     st, r = call("POST", "/bb/requests/%d/transfusion" % req_id, nurse, {
         "bagId": new_bag_id, "checker1Id": 6, "checker2Id": 2,
         "vitalBefore": "T36.5 P80 R18 BP120/80"}, idem="p4-t2-" + uid)

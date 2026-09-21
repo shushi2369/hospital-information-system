@@ -12,6 +12,8 @@ import com.his.modules.lis.entity.LisReport;
 import com.his.modules.lis.entity.LisRequest;
 import com.his.modules.lis.service.LisService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -77,7 +79,7 @@ public class LisController {
     @Idempotent
     @AuditLog(module = "lis", action = "报告发布", bizType = "lis_report")
     public R<String> publish(@PathVariable Long requestId,
-            @RequestParam(required = false) Integer mutualFlag,
+            @RequestParam(required = false) @Min(0) @Max(1) Integer mutualFlag,
             @RequestParam(required = false) String mutualNote) {
         return R.ok(lisService.publish(requestId, mutualFlag, mutualNote));
     }

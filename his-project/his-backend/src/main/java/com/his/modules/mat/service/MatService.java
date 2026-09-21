@@ -257,10 +257,13 @@ public class MatService {
         for (MatBatch b : batches) {
             if (remain <= 0) break;
             int take = Math.min(remain, b.getQuantity());
-            batchMapper.update(null, new LambdaUpdateWrapper<MatBatch>()
+            int deductedBatch = batchMapper.update(null, new LambdaUpdateWrapper<MatBatch>()
                     .eq(MatBatch::getId, b.getId())
                     .ge(MatBatch::getQuantity, take)
                     .setSql("quantity = quantity - " + take));
+            if (deductedBatch != 1) {
+                continue; // 并发被其他请求先扣：跳过本批，由后续批次补足
+            }
             if (sb.length() > 1) sb.append(",");
             sb.append("{\"batchNo\":\"").append(b.getBatchNo())
               .append("\",\"quantity\":").append(take).append("}");

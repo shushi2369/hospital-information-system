@@ -37,6 +37,7 @@ public class BbService {
     private final BbTransfusionMapper transfusionMapper;
     private final BbAdverseMapper adverseMapper;
     private final InpAppService inpAppService;
+    private final com.his.modules.system.app.SystemAppService systemAppService;
     private final PltService pltService;
     private final IdGenerator idGenerator;
 
@@ -101,7 +102,10 @@ public class BbService {
     /** 用血申请（B-03） */
     @Transactional
     public String createRequest(BbRequestCreateRequest req) {
-        inpAppService.requireInHospital(req.getAdmissionId());
+        var admission = inpAppService.requireInHospital(req.getAdmissionId());
+        if (admission.getPatientId() == null || !admission.getPatientId().equals(req.getPatientId())) {
+            throw new BizException(ErrorCode.A0001, "患者与住院登记不匹配，禁止跨患者申请用血");
+        }
         BbRequest request = new BbRequest();
         request.setReqNo(idGenerator.next("XY"));
         request.setAdmissionId(req.getAdmissionId());
@@ -194,6 +198,9 @@ public class BbService {
                 || !bag.getComponent().equals(request.getComponent())) {
             throw new BizException(ErrorCode.A0001, "血袋血型/成分与申请不匹配");
         }
+        if (!bag.getRh().equals(request.getRh())) {
+            throw new BizException(ErrorCode.A0001, "Rh 血型不匹配（Rh 阴性患者禁止配 Rh 阳性血）");
+        }
         BbCrossMatch record = new BbCrossMatch();
         record.setRequestId(id);
         record.setBagId(req.getBagId());
@@ -244,6 +251,12 @@ public class BbService {
         if (bag.getStatus() != 1) {
             throw new BizException(ErrorCode.A0001, "血袋不在库");
         }
+        if (!bag.getExpireDate().isAfter(LocalDate.now())) {
+            throw new BizException(ErrorCode.A0001, "血袋已过期，禁止发血");
+        }
+        if (systemAppService.getUsername(req.getReceiverId()) == null) {
+            throw new BizException(ErrorCode.A0001, "取血护士不存在");
+        }
         // 门禁②：取血护士签收
         BbIssue issue = new BbIssue();
         issue.setRequestId(id);
@@ -276,6 +289,13 @@ public class BbService {
         }
         if (req.getChecker1Id().equals(req.getChecker2Id())) {
             throw new BizException(ErrorCode.A0001, "床边核对须双人双签（不得同一人）");
+        }
+        // 输注血袋必须是本申请实际发出的血袋
+        Long issued = issueMapper.selectCount(new LambdaQueryWrapper<BbIssue>()
+                .eq(BbIssue::getRequestId, id)
+                .eq(BbIssue::getBagId, req.getBagId()));
+        if (issued == null || issued == 0) {
+            throw new BizException(ErrorCode.A0001, "该血袋未发血至本申请，禁止开始输注");
         }
         BbTransfusion tf = new BbTransfusion();
         tf.setRequestId(id);
