@@ -26,6 +26,8 @@ public class CliExamApplication extends BaseEntity {
     private BigDecimal price;
     private Integer chargeStatus;
     private Integer status;
+    /** 联动检查申请id（幂等回填标记） */
+    private Long risRequestId;
 
     @Version
     private Integer version;

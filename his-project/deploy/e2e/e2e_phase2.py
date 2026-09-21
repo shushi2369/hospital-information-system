@@ -112,8 +112,9 @@ def main():
         "items": [{"drugId": 1, "dosage": "0.25g", "days": 5, "quantity": 2, "usageRoute": "口服"}]},
         idem="p2-rx1-" + uid)
     check("9. 开长期药品医嘱", r["code"] == "OK", r)
-    st, q = call("GET", "/doc/orders/review-queue", pharmacist)
-    rx_id = [o["id"] for o in q["data"] if o["admissionId"] == admission_id][0]
+    # 队列接口按 id 升序 LIMIT 100，多轮回归堆积后新单被截断——改从住院维度取单
+    st, ol = call("GET", "/doc/orders?admissionId=%d&status=10" % admission_id, pharmacist)
+    rx_id = [o["id"] for o in ol["data"]["list"] if o["category"] == 1][0]
     st, detail = call("GET", "/doc/orders/%d" % rx_id, pharmacist)
     exec_item = [e for e in detail["data"]["executions"] if e["execType"] == 2][0]
     st, r = call("POST", "/doc/executions/%d/do" % exec_item["id"], nurse, idem="p2-ex0-" + uid)
@@ -135,8 +136,9 @@ def main():
         "items": [{"drugId": 1, "dosage": "0.5g", "days": 1, "quantity": 1, "usageRoute": "静滴"}]},
         idem="p2-rx2-" + uid)
     check("15. 开皮试临时医嘱", r["code"] == "OK", r)
-    st, q = call("GET", "/doc/orders/review-queue", pharmacist)
-    rx2_id = [o["id"] for o in q["data"] if o["admissionId"] == admission_id][0]
+    # 队列接口 LIMIT 100 堆积截断——同改从住院维度取单
+    st, ol = call("GET", "/doc/orders?admissionId=%d&status=10" % admission_id, pharmacist)
+    rx2_id = [o["id"] for o in ol["data"]["list"] if o["category"] == 1 and o["orderClass"] == 2][0]
     call("POST", "/doc/orders/%d/review" % rx2_id, pharmacist, {"pass": True, "comment": "OK"}, idem="p2-rev2-" + uid)
     st, r = call("POST", "/doc/orders/%d/dispense" % rx2_id, pharmacist, idem="p2-dis2-" + uid)
     check("16. 皮试未做摆药拦截(B6104)", r["code"] == "B6104", r)

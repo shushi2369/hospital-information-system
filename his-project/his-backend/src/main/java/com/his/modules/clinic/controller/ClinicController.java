@@ -111,6 +111,12 @@ public class ClinicController {
         return R.ok();
     }
 
+    @GetMapping("/visits/{id}/exam-applications")
+    @PreAuthorize("@ss.hasPerm('clinic:exam:create') or @ss.hasPerm('clinic:record:submit')")
+    public R<List<com.his.modules.clinic.entity.CliExamApplication>> examApplications(@PathVariable Long id) {
+        return R.ok(clinicService.listExamApplications(id));
+    }
+
     @PostMapping("/visits/{id}/exam-applications")
     @PreAuthorize("@ss.hasPerm('clinic:exam:create')")
     @Idempotent

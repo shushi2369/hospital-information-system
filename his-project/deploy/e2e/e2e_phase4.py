@@ -56,6 +56,7 @@ def main():
     doctor = login("dr.li")
     doctor2 = login("dr.wang")
     bb_tech = login("bb.tech")
+    ris_tech = login("ris.zhang")
     nurse = login("nurse.wang")
     check("1. 角色登录（含血库人员）", all([admin, doctor, doctor2, bb_tech, nurse]))
 
@@ -263,6 +264,53 @@ def main():
     st, rl = call("GET", "/ris/reports?pageNum=1&pageSize=5", doctor)
     ris_report = rl["data"]["list"][0]
     check("30. RIS 报告含互认字段", "mutualFlag" in ris_report, list(ris_report.keys()))
+
+    # ================= 四期二批：门诊检查 RIS 闭环 =================
+    cashier2 = login("cashier.li")
+    st, r = call("POST", "/registrations", cashier2, {
+        "patientId": alg_pid, "doctorId": 2, "regDate": today, "period": 2,
+        "regType": 1}, idem="p4-op1-" + uid)
+    check("31. 门诊挂号", r["code"] == "OK", r)
+    st, rl = call("GET", "/registrations?patientId=%s&regDate=%s" % (alg_pid, today), cashier2)
+    reg_id = rl["data"]["list"][0]["id"]
+    st, r = call("POST", "/clinic/visits/%d/start" % reg_id, doctor, idem="p4-op2-" + uid)
+    check("32. 就诊开始", r["code"] == "OK", r)
+    visit_id = r["data"]  # 就诊开始返回 visitId(int)
+    # 开检查申请（胸部DR id=5, category=3 → apply_type=1）
+    call("POST", "/clinic/visits/%d/exam-applications" % visit_id, doctor,
+         {"chargeItemId": 5}, idem="p4-op3-" + uid)
+    call("POST", "/clinic/visits/%d/complete" % visit_id, doctor, idem="p4-op4-" + uid)
+    st, r = call("POST", "/billing/bills", cashier2, {
+        "visitId": visit_id, "payMethod": 1}, idem="p4-op5-" + uid)
+    check("33. 门诊收费（触发 RIS 联动 hook）", r["code"] == "OK", r)
+    st, reqs = call("GET", "/ris/requests?patientId=%s" % alg_pid, ris_tech)
+    op_req = next((x for x in reqs["data"]["list"] if x.get("visitId") == visit_id), None)
+    check("34. [门诊闭环] 收费联动生成检查申请", op_req is not None,
+          {"n": len(reqs["data"]["list"]), "statuses": [x["status"] for x in reqs["data"]["list"]]})
+    op_id = op_req["id"]
+    st, r = call("POST", "/ris/requests/%d/appoint" % op_id, ris_tech, {
+        "deviceId": 1, "apptTime": today + "T19:00:00"}, idem="p4-op6-" + uid)
+    check("35. [门诊闭环] 预约", r["code"] == "OK", r)
+    call("POST", "/ris/requests/%d/start" % op_id, ris_tech, idem="p4-op7-" + uid)
+    call("POST", "/ris/requests/%d/images" % op_id, ris_tech, {"fetch": True}, idem="p4-op8-" + uid)
+    call("POST", "/ris/requests/%d/finish" % op_id, ris_tech, idem="p4-op9-" + uid)
+    st, r = call("POST", "/ris/reports", doctor, {
+        "requestId": op_id, "finding": "门诊复验所见", "conclusion": "未见异常",
+        "mutualFlag": 1, "mutualNote": "HR 互认"}, idem="p4-op10-" + uid)
+    check("36. [门诊闭环] 书写报告(含互认)", r["code"] == "OK", r)
+    st, rl = call("GET", "/ris/reports?status=10", doctor)
+    op_rep = [x for x in rl["data"]["list"] if x["requestId"] == op_id][0]
+    st, r = call("POST", "/ris/reports/%d/review" % op_rep["id"], doctor2, {
+        "approved": True}, idem="p4-op11-" + uid)
+    check("37. [门诊闭环] 审核发布", r["code"] == "OK", r)
+    st, apps = call("GET", "/clinic/visits/%d/exam-applications" % visit_id, doctor)
+    back = next((a for a in apps["data"] if a.get("risRequestId") == op_id), None)
+    check("38. [门诊闭环] 检查申请回写已执行(30)+联动标记", back is not None
+          and back["status"] == 30 and back.get("risRequestId") == op_id,
+          [(a["status"], a.get("risRequestId")) for a in apps["data"]])
+    st, rd2 = call("GET", "/ris/reports/%d" % op_id, doctor)
+    check("39. [门诊闭环] 报告互认标识展示", (rd2["data"]["report"] or {}).get("mutualFlag") == 1,
+          rd2["data"]["report"])
 
     failed = [n for n, ok, _ in results if not ok]
     print("\n===== 四期 e2e 结果: %d/%d 通过 =====" % (len(results) - len(failed), len(results)))

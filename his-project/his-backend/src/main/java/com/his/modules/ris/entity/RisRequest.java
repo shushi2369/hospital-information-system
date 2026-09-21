@@ -14,6 +14,8 @@ public class RisRequest extends BaseEntity {
     private String requestNo;
     private Long orderId;
     private Long admissionId;
+    /** 门诊就诊（门诊段） */
+    private Long visitId;
     private Long patientId;
     private Long doctorId;
     private Integer modality;

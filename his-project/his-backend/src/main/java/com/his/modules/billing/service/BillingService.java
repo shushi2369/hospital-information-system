@@ -72,6 +72,7 @@ public class BillingService {
     private final PatientAppService patientAppService;
     private final SystemAppService systemAppService;
     private final com.his.modules.plt.service.PltService pltService;
+    private final com.his.modules.ris.service.RisService risAppService;
     private final BasedataAppService basedataAppService;
     private final IdGenerator idGenerator;
     private final com.his.modules.inp.app.InpAppService inpAppService;
@@ -205,6 +206,13 @@ public class BillingService {
         payment.setCashierId(cashierId);
         payment.setStatus(1);
         paymentRecordMapper.insert(payment);
+
+        // 四期二批：门诊检查 RIS 联动（billing → ris 单向 hook，同事务；ris 内部消化异常）
+        try {
+            risAppService.createOutpatientRequests(bill.getVisitId());
+        } catch (Exception e) {
+            pltService.recordEvent("ris.outpatient.hook.failed", String.valueOf(bill.getVisitId()), "{}");
+        }
 
         BillResponse resp = new BillResponse();
         resp.setId(bill.getId());

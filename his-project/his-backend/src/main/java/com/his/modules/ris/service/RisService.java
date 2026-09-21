@@ -29,6 +29,7 @@ import java.util.Map;
  * 危急征象走危急值 source=2（复用第一批 alert 闭环）；检查费仍"执行即计费"不在此处。
  */
 @Service
+@lombok.extern.slf4j.Slf4j
 @RequiredArgsConstructor
 public class RisService {
     private final RisRequestMapper requestMapper;
@@ -40,6 +41,8 @@ public class RisService {
     private final AlertService alertService;
     private final PltService pltService;
     private final IdGenerator idGenerator;
+    private final com.his.modules.clinic.mapper.CliExamApplicationMapper clinicExamApplicationMapper;
+    private final com.his.modules.basedata.app.BasedataAppService basedataAppService;
 
     /** 护士执行检查医嘱时自动生成申请单（doc → ris 单向调用，同 LIS 模式，《12》§3） */
     @Transactional
@@ -73,6 +76,52 @@ public class RisService {
             pltService.recordEvent("ris.request.voided", request.getRequestNo(),
                     "{\"orderId\":" + orderId + "}");
         }
+    }
+
+    /**
+     * 四期二批：门诊检查联动（billing → ris 单向 hook，同事务）。
+     * 支付完成后扫描该就诊的已收费检查申请，逐条生成检查申请并回填幂等标记；
+     * 全部异常内部消化（log），不影响收费主事务。
+     */
+    @Transactional
+    public void createOutpatientRequests(Long visitId) {
+        try {
+            List<com.his.modules.clinic.entity.CliExamApplication> pending =
+                    clinicExamApplicationMapper.selectList(
+                            new LambdaQueryWrapper<com.his.modules.clinic.entity.CliExamApplication>()
+                                    .eq(com.his.modules.clinic.entity.CliExamApplication::getVisitId, visitId)
+                                    .eq(com.his.modules.clinic.entity.CliExamApplication::getApplyType, 1)
+                                    .eq(com.his.modules.clinic.entity.CliExamApplication::getStatus, 20)
+                                    .isNull(com.his.modules.clinic.entity.CliExamApplication::getRisRequestId));
+            for (com.his.modules.clinic.entity.CliExamApplication exam : pending) {
+                RisRequest request = new RisRequest();
+                request.setRequestNo(idGenerator.next("JC"));
+                request.setVisitId(visitId);
+                request.setPatientId(exam.getPatientId());
+                request.setDoctorId(exam.getDoctorId());
+                var item = basedataAppService.getChargeItem(exam.getChargeItemId());
+                request.setModality(inferModality(item == null ? "" : item.getItemName()));
+                request.setBodyPart("通用");
+                request.setUrgency(1);
+                request.setStatus(10);
+                requestMapper.insert(request);
+                // 回填幂等标记：同一检查申请仅生成一条检查申请
+                exam.setRisRequestId(request.getId());
+                clinicExamApplicationMapper.updateById(exam);
+                pltService.recordEvent("ris.request.created", request.getRequestNo(),
+                        "{\"visitId\":" + visitId + ",\"outpatient\":true}");
+            }
+        } catch (Exception e) {
+            log.warn("门诊检查联动失败 visit {}", visitId, e);
+        }
+    }
+
+    /** 门诊检查申请引用查询（报告发布回写用） */
+    private com.his.modules.clinic.entity.CliExamApplication findOutpatientExam(Long risRequestId) {
+        return clinicExamApplicationMapper.selectOne(
+                new LambdaQueryWrapper<com.his.modules.clinic.entity.CliExamApplication>()
+                        .eq(com.his.modules.clinic.entity.CliExamApplication::getRisRequestId, risRequestId)
+                        .last("LIMIT 1"));
     }
 
     /** 申请分页（R-01，技师工作池） */
@@ -286,6 +335,16 @@ public class RisService {
                     request.getAdmissionId(), modalityName(request.getModality()), report.getCriticalSign());
         }
         pltService.recordEvent("ris.report.published", report.getReportNo(), "{}");
+        // 门诊检查闭环：报告发布回写一期检查申请"已执行"（四期二批）
+        try {
+            com.his.modules.clinic.entity.CliExamApplication exam = findOutpatientExam(request.getId());
+            if (exam != null && exam.getStatus() != null && exam.getStatus() == 20) {
+                exam.setStatus(30);
+                clinicExamApplicationMapper.updateById(exam);
+            }
+        } catch (Exception e) {
+            log.warn("门诊检查回写失败 ris_request {}: {}", request.getId(), e.getMessage());
+        }
     }
 
     /** 报告分页（R-09）：支持按住院/患者过滤（经申请单关联） */
