@@ -18,7 +18,10 @@ public class AnesthesiaRequest {
     private Integer anesthesiaMethod;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
+    @jakarta.validation.constraints.Size(max = 512, message = "术中用药摘要过长")
     private String drugNote;
+    @jakarta.validation.constraints.Size(max = 512, message = "术中事件过长")
     private String eventNote;
+    @jakarta.validation.constraints.Size(max = 1024, message = "生命体征数据过长")
     private String vitalSample;
 }

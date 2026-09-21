@@ -60,6 +60,21 @@ public class RisService {
         return request.getRequestNo();
     }
 
+    /** 医嘱作废联动（防御性，《16》§4.2）：待预约申请随医嘱作废 */
+    @Transactional
+    public void voidByOrder(Long orderId) {
+        RisRequest request = requestMapper.selectOne(new LambdaQueryWrapper<RisRequest>()
+                .eq(RisRequest::getOrderId, orderId)
+                .eq(RisRequest::getStatus, 10)
+                .last("LIMIT 1"));
+        if (request != null) {
+            request.setStatus(50);
+            requestMapper.updateById(request);
+            pltService.recordEvent("ris.request.voided", request.getRequestNo(),
+                    "{\"orderId\":" + orderId + "}");
+        }
+    }
+
     /** 申请分页（R-01，技师工作池） */
     public PageResult<RisRequest> page(RisRequestQuery query) {
         Page<RisRequest> page = requestMapper.selectPage(query.toPage(),
@@ -114,7 +129,9 @@ public class RisService {
         appointment.setStatus(1);
         appointmentMapper.insert(appointment);
         request.setStatus(20);
-        requestMapper.updateById(request);
+        if (requestMapper.updateById(request) != 1) {
+            throw new BizException(ErrorCode.A0001, "申请状态已变化，请刷新后重试");
+        }
         return appointment.getId();
     }
 
@@ -132,7 +149,9 @@ public class RisService {
             appointmentMapper.updateById(appointment);
         }
         request.setStatus(30);
-        requestMapper.updateById(request);
+        if (requestMapper.updateById(request) != 1) {
+            throw new BizException(ErrorCode.A0001, "申请状态已变化，请刷新后重试");
+        }
     }
 
     /** 影像归档（R-05）：检查中归档；fetch=true 走 Mock 设备通道 */
@@ -205,11 +224,15 @@ public class RisService {
             report = new RisReport();
             report.setReportNo(idGenerator.next("XD"));
             report.setRequestId(req.getRequestId());
-            report.setReporterId(CurrentUser.id());
-            report.setReportTime(LocalDateTime.now());
+            report.setStatus(10);
         } else if (report.getStatus() != 10 && report.getStatus() != 30) {
             throw new BizException(ErrorCode.A0001, "报告已发布，不可修改");
         }
+        // 书写/重提人即最终书写人：双签校验（reviewer≠reporter）对重提后口径生效
+        report.setReporterId(CurrentUser.id());
+        report.setReportTime(LocalDateTime.now());
+        report.setReviewerId(null);
+        report.setReviewTime(null);
         report.setFinding(req.getFinding());
         report.setConclusion(req.getConclusion());
         report.setCriticalSign(req.getCriticalSign());
@@ -217,8 +240,8 @@ public class RisService {
         report.setStatus(10);
         if (report.getId() == null) {
             reportMapper.insert(report);
-        } else {
-            reportMapper.updateById(report);
+        } else if (reportMapper.updateById(report) != 1) {
+            throw new BizException(ErrorCode.A0001, "报告状态已变化，请刷新后重试");
         }
         return report.getReportNo();
     }
@@ -236,6 +259,8 @@ public class RisService {
         if (!Boolean.TRUE.equals(req.getApproved())) {
             report.setStatus(30);
             reportMapper.updateById(report);
+            pltService.recordEvent("ris.report.rejected", report.getReportNo(),
+                    "{\"reason\":\"" + (req.getReason() == null ? "" : req.getReason().replace("\"", "'")) + "\"}");
             return;
         }
         Long reviewer = CurrentUser.id();

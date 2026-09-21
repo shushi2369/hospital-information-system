@@ -27,6 +27,7 @@ public class CheckSubmitRequest {
     @Setter
     public static class CheckItem {
         @NotNull(message = "核查项名称不能为空")
+        @jakarta.validation.constraints.Size(max = 128, message = "核查项名称过长")
         private String item;
         @NotNull(message = "核查结果不能为空")
         private Boolean result;

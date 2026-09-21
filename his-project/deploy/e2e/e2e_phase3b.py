@@ -54,6 +54,19 @@ def charge_item_by_category(token, category):
     return None, None
 
 
+def try_schedule(token, req_id, room_id, seq_start, idem, today):
+    """同日唯一索引(uk_schedule_slot)不含状态，已完成槽位仍占位：递增台次直至成功"""
+    seq = seq_start
+    for _ in range(12):
+        st, r = call("POST", "/ors/requests/%d/schedule" % req_id, token,
+                     {"roomId": room_id, "surgeryDate": today, "seqNo": seq, "surgeonId": 2},
+                     idem="%s-%d" % (idem, seq))
+        if r["code"] == "OK":
+            return seq, r
+        seq += 1
+    return seq, r
+
+
 def main():
     uid = str(int(time.time() * 1000))[-8:]
     id_card = "34010519950101" + uid[-4:]
@@ -115,8 +128,7 @@ def main():
     st, r = call("POST", "/ors/requests/%d/review" % or_a_id, doctor, {"approved": True}, idem="p3b-or1rv-" + uid)
     check("6. 审核通过(20)", r["code"] == "OK", r)
 
-    st, r = call("POST", "/ors/requests/%d/schedule" % or_a_id, or_nurse, {
-        "roomId": 1, "surgeryDate": today, "seqNo": seq_base, "surgeonId": 2}, idem="p3b-or1sc-" + uid)
+    or_a_seq, r = try_schedule(or_nurse, or_a_id, 1, seq_base, "p3b-or1sc-" + uid, today)
     check("7. 排台成功(30)", r["code"] == "OK" and str(r.get("data", "")).startswith("PT"), r)
 
     # 单B：门禁测试（排台后不核查直接开始）
@@ -127,8 +139,7 @@ def main():
     st, ol = call("GET", "/ors/requests?admissionId=%d&status=10" % admission_id, doctor)
     or_b_id = [o for o in ol["data"]["list"] if o["surgeryName"] == "清创缝合术"][0]["id"]
     call("POST", "/ors/requests/%d/review" % or_b_id, doctor, {"approved": True}, idem="p3b-or2rv-" + uid)
-    call("POST", "/ors/requests/%d/schedule" % or_b_id, or_nurse,
-         {"roomId": 2, "surgeryDate": today, "seqNo": seq_base + 1, "surgeonId": 2}, idem="p3b-or2sc-" + uid)
+    try_schedule(or_nurse, or_b_id, 2, seq_base, "p3b-or2sc-" + uid, today)
     st, r = call("POST", "/ors/requests/%d/start" % or_b_id, or_nurse, idem="p3b-or2st-" + uid)
     check("8. 门禁：缺核查单禁止开始手术", r["code"] != "OK", r)
 
@@ -141,7 +152,7 @@ def main():
     or_c_id = [o for o in ol["data"]["list"] if o["surgeryName"] == "肿块切除术"][0]["id"]
     call("POST", "/ors/requests/%d/review" % or_c_id, doctor, {"approved": True}, idem="p3b-or3rv-" + uid)
     st, r = call("POST", "/ors/requests/%d/schedule" % or_c_id, or_nurse,
-                 {"roomId": 1, "surgeryDate": today, "seqNo": seq_base, "surgeonId": 2}, idem="p3b-or3sc-" + uid)
+                 {"roomId": 1, "surgeryDate": today, "seqNo": or_a_seq, "surgeonId": 2}, idem="p3b-or3sc-" + uid)
     check("9. 同手术间同日同台次冲突拦截", r["code"] != "OK", r)
 
     # 单A：三方核查（麻醉前 + 切皮前）
@@ -316,6 +327,25 @@ def main():
     ecg_node = next((n for n in chest.get("nodes", []) if n["nodeCode"] == "XT_ECG"), {})
     check("52. 达标率统计（胸痛病例≥1, XT_ECG 达标≥1）",
           chest.get("caseCount", 0) >= 1 and ecg_node.get("metCount", 0) >= 1, chest)
+
+    # ---- 十轮查验修复行为固化 ----
+    st, r = call("POST", "/ors/requests", doctor, {
+        "admissionId": admission_id, "patientId": 999999999,
+        "surgeryName": "跨患者挂单测试", "diagnosis": "演练", "plannedDate": today,
+        "anesthesiaMethod": 1}, idem="p3b-x1-" + uid)
+    check("53. 归属校验：跨患者挂单拦截", r["code"] != "OK", r)
+
+    st, r = call("POST", "/emc/triage", emc_nurse, {
+        "patientId": 999999999, "chiefComplaint": "幽灵患者分诊", "triageLevel": 3},
+        idem="p3b-x2-" + uid)
+    check("54. 归属校验：不存在患者分诊拦截", r["code"] != "OK", r)
+
+    past_time = time.strftime("%Y-%m-%d") + "T00:00:00"
+    st, vl = call("GET", "/emc/visits?patientId=%d&status=20" % patient_id, emc_nurse)
+    closed_visit = vl["data"]["list"][0]["id"]
+    st, r = call("POST", "/emc/visits/%d/timepoints" % closed_visit, emc_nurse,
+                 {"nodeCode": "XT_TPN", "nodeTime": past_time}, idem="p3b-x3-" + uid)
+    check("55. 时间边界：关档病例节点录入拦截", r["code"] != "OK", r)
 
     failed = [n for n, ok, _ in results if not ok]
     print("\n===== 三期第二批 e2e 结果: %d/%d 通过 =====" % (len(results) - len(failed), len(results)))

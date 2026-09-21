@@ -16,10 +16,12 @@ public class TriageRequest {
     @NotNull(message = "患者不能为空")
     private Long patientId;
     @NotBlank(message = "主诉不能为空")
+    @jakarta.validation.constraints.Size(max = 256, message = "主诉过长")
     private String chiefComplaint;
     private BigDecimal bodyTemp;
     private Integer pulse;
     private Integer respiration;
+    @jakarta.validation.constraints.Size(max = 16, message = "血压格式过长")
     private String bloodPressure;
     private Integer spo2;
     @NotNull(message = "分诊级别不能为空")

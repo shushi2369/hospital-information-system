@@ -73,10 +73,13 @@ public class OrsService {
         return result;
     }
 
-    /** 创建手术申请（OR-01）：在院校验 + 价目快照（类别 9/10 校验） */
+    /** 创建手术申请（OR-01）：在院校验 + 归属校验 + 价目快照（类别 9/10 校验） */
     @Transactional
     public String create(SurgeryCreateRequest req) {
-        inpAppService.requireInHospital(req.getAdmissionId());
+        var admission = inpAppService.requireInHospital(req.getAdmissionId());
+        if (admission.getPatientId() == null || !admission.getPatientId().equals(req.getPatientId())) {
+            throw new BizException(ErrorCode.A0001, "患者与住院登记不匹配，禁止跨患者挂单");
+        }
         validateAnesthesiaMethod(req.getAnesthesiaMethod());
         OrsSurgeryRequest request = new OrsSurgeryRequest();
         request.setRequestNo(idGenerator.next("SS"));
@@ -106,16 +109,21 @@ public class OrsService {
         return request.getRequestNo();
     }
 
-    /** 审核（OR-04）：10 → 20 通过 ｜ 10 → 70 驳回 */
+    /** 审核（OR-04）：10 → 20 通过 ｜ 10 → 70 驳回（原因留痕） */
     @Transactional
     public void review(Long id, ReviewRequest req) {
         OrsSurgeryRequest request = requireRequest(id);
         if (request.getStatus() != 10) {
             throw new BizException(ErrorCode.A0001, "申请不在待审核状态");
         }
-        request.setStatus(Boolean.TRUE.equals(req.getApproved()) ? 20 : 70);
+        boolean approved = Boolean.TRUE.equals(req.getApproved());
+        request.setStatus(approved ? 20 : 70);
         if (requestMapper.updateById(request) != 1) {
             throw new BizException(ErrorCode.A0001, "申请状态已变化，请刷新后重试");
+        }
+        if (!approved) {
+            pltService.recordEvent("ors.request.rejected", request.getRequestNo(),
+                    "{\"reason\":\"" + (req.getReason() == null ? "" : req.getReason().replace("\"", "'")) + "\"}");
         }
     }
 
@@ -157,7 +165,9 @@ public class OrsService {
             throw new BizException(ErrorCode.A0001, "该手术间台次已被占用");
         }
         request.setStatus(30);
-        requestMapper.updateById(request);
+        if (requestMapper.updateById(request) != 1) {
+            throw new BizException(ErrorCode.A0001, "申请状态已变化，请刷新后重试");
+        }
         pltService.recordEvent("ors.request.scheduled", request.getRequestNo(),
                 "{\"room\":\"" + room.getRoomNo() + "\",\"seq\":" + req.getSeqNo() + "}");
         return schedule.getScheduleNo();
@@ -306,7 +316,9 @@ public class OrsService {
         postop.setStatus(1);
         postopMapper.insert(postop);
         request.setStatus(60);
-        requestMapper.updateById(request);
+        if (requestMapper.updateById(request) != 1) {
+            throw new BizException(ErrorCode.A0001, "手术状态已变化，请刷新后重试");
+        }
     }
 
     /** 完成关档（OR-11）：自动生成手术费/麻醉费（charge_status 乐观防重） */
@@ -327,19 +339,30 @@ public class OrsService {
         Map<String, Object> fees = new LinkedHashMap<>();
         if (request.getSurgeryItemId() != null) {
             ChargeItemDTO item = basedataAppService.getChargeItem(request.getSurgeryItemId());
-            fees.put("surgeryFee", inpAppService.addExecFee(request.getAdmissionId(), 9,
-                    item == null ? request.getSurgeryName() : item.getItemName(),
-                    BigDecimal.ONE, request.getSurgeryPrice() == null
-                            ? (item == null ? BigDecimal.ZERO : item.getPrice()) : request.getSurgeryPrice(),
-                    id));
+            java.math.BigDecimal price = request.getSurgeryPrice() != null
+                    ? request.getSurgeryPrice() : (item == null ? null : item.getPrice());
+            if (price == null || price.signum() <= 0) {
+                // 价目缺失/为零不产生 0 元脏账，关档返回中如实缺少该笔
+                pltService.recordEvent("ors.charge.skipped", request.getRequestNo(),
+                        "{\"type\":\"surgery\",\"itemId\":" + request.getSurgeryItemId() + "}");
+            } else {
+                fees.put("surgeryFee", inpAppService.addExecFee(request.getAdmissionId(), 9,
+                        item == null ? request.getSurgeryName() : item.getItemName(),
+                        BigDecimal.ONE, price, id));
+            }
         }
         if (request.getAnesthesiaItemId() != null) {
             ChargeItemDTO item = basedataAppService.getChargeItem(request.getAnesthesiaItemId());
-            fees.put("anesthesiaFee", inpAppService.addExecFee(request.getAdmissionId(), 10,
-                    item == null ? "麻醉费" : item.getItemName(),
-                    BigDecimal.ONE, request.getAnesthesiaPrice() == null
-                            ? (item == null ? BigDecimal.ZERO : item.getPrice()) : request.getAnesthesiaPrice(),
-                    id));
+            java.math.BigDecimal price = request.getAnesthesiaPrice() != null
+                    ? request.getAnesthesiaPrice() : (item == null ? null : item.getPrice());
+            if (price == null || price.signum() <= 0) {
+                pltService.recordEvent("ors.charge.skipped", request.getRequestNo(),
+                        "{\"type\":\"anesthesia\",\"itemId\":" + request.getAnesthesiaItemId() + "}");
+            } else {
+                fees.put("anesthesiaFee", inpAppService.addExecFee(request.getAdmissionId(), 10,
+                        item == null ? "麻醉费" : item.getItemName(),
+                        BigDecimal.ONE, price, id));
+            }
         }
         pltService.recordEvent("ors.request.completed", request.getRequestNo(),
                 "{\"fees\":" + fees.size() + "}");

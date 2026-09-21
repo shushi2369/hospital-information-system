@@ -31,6 +31,8 @@ public class EmcService {
     private final EmcVisitMapper visitMapper;
     private final EmcTimepointMapper timepointMapper;
     private final EmcNodeDictMapper nodeDictMapper;
+    private final com.his.modules.patient.app.PatientAppService patientAppService;
+    private final com.his.modules.inp.app.InpAppService inpAppService;
     private final PltService pltService;
     private final IdGenerator idGenerator;
 
@@ -40,6 +42,8 @@ public class EmcService {
         if (req.getTriageLevel() < 1 || req.getTriageLevel() > 4) {
             throw new BizException(ErrorCode.A0001, "分诊级别取值 1~4");
         }
+        // 患者必须真实存在（防任意 ID 挂单）
+        patientAppService.requireActive(req.getPatientId());
         EmcTriage triage = new EmcTriage();
         triage.setTriageNo(idGenerator.next("FZ"));
         triage.setPatientId(req.getPatientId());
@@ -146,6 +150,9 @@ public class EmcService {
         if (!node.getCenterType().equals(visit.getCenterType())) {
             throw new BizException(ErrorCode.A0001, "节点不属于该中心的节点集");
         }
+        if (req.getNodeTime().isBefore(visit.getStartTime())) {
+            throw new BizException(ErrorCode.A0001, "节点时间早于登记时刻，请核实（时限以登记时刻为基准）");
+        }
         EmcTimepoint tp = new EmcTimepoint();
         tp.setEmcVisitId(visitId);
         tp.setNodeCode(req.getNodeCode());
@@ -160,11 +167,12 @@ public class EmcService {
         return tp.getId();
     }
 
-    /** 后补关联（E-07） */
+    /** 后补关联（E-07）：住院/门诊单号须真实存在 */
     @Transactional
     public void link(Long visitId, LinkRequest req) {
         EmcVisit visit = requireVisit(visitId);
         if (req.getAdmissionId() != null) {
+            inpAppService.requireAdmission(req.getAdmissionId());
             visit.setAdmissionId(req.getAdmissionId());
         }
         if (req.getVisitId() != null) {

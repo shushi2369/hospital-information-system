@@ -17,9 +17,12 @@ public class SurgeryCreateRequest {
     @NotNull(message = "患者 ID 不能为空")
     private Long patientId;
     @NotBlank(message = "手术名称不能为空")
+    @jakarta.validation.constraints.Size(max = 64, message = "手术名称过长")
     private String surgeryName;
+    @jakarta.validation.constraints.Size(max = 32, message = "术式编码过长")
     private String surgeryCode;
     @NotBlank(message = "术前诊断不能为空")
+    @jakarta.validation.constraints.Size(max = 256, message = "术前诊断过长")
     private String diagnosis;
     @NotNull(message = "拟手术日期不能为空")
     private LocalDate plannedDate;

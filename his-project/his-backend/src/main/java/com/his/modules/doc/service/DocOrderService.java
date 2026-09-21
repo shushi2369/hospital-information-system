@@ -333,6 +333,8 @@ public class DocOrderService {
         order.setVoidReason(req.getReason());
         orderMapper.updateById(order);
         skipFutureExec(order.getId(), LocalDate.now());
+        // 检查申请联动作废（doc → ris 单向，《16》§4.2 承诺）
+        risAppService.voidByOrder(orderId);
     }
 
     /** 皮试结果登记（O-12）：阳性 → 医嘱作废（B6104 拦截后续） */

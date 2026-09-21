@@ -15,5 +15,6 @@ public class TimepointRequest {
     private String nodeCode;
     @NotNull(message = "节点时间不能为空")
     private LocalDateTime nodeTime;
+    @jakarta.validation.constraints.Size(max = 256, message = "备注过长")
     private String note;
 }
