@@ -41,7 +41,7 @@
           <el-button v-if="row.status === 10" v-perm="'or:request:review'" link type="warning" @click="handleReview(row, true)">通过</el-button>
           <el-button v-if="row.status === 10" v-perm="'or:request:review'" link type="danger" @click="handleReview(row, false)">驳回</el-button>
           <el-button v-if="row.status === 20" v-perm="'or:schedule:manage'" link type="primary" @click="openSchedule(row)">排台</el-button>
-          <el-button v-if="row.status === 30" v-perm="'or:check:submit'" link type="warning" @click="openCheck(row)">核查</el-button>
+          <el-button v-if="row.status === 30 || row.status === 50" v-perm="'or:check:submit'" link type="warning" @click="openCheck(row)">核查</el-button>
           <el-button v-if="row.status === 30" v-perm="'or:stage:operate'" link type="primary" @click="handleStart(row)">开始</el-button>
           <el-button v-if="row.status === 40" v-perm="'or:anesthesia:write'" link type="warning" @click="openAnesthesia(row)">麻醉</el-button>
           <el-button v-if="row.status === 40" v-perm="'or:stage:operate'" link type="danger" @click="handleFinish(row)">结束</el-button>
