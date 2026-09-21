@@ -67,13 +67,13 @@ def try_schedule(token, req_id, room_id, seq_start, idem, today):
                      {"roomId": room_id, "surgeryDate": date, "seqNo": seq, "surgeonId": 2},
                      idem="%s-%s-%d" % (idem, date, seq))
         if r["code"] == "OK":
-            return seq, r
+            return date, seq, r
         seq += 1
         if seq > 10:  # 台次参数上限：切次日从 1 重来
             seq = 1
             date = (datetime.datetime.strptime(date, "%Y-%m-%d")
                     + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
-    return seq, r
+    return date, seq, r
 
 
 def main():
@@ -137,7 +137,7 @@ def main():
     st, r = call("POST", "/ors/requests/%d/review" % or_a_id, doctor, {"approved": True}, idem="p3b-or1rv-" + uid)
     check("6. 审核通过(20)", r["code"] == "OK", r)
 
-    or_a_seq, r = try_schedule(or_nurse, or_a_id, 1, seq_base, "p3b-or1sc-" + uid, today)
+    sched_date, or_a_seq, r = try_schedule(or_nurse, or_a_id, 1, seq_base, "p3b-or1sc-" + uid, today)
     check("7. 排台成功(30)", r["code"] == "OK" and str(r.get("data", "")).startswith("PT"), r)
 
     # 单B：门禁测试（排台后不核查直接开始）
@@ -161,8 +161,8 @@ def main():
     or_c_id = [o for o in ol["data"]["list"] if o["surgeryName"] == "肿块切除术"][0]["id"]
     call("POST", "/ors/requests/%d/review" % or_c_id, doctor, {"approved": True}, idem="p3b-or3rv-" + uid)
     st, r = call("POST", "/ors/requests/%d/schedule" % or_c_id, or_nurse,
-                 {"roomId": 1, "surgeryDate": today, "seqNo": or_a_seq, "surgeonId": 2}, idem="p3b-or3sc-" + uid)
-    check("9. 同手术间同日同台次冲突拦截", r["code"] != "OK", r)
+                 {"roomId": 1, "surgeryDate": sched_date, "seqNo": or_a_seq, "surgeonId": 2}, idem="p3b-or3sc-" + uid)
+    check("9. 同手术间同日同台次冲突拦截(占用中)", r["code"] != "OK", r)
 
     # 单A：三方核查（麻醉前 + 切皮前）
     checklist = [{"item": "患者身份核对", "result": True}, {"item": "手术部位标记确认", "result": True},
@@ -336,6 +336,24 @@ def main():
     ecg_node = next((n for n in chest.get("nodes", []) if n["nodeCode"] == "XT_ECG"), {})
     check("52. 达标率统计（胸痛病例≥1, XT_ECG 达标≥1）",
           chest.get("caseCount", 0) >= 1 and ecg_node.get("metCount", 0) >= 1, chest)
+
+    # ---- 三十一轮：完成/取消释放槽位——已完成手术的槽位可重排 ----
+    st, ol40 = call("GET", "/ors/requests?admissionId=%d&status=60" % admission_id, doctor)
+    done_req = next((o for o in ol40["data"]["list"] if o["surgeryName"] == "阑尾切除术"), None)
+    if done_req:
+        call("POST", "/ors/requests", doctor, {
+            "admissionId": admission_id, "patientId": patient_id,
+            "surgeryName": "槽位复用验证术", "diagnosis": "复验", "plannedDate": today,
+            "anesthesiaMethod": 4}, idem="p3b-or4-" + uid)
+        st, ol10 = call("GET", "/ors/requests?admissionId=%d&status=10" % admission_id, doctor)
+        or_d = next((o for o in ol10["data"]["list"] if o["surgeryName"] == "槽位复用验证术"), None)
+        call("POST", "/ors/requests/%d/review" % or_d["id"], doctor, {"approved": True}, idem="p3b-or4rv-" + uid)
+        st, r2 = call("POST", "/ors/requests/%d/schedule" % or_d["id"], or_nurse,
+                      {"roomId": 1, "surgeryDate": sched_date, "seqNo": or_a_seq, "surgeonId": 2},
+                      idem="p3b-or4sc-" + uid)
+        check("52b. [三十一] 已完成手术槽位释放可重排", r2["code"] == "OK", r2)
+    else:
+        check("52b. [三十一] 已完成手术槽位释放可重排", False, "无已完成阑尾切除单")
 
     # ---- 十轮查验修复行为固化 ----
     st, r = call("POST", "/ors/requests", doctor, {

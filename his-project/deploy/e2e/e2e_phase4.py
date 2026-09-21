@@ -87,11 +87,15 @@ def main():
     bags = [b for b in av["data"] if b["bagNo"] == "XDJ-FX-" + uid]
     check("6. 可用血袋查询(含新袋)", len(bags) == 1, [b["bagNo"] for b in av["data"]])
     new_bag_id = bags[0]["id"]
-    st, demo_bags = call("GET", "/bb/bags/available?bloodType=4&component=1", bb_tech)
-    demo_bag = next((b for b in demo_bags["data"] if b["bagNo"] == "XDJ20260001"), None)
-    check("7. V30 演示血袋在库", demo_bag is not None, "")
+    st, all_bags = call("GET", "/bb/bags?pageNum=1&pageSize=50", bb_tech)
+    demo_bag = next((b for b in all_bags["data"]["list"] if b["bagNo"] == "XDJ20260001"), None)
+    check("7. V30 演示血袋存在(在库或已被历轮正常消耗)", demo_bag is not None,
+          [b["bagNo"] for b in all_bags["data"]["list"][:5]])
 
     # 门禁①：不相容配血 → 发血硬阻断
+    if demo_bag is None or demo_bag.get("status") != 1:
+        st, av2 = call("GET", "/bb/bags/available?bloodType=4&component=1", bb_tech)
+        demo_bag = av2["data"][0] if av2["data"] else None
     st, r = call("POST", "/bb/requests/%d/cross-match" % req_id, bb_tech, {
         "bagId": demo_bag["id"], "crossMethod": "盐水介质", "crossResult": 2,
         "note": "不相容演练"}, idem="p4-x1-" + uid)

@@ -33,14 +33,18 @@ public class KpiController {
 
     @GetMapping("/efficiency")
     @PreAuthorize("@ss.hasPerm('kpi:view')")
-    public R<Map<String, Object>> efficiency() {
-        return R.ok(kpiService.efficiency());
+    public R<Map<String, Object>> efficiency(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
+        return R.ok(kpiService.efficiency(from, to));
     }
 
     @GetMapping("/safety")
     @PreAuthorize("@ss.hasPerm('kpi:view')")
-    public R<Map<String, Object>> safety() {
-        return R.ok(kpiService.safety());
+    public R<Map<String, Object>> safety(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
+        return R.ok(kpiService.safety(from, to));
     }
 
     /** K-04 CSV 导出（csvCell 前导单引号防公式注入，对齐一期报表口径） */
@@ -53,11 +57,11 @@ public class KpiController {
         csv(sb, "门诊人次", kpiService.workload(from, to).get("outpatientVisits"));
         csv(sb, "住院人次", kpiService.workload(from, to).get("inpatientAdmissions"));
         csv(sb, "完成手术台次", kpiService.workload(from, to).get("surgeriesCompleted"));
-        Map<String, Object> eff = kpiService.efficiency();
+        Map<String, Object> eff = kpiService.efficiency(from, to);
         csv(sb, "平均住院日", eff.get("avgStayDays"));
         csv(sb, "床位使用率%", eff.get("bedUsageRate"));
         csv(sb, "次均费用", eff.get("avgBillAmount"));
-        Map<String, Object> safety = kpiService.safety();
+        Map<String, Object> safety = kpiService.safety(from, to);
         csv(sb, "危急值闭环率%", safety.get("alertCloseRate"));
         csv(sb, "手术核查率%", safety.get("surgeryCheckRate"));
         response.setContentType("text/csv;charset=UTF-8");

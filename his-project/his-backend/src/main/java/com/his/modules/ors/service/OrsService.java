@@ -153,6 +153,7 @@ public class OrsService {
         schedule.setRoomId(req.getRoomId());
         schedule.setSurgeryDate(req.getSurgeryDate());
         schedule.setSeqNo(req.getSeqNo());
+        schedule.setSlotActive(1); // 占用槽位（完成/取消时释放，可重排）
         schedule.setStartTime(req.getStartTime());
         schedule.setEndTime(req.getEndTime());
         schedule.setSurgeonId(req.getSurgeonId());
@@ -296,7 +297,12 @@ public class OrsService {
         if (schedule != null) {
             schedule.setEndTime(LocalDateTime.now());
             schedule.setStatus(2);
-            scheduleMapper.updateById(schedule);
+            // 显式 UPDATE 置 NULL（updateById 默认忽略 null 字段——释放不生效，查验三十一轮）
+            scheduleMapper.update(null, new LambdaUpdateWrapper<OrsSchedule>()
+                    .eq(OrsSchedule::getId, schedule.getId())
+                    .set(OrsSchedule::getSlotActive, null)
+                    .set(OrsSchedule::getStatus, 2)
+                    .set(OrsSchedule::getEndTime, LocalDateTime.now()));
         }
     }
 
@@ -389,8 +395,10 @@ public class OrsService {
             OrsSchedule schedule = scheduleMapper.selectOne(new LambdaQueryWrapper<OrsSchedule>()
                     .eq(OrsSchedule::getRequestId, id).last("LIMIT 1"));
             if (schedule != null && schedule.getStatus() == 1) {
-                schedule.setStatus(3);
-                scheduleMapper.updateById(schedule);
+                scheduleMapper.update(null, new LambdaUpdateWrapper<OrsSchedule>()
+                        .eq(OrsSchedule::getId, schedule.getId())
+                        .set(OrsSchedule::getSlotActive, null)
+                        .set(OrsSchedule::getStatus, 3));
             }
         }
         pltService.recordEvent("ors.request.cancelled", request.getRequestNo(),

@@ -26,6 +26,8 @@ public class OrsSchedule extends BaseEntity {
     private Long circulatingNurseId;
     private Long scrubNurseId;
     private Integer status;
+    /** 槽位占用标记:1占用 NULL已释放（唯一索引 NULL 不生效→可重排） */
+    private Integer slotActive;
 
     @Version
     private Integer version;

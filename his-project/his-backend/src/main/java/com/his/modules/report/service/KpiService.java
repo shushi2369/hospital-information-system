@@ -66,13 +66,15 @@ public class KpiService {
         return m;
     }
 
-    /** K-02 效率 */
-    public Map<String, Object> efficiency() {
+    /** K-02 效率（admission 支持时段过滤；床位/账单为全量现状口径） */
+    public Map<String, Object> efficiency(LocalDateTime from, LocalDateTime to) {
         Map<String, Object> m = new LinkedHashMap<>();
         // 平均住院日：已出院（status>=20）且有出院时间的患者
         List<InpAdmission> discharged = admissionMapper.selectList(new LambdaQueryWrapper<InpAdmission>()
                 .ge(InpAdmission::getStatus, 20)
                 .isNotNull(InpAdmission::getDischargeTime)
+                .ge(from != null, InpAdmission::getDischargeTime, from)
+                .le(to != null, InpAdmission::getDischargeTime, to)
                 .last("LIMIT 1000"));
         // 住院日口径：入院登记时间（admission_time）→ 出院时间，非记录创建时间（补录/转科场景会偏差）
         double avgStay = discharged.stream()
@@ -100,19 +102,26 @@ public class KpiService {
         return m;
     }
 
-    /** K-03 安全 */
-    public Map<String, Object> safety() {
+    /** K-03 安全（支持时段过滤，默认全量） */
+    public Map<String, Object> safety(LocalDateTime from, LocalDateTime to) {
         Map<String, Object> m = new LinkedHashMap<>();
-        long alertTotal = alertMapper.selectCount(new LambdaQueryWrapper<>());
+        long alertTotal = alertMapper.selectCount(new LambdaQueryWrapper<AlertCritical>()
+                .ge(from != null, AlertCritical::getCreatedAt, from)
+                .le(to != null, AlertCritical::getCreatedAt, to));
         long alertClosed = alertMapper.selectCount(new LambdaQueryWrapper<AlertCritical>()
-                .eq(AlertCritical::getStatus, 40));
+                .eq(AlertCritical::getStatus, 40)
+                .ge(from != null, AlertCritical::getCreatedAt, from)
+                .le(to != null, AlertCritical::getCreatedAt, to));
         m.put("alertsTotal", alertTotal);
         m.put("alertsClosed", alertClosed);
         m.put("alertCloseRate", alertTotal == 0 ? 0 : BigDecimal.valueOf(alertClosed * 100.0 / alertTotal)
                 .setScale(1, RoundingMode.HALF_UP));
         // 手术核查率：完成手术中三张核查单齐备占比（一次 in 查询批量计数，避免 N+1）
         List<OrsSurgeryRequest> done = surgeryMapper.selectList(new LambdaQueryWrapper<OrsSurgeryRequest>()
-                .eq(OrsSurgeryRequest::getStatus, 60).last("LIMIT 500"));
+                .eq(OrsSurgeryRequest::getStatus, 60)
+                .ge(from != null, OrsSurgeryRequest::getUpdatedAt, from)
+                .le(to != null, OrsSurgeryRequest::getUpdatedAt, to)
+                .last("LIMIT 500"));
         long checked = 0;
         if (!done.isEmpty()) {
             List<OrsCheckRecord> checks = checkMapper.selectList(new LambdaQueryWrapper<OrsCheckRecord>()
