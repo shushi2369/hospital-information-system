@@ -97,7 +97,7 @@ graph LR
 | pharm.zhao | 药师 | lab.chen | 检验技师 |
 | nurse.wang / nurse.liu | 护士 | pe.nurse | 体检护士 |
 | mrc.zhou | 病案员 | bb.tech | 血库人员 |
-| yb.sun | 医保专员 | emc.li | 急诊护士 |
+| yb.sun | 医保专员 | pub.user | 公卫人员 |
 
 > 演示账号由 `db/demo/` 提供（生产不加载）。密码策略：≥8 位含字母+数字（修改后强制生效）。
 

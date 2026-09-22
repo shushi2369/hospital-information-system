@@ -79,6 +79,8 @@ public class BillingService {
 
     /** 未收费就诊列表（B-02 收费窗口工作队列） */
     public List<Map<String, Object>> unpaidVisits() {
+        // 量级边界：payable() 为金额关键单就诊计算（与 charge 共用 buildPayableItems），此处逐单调用
+        // 是刻意保留——不做跨就诊批量化以免复制资金汇总逻辑；列表上限 100，实测 3 条 ≈100ms 线性
         Map<Long, Map<String, Object>> result = new LinkedHashMap<>();
         for (UnpaidVisitDTO v : clinicAppService.listVisitsWithUnpaidItems()) {
             Map<String, Object> row = new HashMap<>();

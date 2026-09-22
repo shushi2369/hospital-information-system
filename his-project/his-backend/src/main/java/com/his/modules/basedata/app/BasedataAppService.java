@@ -145,6 +145,15 @@ public class BasedataAppService {
                 .collect(java.util.stream.Collectors.toMap(ChargeItem::getId, this::toChargeItemDTO));
     }
 
+    /** 批量取医生（收费待缴费列表等批量场景，避免逐条 N+1） */
+    public Map<Long, DoctorDTO> listDoctorsByIds(java.util.Collection<Long> doctorIds) {
+        if (doctorIds == null || doctorIds.isEmpty()) {
+            return Map.of();
+        }
+        return doctorMapper.selectBatchIds(doctorIds).stream()
+                .collect(java.util.stream.Collectors.toMap(Doctor::getId, this::toDoctorDTO));
+    }
+
     /** 按编码取收费项目（诊查费取数口径，见 application.yml his.registration.*） */
     public ChargeItemDTO getChargeItemByCode(String itemCode) {
         ChargeItem item = chargeItemMapper.selectOne(new LambdaQueryWrapper<ChargeItem>()

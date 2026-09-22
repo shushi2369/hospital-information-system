@@ -121,16 +121,30 @@ public class ClinicAppService {
                         .eq(CliExamApplication::getChargeStatus, 0)
                         .orderByDesc(CliExamApplication::getId))
                 .forEach(app -> visitIds.add(app.getVisitId()));
-        return visitIds.stream().distinct().limit(100).sorted(java.util.Comparator.reverseOrder())
-                .map(visitMapper::selectById).filter(java.util.Objects::nonNull)
+        // 批量取数（三十二轮性能：原逐条 selectById/getById/getDoctor，100 条 ≈ 300 次单查 → 3 次批查）
+        List<Long> topIds = visitIds.stream().distinct().limit(100)
+                .sorted(java.util.Comparator.reverseOrder()).toList();
+        Map<Long, CliVisit> visits = topIds.isEmpty() ? Map.of()
+                : visitMapper.selectBatchIds(topIds).stream()
+                        .collect(java.util.stream.Collectors.toMap(CliVisit::getId, v -> v));
+        Map<Long, PatientDTO> patients = new java.util.LinkedHashMap<>();
+        List<Long> patientIds = visits.values().stream()
+                .map(CliVisit::getPatientId).distinct().toList();
+        for (PatientDTO p : patientAppService.listByIds(patientIds)) {
+            patients.put(p.getId(), p);
+        }
+        List<Long> doctorIds = visits.values().stream()
+                .map(CliVisit::getDoctorId).filter(java.util.Objects::nonNull).distinct().toList();
+        Map<Long, DoctorDTO> doctors = basedataAppService.listDoctorsByIds(doctorIds);
+        return topIds.stream().map(visits::get).filter(java.util.Objects::nonNull)
                 .map(v -> {
                     UnpaidVisitDTO dto = new UnpaidVisitDTO();
                     dto.setVisitId(v.getId());
                     dto.setVisitNo(v.getVisitNo());
                     dto.setVisitDate(v.getVisitDate());
-                    PatientDTO patient = patientAppService.getById(v.getPatientId());
+                    PatientDTO patient = patients.get(v.getPatientId());
                     dto.setPatientName(patient == null ? null : patient.getName());
-                    DoctorDTO doctor = basedataAppService.getDoctor(v.getDoctorId());
+                    DoctorDTO doctor = doctors.get(v.getDoctorId());
                     dto.setDoctorName(doctor == null ? null : doctor.getDoctorName());
                     return dto;
                 }).toList();
