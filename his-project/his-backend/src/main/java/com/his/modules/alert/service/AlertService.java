@@ -51,7 +51,7 @@ public class AlertService {
         alert.setStatus(10);
         alertMapper.insert(alert);
         pltService.recordEvent("alert.created", alert.getAlertNo(),
-                "{\"item\":\"" + itemName + "\"}");
+                "{\"item\":\"" + com.his.infrastructure.util.JsonEscapeUtil.escape(itemName) + "\"}");
     }
 
     /** 影像危急征象生成危急值（ris 调用，source=2 PACS，《16》§3.16） */
@@ -70,7 +70,7 @@ public class AlertService {
         alert.setStatus(10);
         alertMapper.insert(alert);
         pltService.recordEvent("alert.created", alert.getAlertNo(),
-                "{\"source\":2,\"item\":\"" + itemName + "\"}");
+                "{\"source\":2,\"item\":\"" + com.his.infrastructure.util.JsonEscapeUtil.escape(itemName) + "\"}");
     }
 
     /** 危急值分页（W-01） */

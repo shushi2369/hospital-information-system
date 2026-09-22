@@ -2,9 +2,10 @@ import { get, post, type PageResult } from './request'
 
 /**
  * 公卫上报模块（四期，《22》§7）。
- * 传染病卡状态机：10 待审核 → 20 待上报（审核通过）→ 30 已上报 → 40 已反馈（回执登记）。
+ * 传染病卡状态机（对齐 PubService）：10 待上报（填卡）→ 20 已上报（待公卫科审核）→
+ * 30 已审核（待回执）→ 40 已反馈（回执登记闭环）。
  * 院感病例：报告（POST /hai）→ 确认（后端按 targetStatus 推进，无列表查询接口，确认入口暂缺）。
- * 权限：pub:card:query / pub:card:report（审核+上报）/ pub:card:receipt / pub:hai:confirm。
+ * 权限：pub:card:query / pub:card:report（上报登记+审核）/ pub:card:receipt / pub:hai:confirm。
  */
 export interface PubCard {
   id: number
@@ -24,9 +25,9 @@ export interface PubCard {
 }
 
 export const PUB_CARD_STATUS_OPTIONS = [
-  { value: 10, label: '待审核' },
-  { value: 20, label: '待上报' },
-  { value: 30, label: '已上报' },
+  { value: 10, label: '待上报' },
+  { value: 20, label: '待审核' },
+  { value: 30, label: '待回执' },
   { value: 40, label: '已反馈' },
 ]
 
@@ -47,11 +48,11 @@ export const getPubCardPage = (params: {
   status?: number
 }) => get<PageResult<PubCard>>('/pub/cards', params)
 
-/** 审核（10 → 20），权限 pub:card:report */
-export const approvePubCard = (id: number) => post<void>(`/pub/cards/${id}/approve`)
-
-/** 上报（20 → 30），权限 pub:card:report */
+/** 上报登记（10 → 20，PUB-02），权限 pub:card:report */
 export const reportPubCard = (id: number) => post<void>(`/pub/cards/${id}/report`)
+
+/** 审核（20 → 30），权限 pub:card:report */
+export const approvePubCard = (id: number) => post<void>(`/pub/cards/${id}/approve`)
 
 /** 反馈回执登记（30 → 40），权限 pub:card:receipt */
 export const receiptPubCard = (id: number, receiptNo: string) =>
@@ -62,7 +63,6 @@ export interface PubHaiPayload {
   patientId: number
   infectionType: number
   infectionSite: string
-  diagnoseDate: string
 }
 
 /** 院感病例报告，返回病例号 */

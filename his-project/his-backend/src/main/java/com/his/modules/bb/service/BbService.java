@@ -217,7 +217,7 @@ public class BbService {
             }
         }
         pltService.recordEvent("bb.request.matched", request.getReqNo(),
-                "{\"result\":" + req.getCrossResult() + ",\"bag\":\"" + bag.getBagNo() + "\"}");
+                "{\"result\":" + req.getCrossResult() + ",\"bag\":\"" + com.his.infrastructure.util.JsonEscapeUtil.escape(bag.getBagNo()) + "\"}");
         return record.getId();
     }
 
@@ -276,7 +276,7 @@ public class BbService {
             throw new BizException(ErrorCode.A0001, "申请状态已变化，请刷新后重试");
         }
         pltService.recordEvent("bb.request.issued", request.getReqNo(),
-                "{\"bag\":\"" + bag.getBagNo() + "\"}");
+                "{\"bag\":\"" + com.his.infrastructure.util.JsonEscapeUtil.escape(bag.getBagNo()) + "\"}");
         return issue.getId();
     }
 

@@ -73,7 +73,7 @@ public class PubService {
                     card.setStatus(10);
                     cardMapper.insert(card);
                     pltService.recordEvent("pub.card.autoCreated", card.getCardNo(),
-                            "{\"disease\":\"" + d.getDiseaseName() + "\"}");
+                            "{\"disease\":\"" + com.his.infrastructure.util.JsonEscapeUtil.escape(d.getDiseaseName()) + "\"}");
                 }
             }
         } catch (Exception e) {
@@ -124,7 +124,7 @@ public class PubService {
             throw new BizException(ErrorCode.A0001, "报告卡状态已变化，请刷新后重试");
         }
         pltService.recordEvent("pub.card.receipted", card.getCardNo(),
-                "{\"receiptNo\":\"" + req.getReceiptNo() + "\"}");
+                "{\"receiptNo\":\"" + com.his.infrastructure.util.JsonEscapeUtil.escape(req.getReceiptNo()) + "\"}");
     }
 
     /** 院感病例上报（PUB-H01）：返回病例号 */

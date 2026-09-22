@@ -246,6 +246,14 @@ const reportForm = reactive({
   description: '',
 })
 
+function resetReportForm() {
+  reportForm.eventType = undefined
+  reportForm.severity = 1
+  reportForm.departmentId = undefined
+  reportForm.eventTime = ''
+  reportForm.description = ''
+}
+
 async function handleReportSubmit() {
   if (!reportForm.eventType || !reportForm.departmentId || !reportForm.eventTime || !reportForm.description.trim()) {
     ElMessage.warning('请完整填写事件信息')
@@ -262,6 +270,7 @@ async function handleReportSubmit() {
     })
     ElMessage.success(`不良事件已上报：${eventNo}`)
     reportDialogVisible.value = false
+    resetReportForm()
     handleSearch()
   } catch {
     // 拦截器已统一提示

@@ -116,7 +116,8 @@ public class HrService {
             throw new BizException(ErrorCode.A0001, "档案已变化，请刷新后重试");
         }
         pltService.recordEvent("hr.staff.titleChanged", staff.getStaffNo(),
-                "{\"from\":\"" + change.getOldTitle() + "\",\"to\":\"" + req.getNewTitle() + "\"}");
+                "{\"from\":\"" + com.his.infrastructure.util.JsonEscapeUtil.escape(change.getOldTitle())
+                        + "\",\"to\":\"" + com.his.infrastructure.util.JsonEscapeUtil.escape(req.getNewTitle()) + "\"}");
         return change.getId();
     }
 

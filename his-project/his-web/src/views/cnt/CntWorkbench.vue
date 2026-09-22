@@ -235,6 +235,16 @@ const createForm = reactive({
   reason: '',
 })
 
+function resetCreateForm() {
+  createForm.target = 'inpatient'
+  createForm.targetId = undefined
+  createForm.patientId = undefined
+  createForm.deptId = undefined
+  createForm.consultDoctorId = undefined
+  createForm.urgent = 0
+  createForm.reason = ''
+}
+
 async function handleCreateSubmit() {
   if (!createForm.targetId || !createForm.patientId || !createForm.deptId || !createForm.consultDoctorId || !createForm.reason.trim()) {
     ElMessage.warning('请完整填写会诊申请')
@@ -256,6 +266,7 @@ async function handleCreateSubmit() {
     })
     ElMessage.success(`会诊申请已提交：${reqNo}`)
     createDialogVisible.value = false
+    resetCreateForm()
     handleSearch()
   } catch {
     // 拦截器已统一提示

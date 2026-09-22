@@ -21,7 +21,7 @@
     <div class="table-toolbar">
       <span class="toolbar-title">传染病报告卡</span>
       <span class="status-legend">
-        闭环流程：填卡 → 审核（公卫科）→ 上报疾控 → 回执登记（反馈）
+        闭环流程：填卡 → 上报登记（公卫科）→ 审核 → 回执登记（反馈）
       </span>
       <el-button
         v-perm="'pub:hai:confirm'"
@@ -73,19 +73,19 @@
             v-if="row.status === 10"
             v-perm="'pub:card:report'"
             link
-            type="primary"
-            @click="handleApprove(row)"
+            type="warning"
+            @click="handleReport(row)"
           >
-            审核
+            上报
           </el-button>
           <el-button
             v-if="row.status === 20"
             v-perm="'pub:card:report'"
             link
-            type="warning"
-            @click="handleReport(row)"
+            type="primary"
+            @click="handleApprove(row)"
           >
-            上报
+            审核
           </el-button>
           <el-button
             v-if="row.status === 30"
@@ -152,9 +152,6 @@
         <el-form-item label="感染部位" required>
           <el-input v-model="haiForm.infectionSite" maxlength="100" placeholder="如：下呼吸道、手术切口" />
         </el-form-item>
-        <el-form-item label="诊断日期" required>
-          <el-date-picker v-model="haiForm.diagnoseDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
-        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="haiDialogVisible = false">取消</el-button>
@@ -215,31 +212,11 @@ function handleSizeChange() {
   fetchList()
 }
 
-// ---------------- 审核（10 → 20） ----------------
-async function handleApprove(row: PubCard) {
-  try {
-    await ElMessageBox.confirm(
-      `审核通过传染病卡 ${row.cardNo}（${row.diseaseName}）？通过后即可上报疾控。`,
-      '卡片审核',
-      { type: 'warning', confirmButtonText: '审核通过', cancelButtonText: '取消' }
-    )
-  } catch {
-    return
-  }
-  try {
-    await approvePubCard(row.id)
-    ElMessage.success('审核通过')
-    fetchList()
-  } catch {
-    // 拦截器已统一提示
-  }
-}
-
-// ---------------- 上报（20 → 30） ----------------
+// ---------------- 上报登记（10 → 20，PUB-02） ----------------
 async function handleReport(row: PubCard) {
   try {
     await ElMessageBox.confirm(
-      `确认上报传染病卡 ${row.cardNo}（${row.diseaseName}）至疾控？上报后不可修改。`,
+      `确认登记上报传染病卡 ${row.cardNo}（${row.diseaseName}）至疾控？`,
       '传染病上报',
       { type: 'warning', confirmButtonText: '确认上报', cancelButtonText: '取消' }
     )
@@ -248,7 +225,27 @@ async function handleReport(row: PubCard) {
   }
   try {
     await reportPubCard(row.id)
-    ElMessage.success('上报成功，等待疾控回执')
+    ElMessage.success('上报登记成功，待公卫科审核')
+    fetchList()
+  } catch {
+    // 拦截器已统一提示
+  }
+}
+
+// ---------------- 审核（20 → 30） ----------------
+async function handleApprove(row: PubCard) {
+  try {
+    await ElMessageBox.confirm(
+      `审核通过传染病卡 ${row.cardNo}（${row.diseaseName}）？审核后等待疾控回执。`,
+      '卡片审核',
+      { type: 'warning', confirmButtonText: '审核通过', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  try {
+    await approvePubCard(row.id)
+    ElMessage.success('审核通过，等待疾控回执')
     fetchList()
   } catch {
     // 拦截器已统一提示
@@ -287,6 +284,7 @@ async function handleReceiptSubmit() {
 }
 
 // ---------------- 院感病例报告 ----------------
+// 诊断日期由服务端取提交日（PubService.haiReport 覆盖），表单不再收集
 const haiDialogVisible = ref(false)
 const haiSubmitting = ref(false)
 const haiForm = reactive({
@@ -294,11 +292,17 @@ const haiForm = reactive({
   patientId: undefined as number | undefined,
   infectionType: undefined as number | undefined,
   infectionSite: '',
-  diagnoseDate: '',
 })
 
+function resetHaiForm() {
+  haiForm.admissionId = undefined
+  haiForm.patientId = undefined
+  haiForm.infectionType = undefined
+  haiForm.infectionSite = ''
+}
+
 async function handleHaiSubmit() {
-  if (!haiForm.admissionId || !haiForm.patientId || !haiForm.infectionType || !haiForm.infectionSite.trim() || !haiForm.diagnoseDate) {
+  if (!haiForm.admissionId || !haiForm.patientId || !haiForm.infectionType || !haiForm.infectionSite.trim()) {
     ElMessage.warning('请完整填写院感病例信息')
     return
   }
@@ -309,10 +313,10 @@ async function handleHaiSubmit() {
       patientId: haiForm.patientId,
       infectionType: haiForm.infectionType,
       infectionSite: haiForm.infectionSite.trim(),
-      diagnoseDate: haiForm.diagnoseDate,
     })
     ElMessage.success(`院感病例已报告：${caseNo}`)
     haiDialogVisible.value = false
+    resetHaiForm()
   } catch {
     // 拦截器已统一提示
   } finally {
