@@ -316,15 +316,21 @@ public class InpService {
                 .orderByAsc(InpBed::getBedNo));
         Map<Long, InpWard> wardMap = wardMapper.selectList(null).stream()
                 .collect(Collectors.toMap(InpWard::getId, w -> w));
+        // 批量取数：原逐床 selectById 双重 N+1（住院+收费项目），379 床 ≈ 750 次单查 → 4 次批查
+        List<Long> admissionIds = beds.stream().map(InpBed::getCurrentAdmissionId)
+                .filter(java.util.Objects::nonNull).distinct().toList();
+        Map<Long, InpAdmission> admissionMap = admissionIds.isEmpty() ? Map.of()
+                : admissionMapper.selectBatchIds(admissionIds).stream()
+                        .collect(Collectors.toMap(InpAdmission::getId, a -> a));
         Map<Long, PatientDTO> patients = new LinkedHashMap<>();
-        List<Long> pids = beds.stream().map(InpBed::getCurrentAdmissionId)
-                .filter(java.util.Objects::nonNull)
-                .map(admissionMapper::selectById)
-                .filter(java.util.Objects::nonNull)
+        List<Long> pids = admissionMap.values().stream()
                 .map(InpAdmission::getPatientId).distinct().toList();
         for (PatientDTO p : patientAppService.listByIds(pids)) {
             patients.put(p.getId(), p);
         }
+        List<Long> chargeItemIds = beds.stream().map(InpBed::getChargeItemId)
+                .filter(java.util.Objects::nonNull).distinct().toList();
+        Map<Long, ChargeItemDTO> chargeItems = basedataAppService.listChargeItemsByIds(chargeItemIds);
         return beds.stream().map(bed -> {
             BedVO vo = new BedVO();
             vo.setId(bed.getId());
@@ -335,13 +341,13 @@ public class InpService {
             vo.setBedStatus(bed.getBedStatus());
             vo.setCurrentAdmissionId(bed.getCurrentAdmissionId());
             if (bed.getCurrentAdmissionId() != null) {
-                InpAdmission admission = admissionMapper.selectById(bed.getCurrentAdmissionId());
+                InpAdmission admission = admissionMap.get(bed.getCurrentAdmissionId());
                 if (admission != null) {
                     PatientDTO p = patients.get(admission.getPatientId());
                     vo.setPatientName(p == null ? null : p.getName());
                 }
             }
-            ChargeItemDTO item = basedataAppService.getChargeItem(bed.getChargeItemId());
+            ChargeItemDTO item = bed.getChargeItemId() == null ? null : chargeItems.get(bed.getChargeItemId());
             vo.setBedFee(item == null ? null : item.getPrice());
             return vo;
         }).toList();

@@ -136,6 +136,15 @@ public class BasedataAppService {
         return item == null ? null : toChargeItemDTO(item);
     }
 
+    /** 批量取收费项目（床位一览等批量场景，避免逐条 N+1） */
+    public Map<Long, ChargeItemDTO> listChargeItemsByIds(java.util.Collection<Long> itemIds) {
+        if (itemIds == null || itemIds.isEmpty()) {
+            return Map.of();
+        }
+        return chargeItemMapper.selectBatchIds(itemIds).stream()
+                .collect(java.util.stream.Collectors.toMap(ChargeItem::getId, this::toChargeItemDTO));
+    }
+
     /** 按编码取收费项目（诊查费取数口径，见 application.yml his.registration.*） */
     public ChargeItemDTO getChargeItemByCode(String itemCode) {
         ChargeItem item = chargeItemMapper.selectOne(new LambdaQueryWrapper<ChargeItem>()
