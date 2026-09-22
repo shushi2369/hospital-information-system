@@ -73,6 +73,11 @@ jobs:
           MYSQL_DATABASE: his
         ports:
           - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -86,11 +91,11 @@ jobs:
           mvn -B spring-boot:run &
           # 本 job 无 Redis 服务，不能用登录接口探活；轮询 V37 迁移完成标记（末位迁移）
           for i in $(seq 1 60); do
-            V=$(mysql -h 127.0.0.1 -uroot -proot123 his -N -e "SELECT success FROM flyway_schema_history WHERE version='37'" 2>/dev/null)
+            V=$(mysql -h 127.0.0.1 -uroot -proot123 his -N -e "SELECT success FROM flyway_schema_history WHERE version='37'" 2>/dev/null || true)
             if [ "$V" = "1" ]; then echo "flyway complete after ${i} polls"; break; fi
             sleep 3
           done
-          V=$(mysql -h 127.0.0.1 -uroot -proot123 his -N -e "SELECT success FROM flyway_schema_history WHERE version='37'" 2>/dev/null)
+          V=$(mysql -h 127.0.0.1 -uroot -proot123 his -N -e "SELECT success FROM flyway_schema_history WHERE version='37'" 2>/dev/null || true)
           if [ "$V" != "1" ]; then echo "Flyway V37 not applied successfully"; exit 1; fi
         env:
           SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/his?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
