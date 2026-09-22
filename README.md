@@ -1,30 +1,34 @@
-# 医院信息系统（HIS）一期 + 二期
+# 医院信息系统（HIS）
 
-依据《医院信息系统技术指导文档》与 `设计文档/` 设计包实现的医院信息系统：**一期门诊闭环 + 二期住院闭环**，前后端分离的模块化单体，含完整设计文档、自动化验收与部署方案。
+依据《医院信息系统技术指导文档》与 `设计文档/`（24 份）实现的医院信息系统，前后端分离的模块化单体。**18 个业务模块**覆盖门诊→住院→检验→危急值→手术→影像→急诊→输血→体检→CDSS→绩效→法定上报全闭环。
 
 > ⚠️ 定位声明（指导文档 §10）：本系统为产品原型/内部试点/教学演示系统，用于真实医疗业务前须完成合规评估、等保、医保联调与信息科审批。
 
 ```mermaid
 graph LR
     subgraph 前端
-        W["Vue 3 + Element Plus<br/>30 个页面 / 动态菜单"]
+        W["Vue 3 + Element Plus<br/>40+ 页面 / 动态菜单"]
     end
-    subgraph 后端["Spring Boot 3.2 模块化单体"]
+    subgraph 后端["Spring Boot 3.2 模块化单体 · 18 个业务模块"]
         direction TB
-        A["门诊闭环（一期）<br/>患者·挂号·医生站·收费·药房·报表"]
-        B["住院闭环（二期）<br/>住院·医嘱·EMR·护理·病案·医保"]
+        A["门诊闭环（一期）"]
+        B["住院闭环（二期）"]
+        C["检验·危急值·药库（三期一批）"]
+        D["手术·影像·急诊（三期二批）"]
+        E["人事·物资·体检·CDSS·绩效（三期三批）"]
+        F["输血·批次·互认（四期一批）"]
+        G["门诊RIS·传染病·AE·会诊·院感（四期二三批）"]
     end
     subgraph 存储
-        D[("MySQL 8<br/>Flyway V1~V10")]
-        R[("Redis 7<br/>会话/幂等/限流")]
+        D2[("MySQL 8<br/>Flyway V1~V36 · 103 张表")]
+        R[("Redis<br/>会话/幂等/限流")]
     end
-    W -->|"/api/v1 + JWT"| A
-    W --> B
-    A --> D & R
-    B --> D & R
+    W -->|"/api/v1 + JWT + 幂等"| A
+    W --> B & C & D & E & F & G
+    A & B & C & D & E & F & G --> D2 & R
 ```
 
-## 1. 功能全景
+## 1. 业务域全景
 
 ### 一期：门诊闭环
 | 模块 | 功能 | 主要角色 |
@@ -49,43 +53,83 @@ graph LR
 | 病案管理（mrc） | 病案惰性补建、首页编码（ICD-10）/质控、归档双前置、借阅归还 | 病案员 |
 | 医保结算（medins） | 申报（Mock 网关防腐层：职工 70/10/20 拆分）、日对账、差异留痕 | 医保专员 |
 
+### 三期一批：LIS + 危急值 + 药库
+| 模块 | 功能 | 主要角色 |
+|---|---|---|
+| 检验（lis） | 申请→标本条码→接收→录入（Mock 仪器通道 + 危急判定）→报告发布 | 检验技师/医生 |
+| 危急值（alert） | 自动判定 → 通知登记 → 医生确认（管床校验）→ 处置闭环 | 技师/医生 |
+| 药库（whse） | 采购单创建/审批/到货入库（聚合+批次 FEFO）/供应商维护 | 药师/管理员 |
+
+### 三期二批：手术 + 影像 + 急诊
+| 模块 | 功能 | 主要角色 |
+|---|---|---|
+| 手术麻醉（ors） | 申请（跨患者拦截）→审核→排台（全房间搜索）→三方核查（硬门禁）→开始→麻醉→结束→离室→关档记账 | 医生/手术室护士 |
+| 影像（ris） | 住院/门诊检查自动生成申请 → 预约 → 执行（Mock 影像）→ 报告双签（不得自审自签）→ 互认标识 | 技师/医生 |
+| 急诊五大中心（emc） | 分诊（1~4 级/绿通）→ 中心登记 → 时间节点（达标预警）→ 关档 → 达标率统计 | 急诊护士 |
+
+### 三期三批：人事 + 物资 + 体检 + CDSS + 绩效
+| 模块 | 功能 | 主要角色 |
+|---|---|---|
+| 人事（hr） | 员工档案/职称变更留痕/离职 | 管理员 |
+| 物资（mat） | 采购审批→入库（批次效期）→科室领用（FEFO 自动拨批次、原子扣减不超卖） | 药师/管理员 |
+| 体检（pe） | 套餐→登记→分项录入→医生总检发布 | 体检人员/医生 |
+| CDSS | 规则引擎（配伍/重复/剂量/过敏映射）+ 开单 hook（提示不阻断，异常隔离） | 管理员/医生 |
+| 绩效（kpi） | 工作量/效率/安全三类 KPI 聚合 + CSV 导出 | 管理员/对账员 |
+
+### 四期：输血 + 批次 + 互认 + 门诊 RIS + 法定上报
+| 模块 | 功能 | 主要角色 |
+|---|---|---|
+| 输血（bb） | 用血申请→配血（Rh/血型校验，**不相容硬阻断发血**）→发血（签收）→床边双签输注→闭环 | 医生/血库/护士 |
+| 物资批次 | 批次效期入库 + FEFO 领用 + 效期 ≤30 天预警 | 药师 |
+| 互认 | 检验/影像报告发布勾选"纳入互认"（HR 标识），医生站展示 | 医生 |
+| 传染病上报（pub） | 诊断自动匹配字典 → 自动报卡 → 公卫上报 → 疾控回执闭环 | 医生/公卫 |
+| 院感监测（pub） | 病例上报 → 感染科确认 → 整改完成 | 医生/公卫 |
+| 不良事件（ae） | 任何员工上报 → 质控分派 → 整改 → 闭环确认 | 全部 |
+| 会诊（cnt） | 会诊申请（住院/门诊）→ 接受 → 意见完成 | 医生 |
+
 ### 内置账号（演示环境，初始密码 `His@2026`）
+
 | 账号 | 角色 | 账号 | 角色 |
 |---|---|---|---|
-| admin | 管理员（全部） | nurse.wang / nurse.liu | 护士 |
-| dr.wang / dr.li / dr.chen | 医生 | mrc.zhou | 病案员 |
-| cashier.li | 收费员 | yb.sun | 医保专员 |
-| pharm.zhao | 药师 | auditor.sun | 对账员（只读） |
+| admin | 管理员（全部） | or.nurse | 手术室护士 |
+| dr.wang / dr.li / dr.chen | 医生 | ris.zhang | 影像技师 |
+| cashier.li | 收费员 | emc.li | 急诊护士 |
+| pharm.zhao | 药师 | lab.chen | 检验技师 |
+| nurse.wang / nurse.liu | 护士 | pe.nurse | 体检护士 |
+| mrc.zhou | 病案员 | bb.tech | 血库人员 |
+| yb.sun | 医保专员 | emc.li | 急诊护士 |
 
-> 演示账号由 `db/demo/` 提供（生产不加载）。忘记密码的处置见 `docs/用户操作手册.md` 与 `deploy/部署指南.md`。
+> 演示账号由 `db/demo/` 提供（生产不加载）。密码策略：≥8 位含字母+数字（修改后强制生效）。
 
 ## 2. 技术栈
 
 | 层 | 选型 |
 |---|---|
 | 前端 | Vue 3.4 + TypeScript + Element Plus（按需引入）+ Pinia + Axios + Vite 5 |
-| 后端 | Java 17 + Spring Boot 3.2 + Spring Security（JWT）+ MyBatis-Plus 3.5（乐观锁/分页） |
-| 存储 | MySQL 8.0（Flyway 迁移 V1~V10）+ Redis 7（会话/幂等/限流） |
+| 后端 | Java 17 + Spring Boot 3.2 + Spring Security（JWT）+ MyBatis-Plus 3.5.5（乐观锁/分页） |
+| 存储 | MySQL 8.0（Flyway 迁移 V1~V36，104 张表）+ Redis（会话/幂等/限流） |
 | 横切 | 统一响应/错误码（A/B/C 三段 80+）、traceId、幂等切面（X-Idempotency-Key）、审计切面（异步落库+脱敏）、定时任务（过号/床位费/长期医嘱计划/批次效期） |
 
 ## 3. 工程结构
 
 ```
-（仓库根）
-├── his-project/          # 工程目录
-│   ├── his-backend/      # Spring Boot 后端（327 个 Java 文件，10 个业务模块）
+├── his-project/
+│   ├── his-backend/       Spring Boot 后端（18 个业务模块，271 个 REST 接口）
+│   │   ├── src/main/java/com/his/modules/  # 18 个业务模块 + infrastructure + common
 │   │   └── src/main/resources/db/
-│       ├── migration/    # V1~V10 全环境迁移（55 张表、菜单权限、住院表改造）
-│       └── demo/         # V3/V8 演示数据（仅 dev/test 加载）
-│   ├── his-web/          # Vue 3 前端（30 个页面 / 18 个 API 模块）
+│   │       ├── migration/  # V1~V36 全环境迁移（104 张表、菜单权限、四期扩展）
+│   │       ├── demo/       # V3/V8/V15/V19/V24/V30 演示数据（仅 dev/test 加载）
+│   │       └── perf/       # 大数据量灌入脚本（5 万患者）
+│   │   └── src/test/       # 48 项单测（7 个测试类）
+│   ├── his-web/           # Vue 3 前端（40+ 页面 / 27 个 API 模块）
 │   ├── deploy/
-│   ├── docker-compose.yml / nginx.conf / .env.example   # 方案 A：Docker 部署
-│   ├── 部署指南.md        # 方案 A/B 双部署方案（含 Windows 服务化）
-│   ├── backup/           # 每日备份脚本
-│   ├── e2e/              # e2e_acceptance.py(一期40项) + e2e_phase2.py(二期42项)
-│   └── perf/             # perf_test.py 100 并发压测
-│   └── docs/             # 用户操作手册、openapi.json
-设计文档/                  # 01~11 设计文档包（总体架构/数据库/接口/权限/流程/实施/全景规划/二期设计）
+│   │   ├── deploy.sh       # 一键部署（停服→备份→替换→启动→健康检查）
+│   │   ├── health_check.sh # 健康告警（5 项检查）
+│   │   ├── db/             # 一致性巡检 SQL + 恢复演练报告
+│   │   └── e2e/            # 八套 e2e 脚本
+│   └── docs/              # 用户操作手册、OpenAPI 导出（271 接口）
+├── 设计文档/                # 24 份设计文档（含数据字典 103 表 1333 列）
+└── README.md
 ```
 
 ## 4. 快速开始（本地开发）
@@ -99,7 +143,7 @@ docker run -d -p 6379:6379 redis:7.2
 cd his-project/his-backend && mvn spring-boot:run
 
 # 3) 前端（代理已指向 8080）
-cd his-project/his-web && npm install --registry=https://registry.npmmirror.com && npm run dev
+cd his-project/his-web && npm install && npm run dev
 ```
 
 打开 http://localhost:5173 ，用 admin / His@2026 登录（首登请改密）。
@@ -109,19 +153,30 @@ cd his-project/his-web && npm install --registry=https://registry.npmmirror.com 
 见 **`deploy/部署指南.md`**（方案 A Docker Compose / 方案 B Windows 服务化双方案），要点：
 - `.env` 必改：`DB_PASSWORD` / `JWT_SECRET` / `AES_KEY`（`openssl rand -base64 32` 生成）；
 - 生产 `FLYWAY_LOCATIONS=classpath:db/migration`（不加载演示数据）；
-- 仅对外暴露 80/443；每日 02:00 自动备份（脚本已备）+ 恢复演练。
+- 仅对外暴露 80/443；
+- 部署：`bash deploy/deploy.sh`（一键停服→备份→替换→启动→健康检查）；
+- 告警：注册 `deploy/health_check.sh` 为计划任务（每 30 分钟）；
+- 备份产物验证：检查 backup 目录出现当日 sql 且含 "Dump completed" 结尾标记。
 
 ## 6. 测试与验收
 
 | 脚本 | 覆盖 | 结果 |
 |---|---|---|
-| `python his-project/deploy/e2e/e2e_acceptance.py` | 一期门诊闭环 40 项断言（幂等/拦截码/审计/报表），可重复执行 | 40/40 |
-| `python his-project/deploy/e2e/e2e_phase2.py` | 二期住院闭环 42 项断言（入院→医嘱→执行→一日清→出院→结算→病案→医保），可重复执行 | 42/42 |
-| `python his-project/deploy/perf/perf_test.py` | 100 真实会话并发（查询 p95 98ms / 提交 p95 459ms，§7 达标） | PASS |
-| `mvn test` | 纯逻辑单测（脱敏/加密）10 项 + CI（GitHub Actions push 触发） | 10/10 |
-| 备份恢复演练 | mysqldump → 恢复临时库 → 36 表/行数/金额比对 | PASS |
+| `python deploy/e2e/e2e_acceptance.py` | 一期门诊闭环 40 项断言 | 40/40 |
+| `python deploy/e2e/e2e_phase2.py` | 二期住院闭环 42 项断言 | 42/42 |
+| `python deploy/e2e/e2e_phase3.py` | 三期一批 28 项断言 | 28/28 |
+| `python deploy/e2e/e2e_phase3b.py` | 三期二批 57 项断言 | 57/57 |
+| `python deploy/e2e/e2e_phase3c.py` | 三期三批 45 项断言 | 45/45 |
+| `python deploy/e2e/e2e_phase4.py` | 四期 43 项断言 | 43/43 |
+| `python deploy/e2e/fix_regression.py` | 修复回归复验 24 项断言 | 24/24 |
+| `python deploy/e2e/concurrency_test.py` | 并发安全 8 项断言 | 8/8 |
+| `mvn test` | 核心域单测 48 项（Bb 12 + Ors 5 + Mat 4 + Pub 8 + Ae 6 + Cnt 3 + Mask 5 + Crypto 5） | 48/48 |
+| `python deploy/perf/perf_test.py` | 100 并发压测（5 万患者数据量下） | PASS |
+| 一致性巡检 | 27 段孤儿引用扫描 + 5 段状态一致性 | 零孤儿 |
+| 恢复演练 | RTO=9s / RPO≤24h / 99 表一致 | PASS |
+| 渗透自查 | Mass Assignment / SQL 注入 / XSS / PHI 泄露 | 全过 |
 
-质量门禁：CI 流水线（后端 mvn test + 前端 build）；提交说明按"变更目标/影响模块/数据库变更/测试结果/已知限制"模板。
+质量门禁：GitHub Actions CI 流水线（push 自动触发后端测试 + 前端构建）；提交说明按"变更目标/影响模块/数据库变更/测试结果/已知限制"模板。
 
 ## 7. 设计文档索引
 
@@ -130,22 +185,22 @@ cd his-project/his-web && npm install --registry=https://registry.npmmirror.com 
 | 设计文档/01~06 | 一期：总体架构、数据库、接口、权限安全、流程状态机、实施与验收 |
 | 设计文档/07 | HIS 全景规划 V2（全院 7 大类 40+ 系统、闭环横切、二~四期路线） |
 | 设计文档/08~11 | 二期：总体设计、数据库、接口与状态机、实施计划 |
-| his-project/docs/用户操作手册.md | 五角色操作说明 + 常见问题（含密码重置） |
-| his-project/deploy/部署指南.md | 双部署方案 + 安全清单 |
+| 设计文档/12~14 | 三期一批：总体、数据库与接口、实施计划 |
+| 设计文档/15~17 | 三期二批：总体、数据库与接口、实施计划 |
+| 设计文档/18~20 | 三期三批：总体、数据库与接口、实施计划 |
+| 设计文档/21~23 | 四期：总体、数据库与接口、实施计划 |
+| 设计文档/数据字典.md | 103 张表 1333 列全覆盖（按 26 个模块分组） |
+| his-project/docs/用户操作手册.md | 多角色操作说明 + 常见问题 |
+| his-project/deploy/部署指南.md | 双部署方案 + 安全清单 + 演练记录 |
 
-## 8. 已知限制与三期方向
+## 8. 质量保障体系
 
-- 号源控制存在理论并发竞态窗口（行锁+计数），三期引入号源表+唯一索引彻底消除；
-- 住院检查走"医嘱→执行→一日清"计费，`cli_exam_application.admission_id` 字段已预留未启用；
-- 医保为 Mock 通道（防腐层接口就绪），真实 SDK 联调按当地平台规范进行；
-- 住院停嘱/退费不回冲已摆药库存（需红冲机制，三期实现）；出院当日床位费按次日任务口径计费；
-- 三期规划：LIS/PACS、手术麻醉（ORIS）、药库/PIVAS、体检、急诊五大中心（见设计文档/07 §5 路线图）。
+30 轮系统化查验（安全/并发/状态机/幂等/金额/时间/审计/数据一致性/业界对标/逐行审查），79 个真实缺陷修复。bug 模式清单 17 条沉淀（丢失更新/数据形态覆盖/权限矩阵/设计承诺/实体完整性/Flyway/唯一索引/0 元兜底/驳回留痕/报告重提/乐观锁/事件转义/唯一约束兜底/TimeSQL/DTO 转义/浏览器覆盖/资源递进）。
 
-## 9. 版本历史（要点）
+## 9. 已知限制
 
-```
-docs:   指导文档与设计包（01~11）
-一期:   底座 → 门诊闭环 → 收费药房 → 报表交付 → 性能优化（p95 98/459ms）
-二期:   平台底座+住院 → 医嘱闭环 → EMR+护理 → 病案+医保 → 前端 11 页
-加固:   退费行锁/唯一索引友好提示/押金原子递增/长期医嘱计划任务/CI 流水线
-```
+- 互联网医院 C 端、AI 辅助（阅片/病历质控）、信创迁移：需外部资源，五期评估
+- 输血反应实验室联动、患者血型档案：四期二批评估
+- 医保为 Mock 通道（真实 SDK 按当地平台规范联调）
+- 门诊欠费挂账/催缴：未实现（住院结算完整）
+- 数据保留策略/归档策略：运维阶段制定
