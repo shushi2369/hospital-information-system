@@ -83,10 +83,17 @@ public class MrcService {
     @Transactional
     public void ensureCreated() {
         List<InpAdmission> admissions = inpAppService.listAdmissionsByStatuses(List.of(20, 30));
+        if (admissions.isEmpty()) {
+            return;
+        }
+        // 批量比对（三十三轮性能：原对每个已出院住院逐条 COUNT，随历史线性增长 → 2 次批查）
+        List<Long> admissionIds = admissions.stream().map(InpAdmission::getId).toList();
+        java.util.Set<Long> existing = recordMapper.selectList(new LambdaQueryWrapper<MrcRecord>()
+                        .in(MrcRecord::getAdmissionId, admissionIds)
+                        .select(MrcRecord::getAdmissionId))
+                .stream().map(MrcRecord::getAdmissionId).collect(java.util.stream.Collectors.toSet());
         for (InpAdmission admission : admissions) {
-            Long exists = recordMapper.selectCount(new LambdaQueryWrapper<MrcRecord>()
-                    .eq(MrcRecord::getAdmissionId, admission.getId()));
-            if (exists == null || exists == 0) {
+            if (!existing.contains(admission.getId())) {
                 MrcRecord record = new MrcRecord();
                 record.setMrcNo(admission.getAdmissionNo());
                 record.setAdmissionId(admission.getId());
