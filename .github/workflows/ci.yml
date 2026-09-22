@@ -80,11 +80,16 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: maven
-      - name: Start backend (Flyway migration)
+      - name: Start backend (Flyway migration + readiness probe)
         working-directory: his-project/his-backend
         run: |
           mvn -B spring-boot:run &
-          sleep 40
+          PROBE='curl -sf -o /dev/null -X POST http://localhost:8080/api/v1/auth/login -H "Content-Type: application/json" -d "{\"username\":\"admin\",\"password\":\"His@2026\"}"'
+          for i in $(seq 1 60); do
+            if eval "$PROBE"; then echo "backend ready after ${i} polls"; break; fi
+            sleep 3
+          done
+          eval "$PROBE"
         env:
           SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/his?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
           SPRING_DATASOURCE_USERNAME: root
@@ -118,11 +123,16 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: maven
-      - name: Start backend (Flyway migration)
+      - name: Start backend (Flyway migration + readiness probe)
         working-directory: his-project/his-backend
         run: |
           mvn -B spring-boot:run &
-          sleep 45
+          PROBE='curl -sf -o /dev/null -X POST http://localhost:8080/api/v1/auth/login -H "Content-Type: application/json" -d "{\"username\":\"admin\",\"password\":\"His@2026\"}"'
+          for i in $(seq 1 60); do
+            if eval "$PROBE"; then echo "backend ready after ${i} polls"; break; fi
+            sleep 3
+          done
+          eval "$PROBE"
         env:
           SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/his?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
           SPRING_DATASOURCE_USERNAME: root
