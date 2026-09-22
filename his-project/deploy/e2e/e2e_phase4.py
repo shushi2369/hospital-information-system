@@ -96,7 +96,13 @@ def main():
     # 门禁①：不相容配血 → 发血硬阻断
     if demo_bag is None or demo_bag.get("status") != 1:
         st, av2 = call("GET", "/bb/bags/available?bloodType=4&component=1", bb_tech)
-        demo_bag = av2["data"][0] if av2["data"] else None
+        demo_bag = next((b for b in av2["data"] if b["id"] != new_bag_id), None)
+        if demo_bag is None:  # 池耗尽：补建演练专用袋，确保与相容袋不是同一只（防门禁自锁）
+            call("POST", "/bb/bags", bb_tech, {
+                "bagNo": "XDJ-DEMO-" + uid, "bloodType": 4, "rh": 1, "component": 1,
+                "volumeMl": 200, "expireDate": "2027-12-31"}, idem="p4-demobag-" + uid)
+            st, av2 = call("GET", "/bb/bags/available?bloodType=4&component=1", bb_tech)
+            demo_bag = next((b for b in av2["data"] if b["id"] != new_bag_id), None)
     st, r = call("POST", "/bb/requests/%d/cross-match" % req_id, bb_tech, {
         "bagId": demo_bag["id"], "crossMethod": "盐水介质", "crossResult": 2,
         "note": "不相容演练"}, idem="p4-x1-" + uid)

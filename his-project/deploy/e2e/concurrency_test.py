@@ -3,7 +3,7 @@
 """
 并发安全专项测试（concurrency_test.py）——此前 26 轮查验全部串行，真并发首次覆盖。
 验证：①物资并发领用不超卖（原子扣减）②同一血袋并发发血仅一次成功（唯一约束）
-③同一申请并发配血不重复推进 ④并发取消与配血竞态。
+③同一申请并发配血不重复推进 ④并发取消与配血竞态 ⑤同患者并发入院恰一笔成功（患者行锁串行化）。
 """
 import json
 import sys
@@ -163,6 +163,54 @@ def main():
     consistent = (final_status == 70 and codes.count("OK") >= 1) or (final_status == 30 and codes.count("OK") >= 1)
     check("C8. 取消/配血竞态：终态一致（70 取消 或 30 配血，无中间态悬挂）", consistent,
           {"codes": codes, "final": final_status})
+
+    # ================= ⑤ 同患者并发双入院（患者行锁串行化） =================
+    import urllib.parse
+    cashier = login("cashier.li")
+    st, r = call("POST", "/patients", cashier, {"name": "并发入院患者" + uid, "gender": 1,
+                 "birthDate": "1992-06-15", "idCardNo": "34010419900101" + uid[-4:],
+                 "phone": "138" + uid}, idem="cc-pt-" + uid)
+    check("C9. 前置：建档成功", r["code"] == "OK", r)
+    st, pl = call("GET", "/patients?name=" + urllib.parse.quote("并发入院患者" + uid), cashier)
+    race_patient = pl["data"]["list"][0]["id"]
+    st, wards = call("GET", "/inp/wards", cashier)
+    race_ward, race_dept, free = None, None, []
+    for w in wards["data"]:  # 动态选有 ≥2 张空闲床的病区（历史运行床位残留会耗尽首选病区）
+        st, beds = call("GET", "/inp/beds?wardId=%d&bedStatus=1" % w["id"], cashier)
+        if len(beds["data"]) >= 2:
+            race_ward, race_dept, free = w["id"], w["deptId"], beds["data"]
+            break
+    for _ in range(5):  # 仍不足自动补建（多套件连跑耗床）；设上限防死循环
+        if race_ward is not None and len(free) >= 2:
+            break
+        if race_ward is None:
+            race_ward = wards["data"][0]["id"]
+            race_dept = wards["data"][0]["deptId"]
+        no = "CC-BED-" + uid + "-" + str(len(free))
+        st, rb = call("POST", "/inp/beds", admin, {"wardId": race_ward, "bedNo": no,
+                      "chargeItemId": 10}, idem="cc-bed-" + no)
+        print("  [bed-create] %s -> %s %s" % (no, st, rb if isinstance(rb, dict) else rb))
+        st, beds = call("GET", "/inp/beds?wardId=%d&bedStatus=1" % race_ward, cashier)
+        free = beds["data"]
+    adm_body = lambda bed_id: {"patientId": race_patient, "deptId": race_dept, "wardId": race_ward,
+                               "bedId": bed_id, "doctorId": 2, "admissionType": 1,
+                               "plannedDiagnosis": "并发入院竞态复验", "depositAmount": 100,
+                               "payMethod": 1}
+    calls = [
+        (lambda: call("POST", "/inp/admissions", cashier, adm_body(free[0]["id"]), idem="cc-am1-" + uid)),
+        (lambda: call("POST", "/inp/admissions", cashier, adm_body(free[1]["id"]), idem="cc-am2-" + uid)),
+    ]
+    out = parallel(calls)
+    codes = [r["code"] for _, r in out]
+    print("  [race] codes=%s" % codes)
+    ok_cnt = codes.count("OK")
+    check("C10. 同患者并发入院×2：恰1成功，另笔 B6002", ok_cnt == 1 and codes.count("B6002") == 1, codes)
+    st, af = call("GET", "/inp/admissions?status=10&patientId=%d" % race_patient, cashier)
+    active_cnt = af["data"]["total"] if isinstance(af["data"], dict) else len(af["data"])
+    check("C11. 该患者在院记录恰1条", active_cnt == 1, active_cnt)
+    st, bedsafter = call("GET", "/inp/beds?wardId=%d" % race_ward, cashier)
+    used = sum(1 for b in bedsafter["data"] if b["id"] in (free[0]["id"], free[1]["id"]) and b["bedStatus"] != 1)
+    check("C12. 竞态床位恰占用1张（无泄漏）", used == 1, used)
 
     failed = [n for n, ok, _ in results if not ok]
     print("\n===== 并发安全专项结果: %d/%d 通过 =====" % (len(results) - len(failed), len(results)))

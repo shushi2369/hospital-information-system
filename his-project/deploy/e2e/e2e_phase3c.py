@@ -233,7 +233,16 @@ def main():
     check("40. 安全KPI(危急值闭环率可算)", sf["alertsTotal"] > 0 and "alertCloseRate" in sf, sf)
     # 数字对账：alertsClosed == 明细口径 status=40 计数（20 号验收"与明细账核对一致"）
     st, al = call("GET", "/alerts?pageNum=1&pageSize=500", admin)
-    closed_detail = sum(1 for a in al["data"]["list"] if a["status"] == 40)
+    # 40b 对账：alerts 列表服务端封顶 200 条（PageQuery），须翻页取全量再对账
+    closed_detail, fetched, pg = 0, 0, 1
+    while True:
+        st, al = call("GET", "/alerts?pageNum=%d&pageSize=200" % pg, admin)
+        rows = al["data"]["list"]
+        closed_detail += sum(1 for a in rows if a["status"] == 40)
+        fetched += len(rows)
+        if not rows or fetched >= al["data"]["total"]:
+            break
+        pg += 1
     check("40b. 闭环率对账(汇总=明细)", sf["alertsClosed"] == closed_detail,
           "kpi=%s detail=%s" % (sf["alertsClosed"], closed_detail))
     st, raw_body = call("GET", "/report/kpi/export", admin, raw=True)

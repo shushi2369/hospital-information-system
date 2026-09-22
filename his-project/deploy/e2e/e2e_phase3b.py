@@ -70,8 +70,8 @@ def try_schedule(token, req_id, room_id, seq_start, idem, today):
             room += 1
             if room > 3:
                 room = 1
-                date = (datetime.datetime.strptime(date, "%Y-%m-%d")
-                        + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+                date = (datetime.strptime(date, "%Y-%m-%d")
+                        + timedelta(days=1)).strftime("%Y-%m-%d")
     return date, seq, room, r
     return date, seq, r
 
