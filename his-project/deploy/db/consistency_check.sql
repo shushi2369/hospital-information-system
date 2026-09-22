@@ -106,3 +106,55 @@ SELECT 'inconsistent_published_no_result' AS chk, q.id FROM lis_request q
 JOIN lis_report rp ON rp.request_id = q.id
 WHERE q.status = 40
   AND NOT EXISTS (SELECT 1 FROM lis_result r WHERE r.request_id = q.id) LIMIT 5;
+
+-- =====================================================================
+-- 三十三轮增补：三批/四期三模块（mat/hr/pub/cnt/ae）孤儿引用与状态一致性
+-- =====================================================================
+
+-- 14. 物资：领用/批次/采购 → 物资字典与供应商
+SELECT 'orphan_mat_requisition' AS chk, r.id FROM mat_requisition r
+LEFT JOIN mat_material m ON r.material_id = m.id WHERE m.id IS NULL LIMIT 5;
+SELECT 'orphan_mat_batch' AS chk, b.id FROM mat_batch b
+LEFT JOIN mat_material m ON b.material_id = m.id WHERE m.id IS NULL LIMIT 5;
+SELECT 'orphan_mat_purchase' AS chk, p.id FROM mat_purchase p
+LEFT JOIN bas_supplier s ON p.supplier_id = s.id WHERE s.id IS NULL LIMIT 5;
+
+-- 15. 人事：职称变更 → 员工档案
+SELECT 'orphan_hr_title_change' AS chk, c.id FROM hr_title_change c
+LEFT JOIN hr_staff s ON c.staff_id = s.id WHERE s.id IS NULL LIMIT 5;
+
+-- 16. 公卫：报告卡/院感 → 患者/就诊/住院
+SELECT 'orphan_pub_card_patient' AS chk, c.id FROM pub_infectious_card c
+LEFT JOIN pat_patient p ON c.patient_id = p.id WHERE p.id IS NULL LIMIT 5;
+SELECT 'orphan_pub_card_visit' AS chk, c.id FROM pub_infectious_card c
+LEFT JOIN cli_visit v ON c.visit_id = v.id WHERE c.visit_id IS NOT NULL AND v.id IS NULL LIMIT 5;
+SELECT 'orphan_pub_card_admission' AS chk, c.id FROM pub_infectious_card c
+LEFT JOIN inp_admission a ON c.admission_id = a.id WHERE c.admission_id IS NOT NULL AND a.id IS NULL LIMIT 5;
+SELECT 'orphan_pub_hai_admission' AS chk, h.id FROM pub_hai_case h
+LEFT JOIN inp_admission a ON h.admission_id = a.id WHERE a.id IS NULL LIMIT 5;
+
+-- 17. 会诊：申请 → 患者/就诊/住院/会诊医师
+SELECT 'orphan_cnt_patient' AS chk, q.id FROM cnt_request q
+LEFT JOIN pat_patient p ON q.patient_id = p.id WHERE p.id IS NULL LIMIT 5;
+SELECT 'orphan_cnt_visit' AS chk, q.id FROM cnt_request q
+LEFT JOIN cli_visit v ON q.visit_id = v.id WHERE q.visit_id IS NOT NULL AND v.id IS NULL LIMIT 5;
+SELECT 'orphan_cnt_admission' AS chk, q.id FROM cnt_request q
+LEFT JOIN inp_admission a ON q.admission_id = a.id WHERE q.admission_id IS NOT NULL AND a.id IS NULL LIMIT 5;
+SELECT 'orphan_cnt_doctor' AS chk, q.id FROM cnt_request q
+LEFT JOIN bas_doctor d ON q.consult_doctor_id = d.id WHERE d.id IS NULL LIMIT 5;
+
+-- 18. 不良事件：事件 → 科室
+SELECT 'orphan_ae_department' AS chk, e.id FROM ae_event e
+LEFT JOIN bas_department d ON e.department_id = d.id WHERE d.id IS NULL LIMIT 5;
+
+-- 19. 状态一致性抽查：公卫卡/会诊/不良事件（时间戳与状态匹配）
+SELECT 'inconsistent_pub_30_no_report_time' AS chk, c.id FROM pub_infectious_card c
+WHERE c.status >= 30 AND c.report_time IS NULL LIMIT 5;
+SELECT 'inconsistent_pub_40_no_receipt' AS chk, c.id FROM pub_infectious_card c
+WHERE c.status = 40 AND (c.receipt_no IS NULL OR c.receipt_time IS NULL) LIMIT 5;
+SELECT 'inconsistent_cnt_20_no_accept_time' AS chk, q.id FROM cnt_request q
+WHERE q.status >= 20 AND q.accept_time IS NULL LIMIT 5;
+SELECT 'inconsistent_cnt_30_no_opinion' AS chk, q.id FROM cnt_request q
+WHERE q.status = 30 AND (q.opinion IS NULL OR q.opinion_time IS NULL) LIMIT 5;
+SELECT 'inconsistent_ae_40_no_closed_time' AS chk, e.id FROM ae_event e
+WHERE e.status = 40 AND e.closed_time IS NULL LIMIT 5;
