@@ -80,16 +80,18 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: maven
-      - name: Start backend (Flyway migration + readiness probe)
+      - name: Start backend (Flyway migration) and wait for completion
         working-directory: his-project/his-backend
         run: |
           mvn -B spring-boot:run &
-          PROBE='curl -sf -o /dev/null -X POST http://localhost:8080/api/v1/auth/login -H "Content-Type: application/json" -d "{\"username\":\"admin\",\"password\":\"His@2026\"}"'
+          # 本 job 无 Redis 服务，不能用登录接口探活；轮询 V37 迁移完成标记（末位迁移）
           for i in $(seq 1 60); do
-            if eval "$PROBE"; then echo "backend ready after ${i} polls"; break; fi
+            V=$(mysql -h 127.0.0.1 -uroot -proot123 his -N -e "SELECT success FROM flyway_schema_history WHERE version='37'" 2>/dev/null)
+            if [ "$V" = "1" ]; then echo "flyway complete after ${i} polls"; break; fi
             sleep 3
           done
-          eval "$PROBE"
+          V=$(mysql -h 127.0.0.1 -uroot -proot123 his -N -e "SELECT success FROM flyway_schema_history WHERE version='37'" 2>/dev/null)
+          if [ "$V" != "1" ]; then echo "Flyway V37 not applied successfully"; exit 1; fi
         env:
           SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/his?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
           SPRING_DATASOURCE_USERNAME: root
