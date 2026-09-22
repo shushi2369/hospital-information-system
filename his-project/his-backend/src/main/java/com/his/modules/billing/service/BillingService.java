@@ -135,7 +135,7 @@ public class BillingService {
             throw new BizException(ErrorCode.B3002);
         }
         Long cashierId = CurrentUser.id();
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
 
         BilChargeBill bill = new BilChargeBill();
         bill.setBillNo(idGenerator.next("SF"));
@@ -332,7 +332,7 @@ public class BillingService {
         refundBill.setRefundAmount(refundTotal);
         refundBill.setReason(req.getReason());
         refundBill.setRefundMethod(2);
-        refundBill.setRefundTime(LocalDateTime.now());
+        refundBill.setRefundTime(LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
         refundBill.setOperatorId(CurrentUser.id());
         refundBill.setStatus(10);
         refundBillMapper.insert(refundBill);
@@ -393,7 +393,12 @@ public class BillingService {
         settlement.setTotalRefundAmount(refundTotal);
         settlement.setNetAmount(chargeTotal.subtract(refundTotal));
         settlement.setStatus(1);
-        settlementMapper.insert(settlement);
+        try {
+            settlementMapper.insert(settlement);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            // 并发日结撞 uk_settle_date_cashier：预检查窗口兜底，语义化提示
+            throw new BizException(ErrorCode.B3006);
+        }
         return settlement;
     }
 
@@ -417,7 +422,7 @@ public class BillingService {
             throw new BizException(ErrorCode.B3002);
         }
         Long cashierId = CurrentUser.id();
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
         BigDecimal total = fees.stream().map(com.his.modules.inp.app.DailyFeeDTO::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 

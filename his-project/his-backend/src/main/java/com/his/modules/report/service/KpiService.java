@@ -92,25 +92,37 @@ public class KpiService {
         // 床位使用率：占用床/总床（inp_bed status：2 占用——以占用语义过滤）
         long total = bedMapper.selectCount(new LambdaQueryWrapper<>());
         long occupied = bedMapper.selectCount(new LambdaQueryWrapper<InpBed>().eq(InpBed::getBedStatus, 2));
-        // 次均费用口径：账单原额 − 退款（bil_refund_bill），按应收净额
-        BigDecimal refundTotal = refundBillMapper.selectList(new LambdaQueryWrapper<BilRefundBill>()
-                .last("LIMIT 2000")).stream().map(BilRefundBill::getRefundAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        // 次均费用：账单原额口径（status 枚举 10已支付/20部分退/30全额退，无作废态；
+        // 退费金额在 bil_refund_bill 另表，按账单原额，退款扣减登记为口径边界）。
+        // SQL 端聚合——内存 LIMIT 采样在大数据量下有偏差（同平均住院日二十七轮修法）
+        com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<BilChargeBill> billQw =
+                new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<>();
+        billQw.select("COUNT(*) AS cnt", "IFNULL(SUM(total_amount), 0) AS total_amt");
+        List<Map<String, Object>> billAgg = billMapper.selectMaps(billQw);
+        com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<BilRefundBill> refundQw =
+                new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<>();
+        refundQw.select("IFNULL(SUM(refund_amount), 0) AS total_refund");
+        List<Map<String, Object>> refundAgg = refundBillMapper.selectMaps(refundQw);
+        long billCount = 0;
+        BigDecimal totalAmt = BigDecimal.ZERO;
+        if (!billAgg.isEmpty()) {
+            Object billCntObj = billAgg.get(0).get("cnt");
+            Object billAmtObj = billAgg.get(0).get("total_amt");
+            billCount = billCntObj == null ? 0 : ((Number) billCntObj).longValue();
+            totalAmt = billAmtObj == null ? BigDecimal.ZERO : new BigDecimal(billAmtObj.toString());
+        }
+        BigDecimal refundTotal = BigDecimal.ZERO;
+        if (!refundAgg.isEmpty() && refundAgg.get(0).get("total_refund") != null) {
+            refundTotal = new BigDecimal(refundAgg.get(0).get("total_refund").toString());
+        }
         m.put("bedsTotal", total);
         m.put("bedsOccupied", occupied);
         m.put("bedUsageRate", total == 0 ? 0 : BigDecimal.valueOf(occupied * 100.0 / total)
                 .setScale(1, RoundingMode.HALF_UP));
-        // 次均费用：账单原额口径（status 枚举 10已支付/20部分退/30全额退，无作废态；
-        // 退费金额在 bil_refund_bill 另表，此处按账单原额，退款扣减登记为口径边界）
-        List<BilChargeBill> bills = billMapper.selectList(new LambdaQueryWrapper<BilChargeBill>()
-                .last("LIMIT 2000"));
-        BigDecimal totalAmt = bills.stream().map(BilChargeBill::getTotalAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        m.put("billsCount", bills.size());
+        m.put("billsCount", billCount);
         m.put("refundTotal", refundTotal);
-        BigDecimal net = totalAmt.subtract(refundTotal);
-        m.put("avgBillAmount", bills.isEmpty() ? 0 : net.divide(BigDecimal.valueOf(bills.size()),
-                2, RoundingMode.HALF_UP));
+        m.put("avgBillAmount", billCount == 0 ? 0 : totalAmt.subtract(refundTotal)
+                .divide(BigDecimal.valueOf(billCount), 2, RoundingMode.HALF_UP));
         return m;
     }
 

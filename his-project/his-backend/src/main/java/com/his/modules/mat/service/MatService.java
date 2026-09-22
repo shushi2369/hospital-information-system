@@ -14,6 +14,7 @@ import com.his.modules.mat.entity.*;
 import com.his.modules.mat.mapper.*;
 import com.his.modules.plt.service.PltService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +29,7 @@ import java.util.Map;
  * 库存操作对齐药库资金级安全：原子 UPDATE 带条件（防超卖/防负库存）。
  */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class MatService {
     private final MatMaterialMapper materialMapper;
@@ -268,6 +270,12 @@ public class MatService {
             sb.append("{\"batchNo\":\"").append(b.getBatchNo())
               .append("\",\"quantity\":").append(take).append("}");
             remain -= take;
+        }
+        if (remain > 0) {
+            // 拨发缺口 = 批次与聚合漂移，须人工核对入库同步，不能静默落库
+            log.warn("FEFO 批次拨发不足额: materialId={}, 申请={}, 缺口={}", materialId, qty, remain);
+            pltService.recordEvent("mat.fefo.shortfall", String.valueOf(materialId),
+                    "{\"shortfall\":" + remain + "}");
         }
         sb.append("]");
         return sb.toString();

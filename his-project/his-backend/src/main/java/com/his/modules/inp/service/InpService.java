@@ -72,6 +72,8 @@ public class InpService {
     /** 入院登记（I-04）：无在院记录校验 + 床位条件分配 + 首笔押金，一个事务 */
     @Transactional
     public AdmissionResponse createAdmission(AdmissionCreateRequest req) {
+        // 患者行锁串行化：并发登记同患者时后到者在锁上排队，预检必见前一笔在院记录（B6002）
+        patientAppService.lockForAdmission(req.getPatientId());
         PatientDTO patient = patientAppService.requireActive(req.getPatientId());
         Long active = admissionMapper.countActiveByPatient(req.getPatientId());
         if (active != null && active > 0) {

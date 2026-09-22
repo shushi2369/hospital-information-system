@@ -35,6 +35,11 @@ public class PatientAppService {
         return toDTO(patient);
     }
 
+    /** 患者行锁（住院登记用）：先锁后预检，杜绝同患者并发双入院（对齐退费行锁模式） */
+    public void lockForAdmission(Long patientId) {
+        patientMapper.lockByIdForUpdate(patientId);
+    }
+
     public List<PatientDTO> listByIds(List<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             return List.of();

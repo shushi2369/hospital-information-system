@@ -244,9 +244,18 @@ public class DocOrderService {
         if (exec.getExecType() == 3) {
             throw new BizException(ErrorCode.A0001, "皮试结果请通过皮试登记接口录入");
         }
+        // 条件更新占位执行：并发执行同一执行单仅一笔成功（防重复计费/重复申请单）
+        int executed = execMapper.update(null, new LambdaUpdateWrapper<DocOrderExec>()
+                .eq(DocOrderExec::getId, execId)
+                .eq(DocOrderExec::getStatus, 1)
+                .set(DocOrderExec::getStatus, 2)
+                .set(DocOrderExec::getNurseId, CurrentUser.id())
+                .set(DocOrderExec::getUpdatedAt, LocalDateTime.now()));
+        if (executed != 1) {
+            throw new BizException(ErrorCode.B6103);
+        }
         exec.setStatus(2);
         exec.setNurseId(CurrentUser.id());
-        execMapper.updateById(exec);
         // 非药品医嘱：执行即计费（药品费已在摆药时记账），计费单号回写执行单
         if (order.getCategory() != 1 && exec.getChargeDetailId() == null) {
             DocOrderItem item = itemMapper.selectById(exec.getItemId());
