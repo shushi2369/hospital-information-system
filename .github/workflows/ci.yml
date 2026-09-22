@@ -129,6 +129,11 @@ jobs:
           SPRING_DATASOURCE_PASSWORD: root123
           SPRING_REDIS_HOST: localhost
           SPRING_REDIS_PORT: 6379
+      - name: Load demo seed (minimal e2e dataset)
+        run: |
+          mysql -h 127.0.0.1 -uroot -proot123 his < his-project/deploy/db/ci_seed.sql
+        env:
+          MYSQL_PWD: root123
       - name: Run API e2e suites (318 assertions, fail-fast)
         run: |
           cd his-project/deploy/e2e
