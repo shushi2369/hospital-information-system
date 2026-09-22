@@ -66,10 +66,10 @@
       </el-table-column>
       <el-table-column prop="birthDate" label="出生日期" width="110" align="center" />
       <el-table-column prop="phone" label="联系电话" min-width="120">
-        <template #default="{ row }">{{ row.phone || '-' }}</template>
+        <template #default="{ row }">{{ maskPhone(row.phone) || '-' }}</template>
       </el-table-column>
       <el-table-column prop="idCardNo" label="身份证号" min-width="170" show-overflow-tooltip>
-        <template #default="{ row }">{{ row.idCardNo || '-' }}</template>
+        <template #default="{ row }">{{ maskIdCard(row.idCardNo) || '-' }}</template>
       </el-table-column>
       <el-table-column prop="address" label="家庭住址" min-width="150" show-overflow-tooltip>
         <template #default="{ row }">{{ row.address || '-' }}</template>
@@ -167,8 +167,8 @@
         <el-descriptions-item label="性别">{{ genderLabel(archive?.gender) }}</el-descriptions-item>
         <el-descriptions-item label="出生日期">{{ archive?.birthDate || '-' }}</el-descriptions-item>
         <el-descriptions-item label="年龄">{{ ageText }}</el-descriptions-item>
-        <el-descriptions-item label="联系电话">{{ archive?.phone || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="身份证号">{{ archive?.idCardNo || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="联系电话">{{ maskPhone(archive?.phone) || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="身份证号">{{ maskIdCard(archive?.idCardNo) || '-' }}</el-descriptions-item>
         <el-descriptions-item label="家庭住址">{{ archive?.address || '-' }}</el-descriptions-item>
         <el-descriptions-item label="过敏史">{{ archive?.allergyHistory || '无' }}</el-descriptions-item>
         <el-descriptions-item label="既往史">{{ archive?.pastHistory || '无' }}</el-descriptions-item>
@@ -182,6 +182,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Refresh, Search } from '@element-plus/icons-vue'
+import { maskIdCard, maskPhone } from '@/utils/mask'
 import {
   calcAge,
   createPatient,
