@@ -66,6 +66,10 @@ public class PltService {
         if (source == null || target == null) {
             throw new BizException(ErrorCode.A0001, "主索引不存在");
         }
+        // 自合并守卫：mergedInto 指向自身会形成断链，且源患者会被误停用（三十五轮）
+        if (source.getId().equals(target.getId())) {
+            throw new BizException(ErrorCode.A0001, "源与目标为同一主索引，不能自合并");
+        }
         if (source.getMergeFlag() == 1) {
             throw new BizException(ErrorCode.A0001, "该主索引已合并");
         }

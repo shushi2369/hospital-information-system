@@ -8,7 +8,7 @@ on:
 
 jobs:
   backend-test:
-    name: 后端编译与单测（65 项）
+    name: 后端编译与单测（70 项）
     runs-on: ubuntu-latest
     services:
       mysql:
@@ -34,7 +34,7 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: maven
-      - name: Run backend tests (65 unit tests + Flyway migration)
+      - name: Run backend tests (70 unit tests + Flyway migration)
         working-directory: his-project/his-backend
         run: mvn -B test
         env:
@@ -108,7 +108,7 @@ jobs:
           MYSQL_PWD: root123
 
   api-e2e:
-    name: API e2e（九套 318 断言）
+    name: API e2e（九套 318 断言）+ 单测 70
     runs-on: ubuntu-latest
     needs: backend-test
     services:
