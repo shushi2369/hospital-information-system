@@ -180,13 +180,19 @@ public class InpService {
             }
         }
         bedMapper.releaseBed(admission.getBedId(), admissionId);
-        admission.setStatus(20);
         admission.setDischargeWay(req.getDischargeWay());
         admission.setDischargeDiagnosis(req.getDischargeDiagnosis());
         admission.setDischargeTime(LocalDateTime.now());
+        // 无未结费用（当日入出等场景）直接闭环：否则无结算单可办，状态永久卡在 20（三十九轮 UI 走查实锤）
+        Long unpaidFees = dailyFeeMapper.selectCount(new LambdaQueryWrapper<InpDailyFee>()
+                .eq(InpDailyFee::getAdmissionId, admissionId)
+                .eq(InpDailyFee::getChargeStatus, 0)
+                .eq(InpDailyFee::getStatus, 1));
+        boolean autoSettled = unpaidFees == null || unpaidFees == 0;
+        admission.setStatus(autoSettled ? 30 : 20);
         admissionMapper.updateById(admission);
         pltService.recordEvent("admission.discharged", admission.getAdmissionNo(),
-                "{\"way\":" + req.getDischargeWay() + "}");
+                "{\"way\":" + req.getDischargeWay() + ",\"autoSettled\":" + autoSettled + "}");
     }
 
     /** 一日清（I-09）：按日期分组的费用明细 */

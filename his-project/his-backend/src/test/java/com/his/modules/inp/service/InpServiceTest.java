@@ -125,6 +125,49 @@ class InpServiceTest extends UnitTestBase {
     }
 
     @Test
+    void discharge_zeroUnpaidFeesAutoSettles() {
+        // 当日入出且无费用：出院直接闭环 30，无需结算单（三十九轮 UI 走查实锤的卡死场景）
+        InpAdmission admission = new InpAdmission();
+        admission.setId(8641L);
+        admission.setStatus(10);
+        admission.setBedId(300L);
+        admission.setDepositTotal(new java.math.BigDecimal("500"));
+        when(inpAppService.requireInHospital(8641L)).thenReturn(admission);
+        when(dischargeHooks.iterator()).thenReturn(java.util.Collections.<com.his.modules.inp.spi.DischargeCheckHook>emptyList().iterator());
+        when(bedMapper.releaseBed(300L, 8641L)).thenReturn(1);
+        when(dailyFeeMapper.selectCount(any())).thenReturn(0L);
+        when(admissionMapper.updateById(admission)).thenReturn(1);
+
+        com.his.modules.inp.dto.DischargeRequest req = new com.his.modules.inp.dto.DischargeRequest();
+        req.setDischargeWay(1);
+        req.setDischargeDiagnosis("治愈出院");
+        service.discharge(8641L, req);
+
+        assertEquals(30, admission.getStatus());
+        verify(bedMapper).releaseBed(300L, 8641L);
+    }
+
+    @Test
+    void discharge_withUnpaidFeesGoesTo20() {
+        InpAdmission admission = new InpAdmission();
+        admission.setId(8642L);
+        admission.setStatus(10);
+        admission.setBedId(301L);
+        when(inpAppService.requireInHospital(8642L)).thenReturn(admission);
+        when(dischargeHooks.iterator()).thenReturn(java.util.Collections.<com.his.modules.inp.spi.DischargeCheckHook>emptyList().iterator());
+        when(bedMapper.releaseBed(301L, 8642L)).thenReturn(1);
+        when(dailyFeeMapper.selectCount(any())).thenReturn(2L); // 有未结费用 → 待结算
+        when(admissionMapper.updateById(admission)).thenReturn(1);
+
+        com.his.modules.inp.dto.DischargeRequest req = new com.his.modules.inp.dto.DischargeRequest();
+        req.setDischargeWay(1);
+        req.setDischargeDiagnosis("未愈转院");
+        service.discharge(8642L, req);
+
+        assertEquals(20, admission.getStatus());
+    }
+
+    @Test
     void createAdmission_occupyBedFailsRejected() {
         when(patientAppService.requireActive(5L)).thenReturn(patient());
         when(admissionMapper.countActiveByPatient(5L)).thenReturn(0L);
