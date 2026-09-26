@@ -518,8 +518,8 @@ async function handleStart(row: Registration) {
   startingId.value = row.id
   try {
     const res = await startVisit(row.id)
-    markStarted(row.id, res.visitId)
-    await router.replace({ query: { ...route.query, visitId: String(res.visitId) } })
+    markStarted(row.id, res)
+    await router.replace({ query: { ...route.query, visitId: String(res) } })
   } catch {
     // B2001 就诊已完成等错误已在拦截器中统一提示
   } finally {

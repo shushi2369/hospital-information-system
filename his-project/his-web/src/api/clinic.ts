@@ -170,9 +170,9 @@ export interface ExamApplicationResult {
 /** 我的候诊队列（当前登录医生 + 当前日期），结构同 Registration */
 export const getClinicQueue = () => get<Registration[]>('/clinic/queue')
 
-/** 接诊（开始就诊），返回 visitId；未挂号已收费等约束由后端校验 */
+/** 接诊（开始就诊），后端 R<Long> 直接返回 visitId；未挂号已收费等约束由后端校验 */
 export const startVisit = (registrationId: number) =>
-  post<{ visitId: number }>(`/clinic/visits/${registrationId}/start`)
+  post<number>(`/clinic/visits/${registrationId}/start`)
 
 export const getVisitDetail = (id: number) => get<VisitDetail>(`/clinic/visits/${id}`)
 
