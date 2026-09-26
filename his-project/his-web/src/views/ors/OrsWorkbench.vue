@@ -61,12 +61,22 @@
     </div>
 
     <!-- 新建申请 -->
-    <el-dialog v-model="createVisible" title="新建手术申请" width="520px" destroy-on-close>
+    <el-dialog v-model="createVisible" title="新建手术申请" width="520px" destroy-on-close @open="loadChargeItems">
       <el-form :model="createForm" label-width="100px">
         <el-form-item label="就诊ID" required><el-input-number v-model="createForm.admissionId" :min="1" :precision="0" style="width: 100%" /></el-form-item>
         <el-form-item label="患者ID" required><el-input-number v-model="createForm.patientId" :min="1" :precision="0" style="width: 100%" /></el-form-item>
         <el-form-item label="手术名称" required><el-input v-model="createForm.surgeryName" placeholder="如 阑尾切除术" /></el-form-item>
         <el-form-item label="术前诊断" required><el-input v-model="createForm.diagnosis" /></el-form-item>
+        <el-form-item label="手术费项目" required>
+          <el-select v-model="createForm.surgeryItemId" filterable style="width: 100%" placeholder="选择手术费收费项目">
+            <el-option v-for="i in surgeryItems" :key="i.id" :value="i.id" :label="i.itemName + '（¥' + i.price + '）'" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="麻醉费项目" required>
+          <el-select v-model="createForm.anesthesiaItemId" filterable style="width: 100%" placeholder="选择麻醉费收费项目">
+            <el-option v-for="i in anesthesiaItems" :key="i.id" :value="i.id" :label="i.itemName + '（¥' + i.price + '）'" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="拟手术日期" required><el-date-picker v-model="createForm.plannedDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" /></el-form-item>
         <el-form-item label="麻醉方式" required>
           <el-select v-model="createForm.anesthesiaMethod" style="width: 100%">
@@ -207,6 +217,8 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
+import { getChargeItemList, type ChargeItem } from '@/api/basedata'
+import { toList } from '@/api/request'
 import {
   anesthesiaMethodLabel,
   cancelSurgery,
@@ -271,13 +283,32 @@ const createForm = reactive({
   patientId: undefined as number | undefined,
   surgeryName: '',
   diagnosis: '',
+  surgeryItemId: undefined as number | undefined,
+  anesthesiaItemId: undefined as number | undefined,
   plannedDate: '',
   anesthesiaMethod: 1,
 })
+// 手术/麻醉收费项目（category 9/10）：缺项目则手术无法计费（四十轮 UI 走查实锤）
+const surgeryItems = ref<ChargeItem[]>([])
+const anesthesiaItems = ref<ChargeItem[]>([])
+
+async function loadChargeItems() {
+  try {
+    const [op, an] = await Promise.all([
+      getChargeItemList({ category: 9, status: 1 }),
+      getChargeItemList({ category: 10, status: 1 }),
+    ])
+    surgeryItems.value = toList(op)
+    anesthesiaItems.value = toList(an)
+  } catch {
+    // 拦截器已统一提示
+  }
+}
 
 async function handleCreate() {
-  if (!createForm.admissionId || !createForm.patientId || !createForm.surgeryName || !createForm.diagnosis || !createForm.plannedDate) {
-    ElMessage.warning('请完整填写申请信息')
+  if (!createForm.admissionId || !createForm.patientId || !createForm.surgeryName || !createForm.diagnosis
+    || !createForm.surgeryItemId || !createForm.anesthesiaItemId || !createForm.plannedDate) {
+    ElMessage.warning('请完整填写申请信息（含手术/麻醉费项目）')
     return
   }
   await createSurgery({
@@ -285,6 +316,8 @@ async function handleCreate() {
     patientId: createForm.patientId,
     surgeryName: createForm.surgeryName,
     diagnosis: createForm.diagnosis,
+    surgeryItemId: createForm.surgeryItemId,
+    anesthesiaItemId: createForm.anesthesiaItemId,
     plannedDate: createForm.plannedDate,
     anesthesiaMethod: createForm.anesthesiaMethod,
   })
