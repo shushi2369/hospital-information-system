@@ -79,6 +79,12 @@ public class AuthService {
             saveLoginLog(req.getUsername(), ip, ua, false, "账号已被禁用");
             throw new BizException(ErrorCode.A0002, "账号已被禁用");
         }
+        // 登录成功清零失败计数：限流只针对连续失败，成功登录不清零会把换班频繁登录也锁死（三十八轮）
+        try {
+            redis.delete(failKey);
+        } catch (Exception e) {
+            log.warn("登录限流计数清理不可用: {}", e.getMessage());
+        }
 
         Set<Long> roleIds = userRoleMapper.selectList(
                         new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getUserId, user.getId()))
