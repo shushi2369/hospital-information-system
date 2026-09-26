@@ -94,14 +94,14 @@ export const getDispensable = () => get<RxQueueItem[]>('/pharmacy/prescriptions/
 
 /** 发药，返回发药单号（B4001 未审核 / B4002 未收费 / B4003 重复发药 / B4004 库存不足 / B4005 过期） */
 export const dispensePrescription = (id: number) =>
-  post<{ dispenseNo: string }>(`/pharmacy/prescriptions/${id}/dispense`)
+  post<string>(`/pharmacy/prescriptions/${id}/dispense`)
 
 export const getDispenseOrderPage = (params: DispenseOrderQuery) =>
   get<PageResult<DispenseOrder>>('/pharmacy/dispense-orders', params)
 
 /** 整方退药，返回退药单号；退费需到收费处办理 */
 export const createReturn = (dispenseOrderId: number, reason: string) =>
-  post<{ returnNo: string }>('/pharmacy/returns', { dispenseOrderId, reason })
+  post<string>('/pharmacy/returns', { dispenseOrderId, reason })
 
 export const getReturnPage = (params: ReturnOrderQuery) =>
   get<PageResult<ReturnOrder>>('/pharmacy/returns', params)

@@ -101,7 +101,7 @@ export const createRole = (data: { roleCode: string; roleName: string; descripti
   post<void>('/system/roles', data)
 
 /** 角色已授权菜单 ID 集合 */
-export const getRoleMenuIds = (roleId: number) => get<{ menuIds: number[] }>(`/system/roles/${roleId}/menus`)
+export const getRoleMenuIds = (roleId: number) => get<number[]>(`/system/roles/${roleId}/menus`)
 
 export const updateRoleMenus = (roleId: number, menuIds: number[]) =>
   put<void>(`/system/roles/${roleId}/menus`, { menuIds })

@@ -427,7 +427,7 @@ function handleDispense(row: RxQueueItem) {
   )
     .then(async () => {
       const res = await dispensePrescription(row.id)
-      ElMessageBox.alert(`发药单号：${res.dispenseNo}`, '发药成功', {
+      ElMessageBox.alert(`发药单号：${res}`, '发药成功', {
         type: 'success',
         confirmButtonText: '知道了',
       }).catch(() => {})
@@ -507,7 +507,7 @@ async function handleReturnSubmit() {
   returnSubmitting.value = true
   try {
     const res = await createReturn(returnRow.value.id, returnForm.reason.trim())
-    ElMessage.success(`整方退药成功，退药单号：${res.returnNo}；退费请到收费处办理`)
+    ElMessage.success(`整方退药成功，退药单号：${res}；退费请到收费处办理`)
     returnDialogVisible.value = false
     fetchDispenseOrders()
     fetchReturns()

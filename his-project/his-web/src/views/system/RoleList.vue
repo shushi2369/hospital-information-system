@@ -199,11 +199,11 @@ async function openAuth(row: Role) {
   try {
     const [tree, menuRes] = await Promise.all([
       getMenuTree(),
-      getRoleMenuIds(row.id).catch(() => ({ menuIds: [] as number[] })),
+      getRoleMenuIds(row.id).catch(() => [] as number[]),
     ])
     menuTree.value = tree ?? []
     await nextTick()
-    const echoIds = (menuRes.menuIds ?? []).filter((id) => leafIds.value.has(id))
+    const echoIds = (menuRes ?? []).filter((id) => leafIds.value.has(id))
     treeRef.value?.setCheckedKeys(echoIds)
   } catch {
     // 错误提示已在拦截器中统一处理
