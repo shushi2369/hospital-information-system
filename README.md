@@ -4,11 +4,11 @@
 
 ## 为什么值得读（工程亮点）
 
-- **质量体系即资产**：九套 API e2e **318 项断言** + 65 项单测 + **46 段数据一致性巡检** + Playwright UI 冒烟（全菜单 404 猎手），CI 每次推送全量回归（fail-fast）。
+- **质量体系即资产**：九套 API e2e **321 项断言** + 90 项单测 + **57 段数据一致性巡检** + Playwright UI 链路（7 条业务链 25 断言）与 UI 冒烟（全菜单 404 猎手），CI 每次推送全量回归（fail-fast）。
 - **资金与库存全服务端硬门禁**：收费/退费行锁与快照、药房 FEFO 拆批扣减、输血三道安全门禁（不相容阻断/签收/双人双签）、物资原子扣减防超卖——前端只是入口。
-- **并发正确性有论证**：幂等组件（失败释放锁）、乐观锁断言、条件更新防丢失更新、患者行锁防双登记；34 轮查验沉淀 **19 条系统性 bug 模式**（[docs/lessons/bug-patterns.md](his-project/docs/lessons/bug-patterns.md)）。
-- **可运维性**：一键部署、健康检查、异盘备份 + 恢复演练（RTO<60s 含一致性验证）、46 段巡检、慢接口治理有前后数据（床位一览 -83%、病案列表 -78%）。
-- **文档即课程**：[运维手册](his-project/docs/lessons/ops-runbook.md)、[演示剧本](his-project/docs/lessons/demo-script.md)、[bug 模式库](his-project/docs/lessons/bug-patterns.md)——每条模式带机理/真实案例/检查方法，可直接当教学材料。
+- **并发正确性有论证**：幂等组件（失败释放锁）、乐观锁断言、条件更新防丢失更新、患者行锁防双登记；66 轮查验沉淀 **20+ 条系统性 bug 模式**（[docs/lessons/bug-patterns.md](his-project/docs/lessons/bug-patterns.md)）。
+- **可运维性**：一键部署（含旧前端产物引用闭包回收）、健康检查、异盘备份 + 恢复演练（RTO<60s 含一致性验证）、57 段巡检、慢接口治理有前后数据（床位一览 -83%、病案列表 -78%）、**Redis 停机七探针演练**与发号器降级/恢复补偿。
+- **文档即课程**：[运维手册](his-project/docs/lessons/ops-runbook.md)、[演示剧本](his-project/docs/lessons/demo-script.md)、[bug 模式库](his-project/docs/lessons/bug-patterns.md)——每条模式带机理/真实案例/检查方法；[**系统设计白皮书**](his-project/docs/portfolio/系统设计白皮书.md)、[**ADR 13 条**](his-project/docs/portfolio/ADR.md)面向求职作品集；[**16 课时教案 + 实验手册**](his-project/docs/course/README.md)面向教学。
 
 
 > ⚠️ 定位声明（指导文档 §10）：本系统为产品原型/内部试点/教学演示系统，用于真实医疗业务前须完成合规评估、等保、医保联调与信息科审批。
@@ -29,7 +29,7 @@ graph LR
         G["门诊RIS·传染病·AE·会诊·院感（四期二三批）"]
     end
     subgraph 存储
-        D2[("MySQL 8<br/>Flyway V1~V37 · 103 张表")]
+        D2[("MySQL 8<br/>Flyway V1~V40 · 103 张表")]
         R[("Redis<br/>会话/幂等/限流")]
     end
     W -->|"/api/v1 + JWT + 幂等"| A
