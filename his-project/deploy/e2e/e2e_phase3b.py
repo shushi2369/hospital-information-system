@@ -348,8 +348,10 @@ def main():
         st, ol10 = call("GET", "/ors/requests?admissionId=%d&status=10" % admission_id, doctor)
         or_d = next((o for o in ol10["data"]["list"] if o["surgeryName"] == "槽位复用验证术"), None)
         call("POST", "/ors/requests/%d/review" % or_d["id"], doctor, {"approved": True}, idem="p3b-or4rv-" + uid)
+        # 五十二轮修正：重排目标必须与已完成手术的实际槽位一致（try_schedule 可能落在任意房间，
+        # 写死 roomId=1 在 OR01 当日台次占满后必然撞别的占用槽）
         st, r2 = call("POST", "/ors/requests/%d/schedule" % or_d["id"], or_nurse,
-                      {"roomId": 1, "surgeryDate": sched_date, "seqNo": or_a_seq, "surgeonId": 2},
+                      {"roomId": or_a_room, "surgeryDate": sched_date, "seqNo": or_a_seq, "surgeonId": 2},
                       idem="p3b-or4sc-" + uid)
         check("52b. [三十一] 已完成手术槽位释放可重排", r2["code"] == "OK", r2)
     else:

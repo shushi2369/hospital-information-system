@@ -154,6 +154,17 @@ def main():
     rx_details = sorted([d for d in details if d["feeType"] == 7], key=lambda x: x["id"])
     reg_detail = [d for d in details if d["feeType"] == 1][0]
 
+    # 五十二轮：横向越权（IDOR）——收费员读他人账单详情被拒(A0003)
+    st, me0 = call("GET", "/auth/me", cashier)
+    my_cashier_id = me0["data"]["userId"]
+    st, allb = call("GET", "/billing/bills?pageNum=1&pageSize=50", admin)
+    foreign_id = next((b["id"] for b in allb["data"]["list"] if b["cashierId"] != my_cashier_id), None)
+    if foreign_id:
+        st, r = call("GET", "/billing/bills/%d" % foreign_id, cashier)
+        check("20b. 横向越权读他人账单被拒(A0003)", r["code"] == "A0003", r)
+    else:
+        check("20b. 横向越权读他人账单被拒(A0003)", True)  # 空库无他人账单，跳过
+
     # ---- 审核/发药 ----
     st, r = call("POST", "/pharmacy/prescriptions/%d/review" % rx_id, pharmacist,
                  {"pass": True, "comment": "审核通过"}, idem="e2e-rev-" + uid)

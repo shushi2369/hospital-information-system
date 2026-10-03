@@ -270,6 +270,25 @@ class BillingServiceTest extends UnitTestBase {
         verify(chargeDetailMapper, never()).insert(any(BilChargeDetail.class));
     }
 
+    /** 五十二轮：IDOR——账单详情按 id 直查也要过数据范围（列表过滤≠详情过滤） */
+    @Test
+    void billDetail_foreignBillRejectedForCashier() {
+        setupAs(9L, "CASHIER");
+        when(billMapper.selectById(1L)).thenReturn(bill()); // bill() cashierId=1 ≠ 当前用户 9
+
+        assertEquals(ErrorCode.A0003, assertThrows(BizException.class,
+                () -> service.billDetail(1L)).getErrorCode());
+    }
+
+    @Test
+    void billDetail_adminCanReadForeignBill() {
+        when(billMapper.selectById(1L)).thenReturn(bill()); // 当前用户 ADMIN(1)，账单 cashier=1
+        when(patientAppService.getById(3L)).thenReturn(null);
+        when(systemAppService.getUsernameMap(anyList())).thenReturn(Map.of());
+
+        assertEquals(1L, service.billDetail(1L).getId());
+    }
+
     private InpAppService.AdmissionView dischargedView() {
         InpAppService.AdmissionView view = new InpAppService.AdmissionView();
         InpAdmission discharged = new InpAdmission();

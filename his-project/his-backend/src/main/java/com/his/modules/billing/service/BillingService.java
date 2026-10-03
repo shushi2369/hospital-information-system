@@ -558,6 +558,12 @@ public class BillingService {
         if (bill == null) {
             throw new BizException(ErrorCode.B3007);
         }
+        // 数据范围（《04》§4）：收费员仅能查看本人经办账单；管理员/对账员豁免（对齐 billPage，五十二轮 IDOR 修复）
+        com.his.infrastructure.security.LoginUser user = com.his.infrastructure.security.CurrentUser.get();
+        if (!user.getRoleCodes().contains("ADMIN") && !user.getRoleCodes().contains("AUDITOR")
+                && !bill.getCashierId().equals(user.getUserId())) {
+            throw new BizException(ErrorCode.A0003, "仅能查看本人经办的账单");
+        }
         BillResponse resp = new BillResponse();
         resp.setId(bill.getId());
         resp.setBillNo(bill.getBillNo());
