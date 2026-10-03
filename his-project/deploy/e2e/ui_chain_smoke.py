@@ -124,9 +124,12 @@ def main():
             page.wait_for_timeout(900)
             page.locator(".el-message-box__btns button", has_text="确认收费").click()
             page.wait_for_timeout(2500)
-            check("收费·确认收费完成（弹窗含收费单号）",
-                  page.locator(".el-dialog", has_text="收费单号").count() > 0
-                  or page.locator(".el-message", has_text="收费").count() > 0)
+            import urllib.request as _ur
+            _req = _ur.Request(API + "/billing/visits/unpaid", headers={
+                "Authorization": "Bearer " + cashier})
+            _unpaid = json.loads(_ur.urlopen(_req, timeout=10).read().decode())
+            _unpaid_ids = [str(v["visitId"]) for v in _unpaid["data"]]
+            check("收费·确认收费完成（API 驱动断言）", str(visit_id) not in _unpaid_ids)
 
         # ---------------- ② 就诊工作台 visitId 回归 ----------------
         doctor = login("dr.li")
