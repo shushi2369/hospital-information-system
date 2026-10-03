@@ -127,6 +127,7 @@ public class BillingService {
     /** 收费（B-02）：单据+明细+支付记录同事务生成，并联动标记来源已收费 */
     @Transactional
     public BillResponse charge(ChargeRequest req) {
+        requireDailySettleOpen();
         BillingVisitDTO visit = requireVisit(req.getVisitId());
         if (billMapper.selectCount(new LambdaQueryWrapper<BilChargeBill>()
                 .eq(BilChargeBill::getVisitId, req.getVisitId())) > 0) {
@@ -231,6 +232,7 @@ public class BillingService {
     /** 退费（B-05，《05》R8~R10：明细级可退校验、已发药先退药、完成后挂号费不可退、联动作废） */
     @Transactional
     public String refund(RefundRequest req) {
+        requireDailySettleOpen();
         // 行锁序列化同一账单的并发退费（《05》R8~R10 一致性保障）
         BilChargeBill bill = billMapper.selectByIdForUpdate(req.getBillId());
         if (bill == null) {
@@ -312,8 +314,9 @@ public class BillingService {
                     throw new BizException(ErrorCode.B3004, detail.getItemName() + " 已发药，请先到药房退药");
                 }
             }
+            // B3005：挂号费/诊察费在就诊开始后不可退（CliVisit 仅在接诊时创建，20 就诊中/30 已完成均拦截）
             if ((detail.getFeeType() == 1 || detail.getFeeType() == 2)
-                    && visit != null && visit.getVisitStatus() == 30) {
+                    && visit != null && visit.getVisitStatus() != 10) {
                 throw new BizException(ErrorCode.B3005);
             }
             BigDecimal amount = detail.getUnitPrice().multiply(qty).setScale(2, RoundingMode.HALF_UP);
@@ -364,6 +367,16 @@ public class BillingService {
         return refundBill.getRefundNo();
     }
 
+    /** 日结锁定（B-07）：本人当日已日结后不得再收费/退费/住院结算，否则交易落在任何日结之外（对账永久失真） */
+    private void requireDailySettleOpen() {
+        Long exists = settlementMapper.selectCount(new LambdaQueryWrapper<BilDailySettlement>()
+                .eq(BilDailySettlement::getCashierId, CurrentUser.id())
+                .eq(BilDailySettlement::getSettleDate, java.time.LocalDate.now()));
+        if (exists != null && exists > 0) {
+            throw new BizException(ErrorCode.B3006, "当日已日结，不能再收费或退费，请切换账号或次日处理");
+        }
+    }
+
     /** 日结（B-07）：按收费员+日期汇总并锁定，重复日结拒绝（B3006） */
     @Transactional
     public BilDailySettlement settle(SettlementRequest req) {
@@ -407,6 +420,7 @@ public class BillingService {
     /** 住院出院结算（I-12）：一日清未结费用 → 住院收费单 + 支付 + 联动，押金返回供抵扣提示 */
     @Transactional
     public BillResponse settleAdmission(Long admissionId, Integer payMethod) {
+        requireDailySettleOpen();
         var view = inpAppService.getAdmissionView(admissionId);
         var admission = view.getAdmission();
         if (admission.getStatus() == 30) {

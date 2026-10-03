@@ -55,7 +55,13 @@ def main():
     today = time.strftime("%Y-%m-%d")
 
     admin = login("admin")
-    cashier = login("cashier.li")
+    # 一次性收费员：每轮运行动态创建——日结锁定（B3006）生效后，固定收费员的当日历史日结会污染本轮
+    st, roles = call("GET", "/system/roles", admin)
+    cashier_role_id = [x for x in roles["data"] if x["roleCode"] == "CASHIER"][0]["id"]
+    rj_user = "rj" + uid
+    call("POST", "/system/users", admin, {"username": rj_user, "realName": "验收收费员",
+         "password": PASSWORD, "roleIds": [cashier_role_id]}, idem="e2e-rjuser-" + uid)
+    cashier = login(rj_user)
     doctor = login("dr.li")
     pharmacist = login("pharm.zhao")
     auditor = login("auditor.sun")
@@ -203,6 +209,9 @@ def main():
         check("31. 日结(当日已日结 → B3006 分支)", r["code"] == "B3006", r)
         st, sl = call("GET", "/billing/settlements?settleDate=%s" % today, cashier)
         settle = sl["data"]["list"][0]
+    # 日结锁定：本人当日已日结后不能再收费（B3006），否则交易落在任何日结之外
+    st, r = call("POST", "/billing/bills", cashier, bill_body, idem="e2e-billlock-" + uid)
+    check("31b. 日结后同收费员再收费被拦(B3006)", r["code"] == "B3006", r)
     # 交叉复核：日结按收费员+结算时点快照比对（须限定本收费员，避免他人生成的账单混入）
     st, me = call("GET", "/auth/me", cashier)
     cashier_id = me["data"]["userId"]
@@ -216,7 +225,7 @@ def main():
                      if b["payTime"] and to_sec(b["payTime"]) <= cutoff)
     refund_sum = sum(float(x["refundAmount"]) for x in fl["data"]["list"]
                      if x["refundTime"] and to_sec(x["refundTime"]) <= cutoff
-                     and x.get("operatorName") == "李楠")
+                     and x.get("operatorName") == "验收收费员")
     check("32. 日结金额可由明细复核",
           abs(charge_sum - float(settle["totalChargeAmount"])) < 0.001
           and abs(refund_sum - float(settle["totalRefundAmount"])) < 0.001,

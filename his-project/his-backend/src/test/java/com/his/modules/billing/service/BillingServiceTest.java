@@ -237,6 +237,39 @@ class BillingServiceTest extends UnitTestBase {
         verify(inpAppService).markSettled(7L);
     }
 
+    /** 五十轮：日结锁定——本人当日已日结后，收费/退费/住院结算一律拒绝（B3006），否则交易落在任何日结之外 */
+    @Test
+    void charge_blockedAfterDailySettlement() {
+        when(settlementMapper.selectCount(any())).thenReturn(1L);
+        ChargeRequest req = new ChargeRequest();
+        req.setVisitId(9L);
+        req.setPayMethod(1);
+
+        BizException e = assertThrows(BizException.class, () -> service.charge(req));
+        assertEquals(ErrorCode.B3006, e.getErrorCode());
+        verify(billMapper, never()).insert(any(BilChargeBill.class));
+    }
+
+    @Test
+    void refund_blockedAfterDailySettlement() {
+        when(settlementMapper.selectCount(any())).thenReturn(1L);
+        RefundRequest req = new RefundRequest();
+        req.setBillId(1L);
+
+        BizException e = assertThrows(BizException.class, () -> service.refund(req));
+        assertEquals(ErrorCode.B3006, e.getErrorCode());
+        verify(refundBillMapper, never()).insert(any(BilRefundBill.class));
+    }
+
+    @Test
+    void settleAdmission_blockedAfterDailySettlement() {
+        when(settlementMapper.selectCount(any())).thenReturn(1L);
+
+        BizException e = assertThrows(BizException.class, () -> service.settleAdmission(7L, 1));
+        assertEquals(ErrorCode.B3006, e.getErrorCode());
+        verify(chargeDetailMapper, never()).insert(any(BilChargeDetail.class));
+    }
+
     private InpAppService.AdmissionView dischargedView() {
         InpAppService.AdmissionView view = new InpAppService.AdmissionView();
         InpAdmission discharged = new InpAdmission();
