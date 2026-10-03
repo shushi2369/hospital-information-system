@@ -86,6 +86,10 @@ fi
 if [ -d "$FRONTEND_DIST" ]; then
     echo "[前端] 部署 dist → $FRONTEND_DIR"
     cp -r "$FRONTEND_DIST"/* "$FRONTEND_DIR/"
+    # 回收旧代构建产物（引用闭包外且 >3 天的哈希文件，详见脚本头注释）
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    python "$SCRIPT_DIR/cleanup_frontend_assets.py" --root "$FRONTEND_DIR" --apply \
+        || echo "  [WARN] 资产回收失败（忽略，不影响部署）"
 fi
 
 echo "===== HIS 部署完成 $(date) ====="
