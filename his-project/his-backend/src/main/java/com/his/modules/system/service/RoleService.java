@@ -3,11 +3,14 @@ package com.his.modules.system.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.his.common.BizException;
 import com.his.common.ErrorCode;
+import com.his.infrastructure.security.SessionService;
 import com.his.modules.system.dto.RoleCreateRequest;
 import com.his.modules.system.entity.SysRole;
 import com.his.modules.system.entity.SysRoleMenu;
+import com.his.modules.system.entity.SysUserRole;
 import com.his.modules.system.mapper.SysRoleMapper;
 import com.his.modules.system.mapper.SysRoleMenuMapper;
+import com.his.modules.system.mapper.SysUserRoleMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +26,8 @@ import java.util.Set;
 public class RoleService {
     private final SysRoleMapper roleMapper;
     private final SysRoleMenuMapper roleMenuMapper;
+    private final SysUserRoleMapper userRoleMapper;
+    private final SessionService sessionService;
 
     public List<SysRole> listAll() {
         return roleMapper.selectList(new LambdaQueryWrapper<SysRole>()
@@ -59,5 +64,11 @@ public class RoleService {
             rm.setMenuId(menuId);
             roleMenuMapper.insert(rm);
         }
+        // 五十七轮：权限变更即时生效——失效持有该角色的全部在线会话。
+        // 会话缓存 roleCodes/permissions 且滑动续期，不失效则权限回收在活跃用户身上可能无限期悬空。
+        userRoleMapper.selectList(new LambdaQueryWrapper<SysUserRole>()
+                        .eq(SysUserRole::getRoleId, roleId))
+                .stream().map(SysUserRole::getUserId).distinct()
+                .forEach(sessionService::remove);
     }
 }

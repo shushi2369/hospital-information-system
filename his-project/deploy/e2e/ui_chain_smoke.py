@@ -266,7 +266,10 @@ def main():
         r = api("/ors/requests", login("dr.li"), {
             "admissionId": adm_or, "patientId": pid_or,
             "surgeryName": "UI链路术式" + uid, "diagnosis": "急性阑尾炎",
-            "plannedDate": time.strftime("%Y-%m-%d"), "anesthesiaMethod": 1,
+            # 五十七轮：排台日期推进到明天——今日 3 手术间×10 台次已被整天回归逼近饱和，
+            # 重试轮换只扫今天必撞；手术本就提前排程，对话框自动带入 plannedDate 无需日期控件交互
+            "plannedDate": time.strftime("%Y-%m-%d", time.localtime(time.time() + 86400)),
+            "anesthesiaMethod": 1,
             "surgeryItemId": op_items[0]["id"], "anesthesiaItemId": an_items[0]["id"]},
             idem="ui-or-req-" + uid)
         check("手术·申请创建 OK", r["code"] == "OK")
