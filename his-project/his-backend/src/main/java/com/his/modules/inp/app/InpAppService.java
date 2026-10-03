@@ -81,14 +81,25 @@ public class InpAppService {
                 }).toList();
     }
 
-    /** 结算联动：一日清标记已结算 */
+    /** 结算联动：一日清标记已结算（仅限账单实际包含的费用，防止标记窗口期新增费用被误标记为已结） */
     @Transactional
-    public void markDailyFeesSettled(Long admissionId) {
+    public void markDailyFeesSettled(java.util.Collection<Long> feeIds) {
+        if (feeIds == null || feeIds.isEmpty()) {
+            return;
+        }
         dailyFeeMapper.update(null, new LambdaUpdateWrapper<InpDailyFee>()
-                .eq(InpDailyFee::getAdmissionId, admissionId)
+                .in(InpDailyFee::getId, feeIds)
                 .eq(InpDailyFee::getChargeStatus, 0)
                 .set(InpDailyFee::getChargeStatus, 1)
                 .set(InpDailyFee::getUpdatedAt, java.time.LocalDateTime.now()));
+    }
+
+    /** 该住院仍存在的未结费用数（结算收尾复查用，配合标记收窄防费用蒸发） */
+    public long countUnpaidDailyFees(Long admissionId) {
+        return dailyFeeMapper.selectCount(new LambdaQueryWrapper<InpDailyFee>()
+                .eq(InpDailyFee::getAdmissionId, admissionId)
+                .eq(InpDailyFee::getChargeStatus, 0)
+                .eq(InpDailyFee::getStatus, 1));
     }
 
     /** 结算联动：住院 20 出院未结 → 30 已结算 */

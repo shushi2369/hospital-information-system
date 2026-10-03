@@ -205,4 +205,56 @@ class BillingServiceTest extends UnitTestBase {
                 () -> service.settleAdmission(7L, 1)).getErrorCode());
         verify(chargeDetailMapper, never()).insert(any(BilChargeDetail.class));
     }
+
+    /** 四十九轮：标记收窄 + 残留复查——结算窗口期新增费用必须拒绝，不允许静默遗留 */
+    @Test
+    void settleAdmission_newFeeDuringSettleAborts() {
+        InpAppService.AdmissionView view = dischargedView();
+        when(inpAppService.getAdmissionView(7L)).thenReturn(view);
+        when(billMapper.selectCount(any())).thenReturn(0L);
+        when(inpAppService.listUnpaidDailyFees(7L)).thenReturn(List.of(fee(501L)));
+        when(inpAppService.countUnpaidDailyFees(7L)).thenReturn(1L);
+
+        BizException e = assertThrows(BizException.class, () -> service.settleAdmission(7L, 1));
+        assertEquals(ErrorCode.B3002, e.getErrorCode());
+        assertTrue(e.getMessage().contains("新增费用"));
+        verify(inpAppService, never()).markSettled(any());
+    }
+
+    /** 对照：无窗口期新增 → 仅标记账单包含的费用并完成结算 */
+    @Test
+    void settleAdmission_marksOnlyBillFeesAndSettles() {
+        InpAppService.AdmissionView view = dischargedView();
+        when(inpAppService.getAdmissionView(7L)).thenReturn(view);
+        when(billMapper.selectCount(any())).thenReturn(0L);
+        when(inpAppService.listUnpaidDailyFees(7L)).thenReturn(List.of(fee(501L)));
+        when(inpAppService.countUnpaidDailyFees(7L)).thenReturn(0L);
+
+        var resp = service.settleAdmission(7L, 1);
+        assertEquals(new BigDecimal("50.00"), resp.getTotalAmount());
+        verify(inpAppService).markDailyFeesSettled(
+                argThat((java.util.Collection<Long> ids) -> ids != null && ids.contains(501L)));
+        verify(inpAppService).markSettled(7L);
+    }
+
+    private InpAppService.AdmissionView dischargedView() {
+        InpAppService.AdmissionView view = new InpAppService.AdmissionView();
+        InpAdmission discharged = new InpAdmission();
+        discharged.setId(7L);
+        discharged.setStatus(20);
+        discharged.setPatientId(3L);
+        view.setAdmission(discharged);
+        return view;
+    }
+
+    private com.his.modules.inp.app.DailyFeeDTO fee(Long id) {
+        com.his.modules.inp.app.DailyFeeDTO f = new com.his.modules.inp.app.DailyFeeDTO();
+        f.setId(id);
+        f.setFeeType(1);
+        f.setItemName("护理费");
+        f.setQuantity(BigDecimal.ONE);
+        f.setUnitPrice(new BigDecimal("50.00"));
+        f.setAmount(new BigDecimal("50.00"));
+        return f;
+    }
 }

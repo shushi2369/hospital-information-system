@@ -476,7 +476,12 @@ public class BillingService {
         payment.setStatus(1);
         paymentRecordMapper.insert(payment);
 
-        inpAppService.markDailyFeesSettled(admissionId);
+        inpAppService.markDailyFeesSettled(fees.stream()
+                .map(com.his.modules.inp.app.DailyFeeDTO::getId).toList());
+        // 标记收窄后复查：结算期间新增的费用不允许被静默遗留（同事务回滚，重试即包含新费用）
+        if (inpAppService.countUnpaidDailyFees(admissionId) > 0) {
+            throw new BizException(ErrorCode.B3002, "结算期间有新增费用，请重新发起结算");
+        }
         inpAppService.markSettled(admissionId);
         pltService.recordEvent("bill.admission.settled", bill.getBillNo(),
                 "{\"admissionId\":" + admissionId + ",\"total\":" + total + "}");
