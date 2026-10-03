@@ -188,3 +188,22 @@ WHERE b.admission_id IS NOT NULL AND a.status <> 30 LIMIT 5;
 -- 五大中心关档（20）必须带转归
 SELECT 'emc_closed_no_outcome' AS chk, id FROM emc_visit
 WHERE status = 20 AND outcome IS NULL LIMIT 5;
+
+-- ============================================================
+-- 21. 六十三~六十五轮：EMPI 归一链完整性 + 归档病案文书冻结
+-- ============================================================
+-- 合并标记必须有归并目标（链不断裂）
+SELECT 'merged_src_no_target' AS chk, s.id FROM plt_master_index s
+WHERE s.merge_flag = 1 AND s.merged_into IS NULL LIMIT 5;
+-- 归并目标必须存在
+SELECT 'merged_src_target_missing' AS chk, s.id FROM plt_master_index s
+LEFT JOIN plt_master_index t ON s.merged_into = t.id
+WHERE s.merge_flag = 1 AND t.id IS NULL LIMIT 5;
+-- 已合并源患者必须停用（防合并后继续产生新单据）
+SELECT 'merged_patient_not_disabled' AS chk, s.id FROM plt_master_index s
+JOIN pat_patient p ON s.patient_id = p.id
+WHERE s.merge_flag = 1 AND p.status <> 0 LIMIT 5;
+-- 归档/借阅中的病案不得存在草稿或退回的文书（六十轮 requireNotArchived 的落库不变量）
+SELECT 'archived_admission_draft_emr' AS chk, e.id FROM mrc_record m
+JOIN emr_record e ON e.admission_id = m.admission_id
+WHERE m.archive_status IN (20, 30) AND e.status IN (10, 40) LIMIT 5;
