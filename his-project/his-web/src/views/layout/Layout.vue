@@ -9,9 +9,9 @@
         :collapse="isCollapse"
         :collapse-transition="false"
         router
-        background-color="#001529"
-        text-color="#c8c9cc"
-        active-text-color="#ffffff"
+        background-color="#0d0d0d"
+        text-color="#909090"
+        active-text-color="#e8a040"
       >
         <template v-for="item in visibleTopMenus" :key="item.id">
           <!-- 目录：渲染子菜单（页面） -->
@@ -70,10 +70,14 @@
         </div>
       </el-header>
 
-      <!-- 主内容区 -->
+      <!-- 主内容区（路由过渡） -->
       <el-main class="layout-main">
-        <router-view v-if="userStore.firstMenuPath || route.path !== '/'" />
-        <el-empty v-else description="暂无可用菜单，请联系管理员分配权限" />
+        <router-view v-slot="{ Component }">
+          <transition name="ak-page" mode="out-in">
+            <component :is="Component" v-if="userStore.firstMenuPath || route.path !== '/'" />
+            <el-empty v-else description="暂无可用菜单，请联系管理员分配权限" />
+          </transition>
+        </router-view>
       </el-main>
     </el-container>
 
