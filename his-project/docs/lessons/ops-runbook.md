@@ -24,11 +24,13 @@ Windows 服务：HIS-MySQL / HIS-Redis / HIS-Backend(WinSW) / HIS-Nginx(schtasks
 | 启动 nginx | `cd /c/his-runtime/nginx && start nginx`（计划任务不一定拉起，**必须手动确认**） |
 | 部署新 jar | `mvn clean package` → `net stop HIS-Backend` → cp jar → `net start` → **核对日志 `Started HisApplication`** |
 | 前端发布 | `npm run build` → `cp -r dist/* /c/his-runtime/frontend/`（nginx 已对 index.html 发 no-cache，浏览器不会用旧入口） |
-| 一键部署 | `bash deploy/deploy.sh`（停服→备份→替换→启动→健康检查） |
+| 一键部署 | `bash deploy/deploy.sh`（停服→备份→替换→启动→健康检查→**自动回收旧前端产物**） |
 | 健康检查 | `bash deploy/health_check.sh`（后端存活/备份新鲜度/磁盘/Flyway/日志 ERROR 五项） |
+| 资产回收 | `python deploy/cleanup_frontend_assets.py`（默认 dry-run；`--apply` 删除引用闭包外且 >3 天的旧代 Vite 产物。deploy.sh 已在前端发布后自动调用） |
 | 一致性巡检 | `mysql his < deploy/db/consistency_check.sql`（46 段，应 0 行输出） |
 | e2e 回归 | `python deploy/e2e/e2e_phaseX.py`（九套 318 断言） |
 | UI 冒烟 | `python deploy/e2e/ui_smoke.py`（Playwright 全菜单 404 猎手） |
+| UI 链路 | `python deploy/e2e/ui_chain_smoke.py`（Playwright 七链 25 断言：PHI/收费/接诊/角色/住院/手术/EMC） |
 | CI | push 触发：单测 65 → 前端构建 → 一致性巡检 → API e2e 全量（fail-fast） |
 
 ## 3. 备份与恢复（含异地）
@@ -61,6 +63,9 @@ Windows 服务：HIS-MySQL / HIS-Redis / HIS-Backend(WinSW) / HIS-Nginx(schtasks
 - `mysql -N -e` 输出带 `\r`，做路径/字符串判断前 `tr -d '\r'`。
 - `mysql -e "a;b;c"` 多语句中途出错：已执行的不回滚、后续不执行——修复脚本必须逐步核对生效范围。
 - Maven 不在 Git Bash PATH：`export PATH="/c/Users/Administrator/apache-maven-3.3.9/bin:$PATH"`；`mvn | tail` 会吞退出码，必须查日志确认 BUILD SUCCESS。
+- 测试脚本幂等键（X-Idempotency-Key）只能 ASCII，中文进 HTTP 头直接 latin-1 崩溃；无 body 的 POST 端点要显式指定 method，否则会被发成 GET。
+- 删除文件前先取 size：`os.remove` 成功后再 `getsize` 同一路径必报 WinError 2（文件已不存在）。
+- 床号上限 16 位：测试自动补建床的编号用 uid 尾部拼接（`"CC"+uid[-6:]`），uid 全拼会超限 400。
 - GitHub Steps 默认 `bash -e`：`V=$(mysql ...)` 赋值失败即整步退出，须 `|| true`；探活方式必须匹配 job 的 service 依赖。
 - 前端自动化：Element Plus 的 select/radio-button 会被内层元素遮挡（Playwright actionability 卡住），用原生事件 dispatch 或坐标点击兜底。
 - 批量改文件后跑 `wc -c` 清单核对（python open('w') 异常路径会把源文件截断为 0 字节）。

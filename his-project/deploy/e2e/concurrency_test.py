@@ -6,6 +6,7 @@
 ③同一申请并发配血不重复推进 ④并发取消与配血竞态 ⑤同患者并发入院恰一笔成功（患者行锁串行化）。
 """
 import json
+import socket
 import sys
 import time
 import threading
@@ -33,6 +34,9 @@ def call(method, path, token=None, body=None, idem=None):
             return e.code, json.loads(e.read().decode("utf-8"))
         except Exception:
             return e.code, {"code": "HTTP" + str(e.code)}
+    except (urllib.error.URLError, socket.timeout, OSError) as e:
+        # 并发场景下连接层抖动（重置/超时）不应让线程静默死亡、out 留 None 崩溃解包
+        return 0, {"code": "CONN_FAIL", "message": str(e)}
 
 
 def check(name, cond, detail=""):
@@ -186,7 +190,7 @@ def main():
         if race_ward is None:
             race_ward = wards["data"][0]["id"]
             race_dept = wards["data"][0]["deptId"]
-        no = "CC-BED-" + uid + "-" + str(len(free))
+        no = ("CC" + uid[-6:] + "-%d") % len(free)  # 床号≤16位（CC-BED-uid-0 恰 17 位超限）
         st, rb = call("POST", "/inp/beds", admin, {"wardId": race_ward, "bedNo": no,
                       "chargeItemId": 10}, idem="cc-bed-" + no)
         print("  [bed-create] %s -> %s %s" % (no, st, rb if isinstance(rb, dict) else rb))
