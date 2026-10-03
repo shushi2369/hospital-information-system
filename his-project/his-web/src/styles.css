@@ -596,3 +596,111 @@ html.dark {
   font-family: var(--ak-font-mono);
 }
 .not-found p { color: var(--ak-text-sec); margin: 0 0 24px; }
+
+/* ===== Phase 2 细节打磨 ===== */
+
+/* 侧边栏子菜单缩进 + 左边线层次 */
+.layout-menu .el-menu .el-menu-item {
+  border-left: 2px solid transparent;
+  padding-left: 48px !important;
+}
+.layout-menu .el-menu .el-menu-item:hover {
+  border-left-color: var(--ak-primary-light);
+}
+.layout-menu .el-menu .el-menu-item.is-active {
+  border-left-color: var(--ak-primary);
+  padding-left: 48px !important;
+}
+
+/* 侧边栏分组标题：字母间距 + 小号 */
+.layout-menu .el-sub-menu__title {
+  font-size: 13px;
+  letter-spacing: 0.3px;
+}
+
+/* 空状态：芳舟风格居中 */
+.el-empty__image { opacity: 0.4; }
+.el-empty__description p {
+  color: var(--ak-text-dim);
+  font-size: 13px;
+  letter-spacing: 0.5px;
+}
+
+/* 卡片悬停：微上浮 + 边框亮化 */
+.el-card {
+  border-radius: 0 !important;
+  border: 1px solid var(--ak-border-light) !important;
+  transition: border-color var(--ak-dur-fast) var(--ak-ease), box-shadow var(--ak-dur-fast) var(--ak-ease);
+}
+.el-card:hover {
+  border-color: var(--ak-primary) !important;
+  box-shadow: 0 2px 8px rgba(232, 160, 64, 0.1);
+}
+
+/* 对话框遮罩：微暗 */
+.el-overlay { background-color: rgba(0, 0, 0, 0.55) !important; }
+
+/* 表单必填星号颜色 */
+.el-form-item.is-required:not(.is-no-asterisk) > .el-form-item__label:before {
+  color: var(--ak-danger) !important;
+}
+
+/* 表格固定列阴影 */
+.el-table .el-table-fixed-column--right.is-first-column::before,
+.el-table .el-table-fixed-column--left.is-last-column::before {
+  box-shadow: none !important;
+}
+
+/* 分页器暗色适配 */
+.el-pagination {
+  --el-pagination-bg-color: var(--ak-bg-card);
+  --el-pagination-text-color: var(--ak-text-sec);
+  --el-pagination-button-color: var(--ak-text);
+}
+.el-pagination .el-pager li {
+  border-radius: 0 !important;
+}
+.el-pagination .el-pager li.is-active {
+  background: var(--ak-primary) !important;
+  color: #000 !important;
+}
+
+/* 徽标/Tag 微调 */
+.el-tag--dark { border: none !important; }
+.el-tag--plain { background: transparent !important; }
+
+/* 面包屑分隔符 */
+.el-breadcrumb__separator { color: var(--ak-text-dim) !important; }
+
+/* Tabs 页签下划线 */
+.el-tabs__active-bar { background: var(--ak-primary) !important; }
+.el-tabs__item {
+  color: var(--ak-text-sec) !important;
+  transition: color var(--ak-dur-fast);
+}
+.el-tabs__item.is-active { color: var(--ak-primary) !important; }
+.el-tabs__item:hover { color: var(--ak-text) !important; }
+.el-tabs__nav-wrap::after {
+  background: var(--ak-border-light) !important;
+}
+
+/* 表单验证错误提示 */
+.el-form-item__error { color: var(--ak-danger) !important; }
+
+/* Tooltip */
+.el-tooltip__popper {
+  border-radius: 0 !important;
+  border: 1px solid var(--ak-border);
+}
+
+/* 骨架屏 */
+.el-skeleton__item {
+  background: linear-gradient(90deg, var(--ak-bg-card) 25%, var(--ak-bg-hover) 50%, var(--ak-bg-card) 75%);
+  background-size: 200% 100%;
+  animation: ak-skeleton 1.5s ease-in-out infinite;
+  border-radius: 0 !important;
+}
+@keyframes ak-skeleton {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
