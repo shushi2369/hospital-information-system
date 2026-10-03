@@ -197,6 +197,9 @@ def main():
                  {"payMethod": 1}, idem="p2-set-" + uid)
     check("26. 出院结算成功", r["code"] == "OK", r)
     bill_no = (r.get("data") or {}).get("billNo")
+    check("26b. 结算响应返回押金累计与应退（补）口径",
+          (r.get("data") or {}).get("depositTotal") is not None
+          and (r.get("data") or {}).get("refundAmount") is not None, r.get("data"))
     st, r2 = call("POST", "/billing/admissions/%d/settle" % admission_id, cashier,
                   {"payMethod": 1}, idem="p2-set2-" + uid)
     check("27. 重复结算拦截(B3001)", r2["code"] == "B3001", r2)

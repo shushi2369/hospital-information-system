@@ -6,6 +6,7 @@ import com.his.common.BizException;
 import com.his.common.ErrorCode;
 import com.his.modules.inp.entity.InpAdmission;
 import com.his.modules.inp.entity.InpDailyFee;
+import com.his.modules.inp.entity.InpDeposit;
 import com.his.modules.inp.mapper.InpAdmissionMapper;
 import com.his.modules.inp.mapper.InpDailyFeeMapper;
 import com.his.modules.patient.app.PatientAppService;
@@ -30,6 +31,7 @@ public class InpAppService {
     private final InpDailyFeeMapper dailyFeeMapper;
     private final PatientAppService patientAppService;
     private final com.his.modules.inp.mapper.InpBedMapper bedMapper;
+    private final com.his.modules.inp.mapper.InpDepositMapper depositMapper;
 
     private String bedNoById(Long bedId) {
         var bed = bedMapper.selectById(bedId);
@@ -92,6 +94,15 @@ public class InpAppService {
                 .eq(InpDailyFee::getChargeStatus, 0)
                 .set(InpDailyFee::getChargeStatus, 1)
                 .set(InpDailyFee::getUpdatedAt, java.time.LocalDateTime.now()));
+    }
+
+    /** 六十一轮：住院押金累计（结算应退/应补口径 = 押金累计 - 费用账单额） */
+    public java.math.BigDecimal getDepositTotal(Long admissionId) {
+        return depositMapper.selectList(new LambdaQueryWrapper<InpDeposit>()
+                        .eq(InpDeposit::getAdmissionId, admissionId))
+                .stream()
+                .map(InpDeposit::getAmount)
+                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
     }
 
     /** 该住院仍存在的未结费用数（结算收尾复查用，配合标记收窄防费用蒸发） */

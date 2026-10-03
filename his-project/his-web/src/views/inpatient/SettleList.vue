@@ -93,7 +93,7 @@
           type="info"
           :closable="false"
           show-icon
-          title="结算将生成住院账单，押金自动抵扣费用，多退少补。"
+          title="结算将生成住院账单（费用全额）；系统给出押金应退（补）金额，差额由收银台线下多退少补。"
         />
       </template>
       <template #footer>
@@ -176,7 +176,7 @@ function resultLines(row: Admission, res: InpSettleResult): string[] {
   if (res.totalAmount !== undefined && res.totalAmount !== null) {
     lines.push(`结算金额：¥${fmtMoney(res.totalAmount)}`)
   }
-  lines.push(`押金抵扣：¥${fmtMoney(res.depositTotal ?? row.depositTotal)}`)
+  lines.push(`押金累计：¥${fmtMoney(res.depositTotal ?? row.depositTotal)}`)
   if (res.refundAmount !== undefined && res.refundAmount !== null) {
     lines.push(`应退（补）金额：¥${fmtMoney(res.refundAmount)}`)
   }

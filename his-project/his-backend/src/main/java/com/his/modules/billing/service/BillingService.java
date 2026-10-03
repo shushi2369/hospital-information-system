@@ -509,6 +509,11 @@ public class BillingService {
         resp.setPayableAmount(bill.getPayableAmount());
         resp.setPayMethod(bill.getPayMethod());
         resp.setStatus(bill.getStatus());
+        // 六十一轮：押金口径——账单按费用全额入账，响应返回押金累计与应退（补）金额（负值=应补），
+        // 差额由收银台按支付方式线下多退少补；此前响应完全不含押金，押金账本永远挂账无人对账
+        java.math.BigDecimal depositTotal = inpAppService.getDepositTotal(admissionId);
+        resp.setDepositTotal(depositTotal);
+        resp.setRefundAmount(depositTotal.subtract(bill.getTotalAmount()));
         return resp;
     }
 

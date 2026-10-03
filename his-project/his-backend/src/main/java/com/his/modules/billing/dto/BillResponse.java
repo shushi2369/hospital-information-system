@@ -25,6 +25,8 @@ public class BillResponse {
     private BigDecimal payableAmount;
     private BigDecimal paidAmount;
     private BigDecimal refundAmount;
+    /** 六十一轮：住院结算专用——押金累计与应退（补）金额（负值=应补），差额收银台线下多退少补 */
+    private BigDecimal depositTotal;
     private Integer payMethod;
     private LocalDateTime payTime;
     private Long cashierId;

@@ -229,9 +229,12 @@ class BillingServiceTest extends UnitTestBase {
         when(billMapper.selectCount(any())).thenReturn(0L);
         when(inpAppService.listUnpaidDailyFees(7L)).thenReturn(List.of(fee(501L)));
         when(inpAppService.countUnpaidDailyFees(7L)).thenReturn(0L);
+        when(inpAppService.getDepositTotal(7L)).thenReturn(new BigDecimal("500.00"));
 
         var resp = service.settleAdmission(7L, 1);
         assertEquals(new BigDecimal("50.00"), resp.getTotalAmount());
+        assertEquals(new BigDecimal("500.00"), resp.getDepositTotal());
+        assertEquals(new BigDecimal("450.00"), resp.getRefundAmount());
         verify(inpAppService).markDailyFeesSettled(
                 argThat((java.util.Collection<Long> ids) -> ids != null && ids.contains(501L)));
         verify(inpAppService).markSettled(7L);
