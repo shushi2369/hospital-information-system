@@ -366,6 +366,43 @@ def main():
             drawer = page.locator(".el-drawer:visible")
             check("EMC·时间轴抽屉展示达标节点", drawer.count() > 0 and "达标" in drawer.inner_text())
 
+        # ---------------- ⑧ 护理链：体征录入（tab 切换 → 选在院患者 → 默认值保存 → 历史可见） ----------------
+        nurse_tok = login("nurse.wang")
+        pid_nr, adm_nr = seed_admission(admin, cashier, uid, "链路护理", "nr", "链路护理观察", 8)
+        page.evaluate("(t) => localStorage.setItem('his_token', t)", nurse_tok)
+        page.goto(BASE + "/nursing/workbench")
+        page.wait_for_timeout(3200)  # 工作台挂载期有 loading 遮罩，过早点击会被 app 根节点拦截
+        # 护理工作台的 tab/下拉被透明层拦截（#app 命中）——按既有经验用原生 JS 点击绕过 hit-test
+        page.evaluate("""() => {
+          [...document.querySelectorAll('.el-tabs__item')]
+            .find(e => e.textContent.includes('体征管理'))?.click();
+        }""")
+        page.wait_for_timeout(1200)
+        page.evaluate("""() => {
+          const item = [...document.querySelectorAll('.el-form-item')]
+            .find(f => f.textContent.includes('在院患者'));
+          item?.querySelector('.el-select__wrapper')?.dispatchEvent(
+            new MouseEvent('click', {bubbles: true}));
+        }""")
+        page.wait_for_timeout(800)
+        page.locator(".el-select-dropdown:visible .el-select-dropdown__item",
+                     has_text="链路护理" + uid).first.click()
+        page.wait_for_timeout(800)
+        page.evaluate("""() => {
+          [...document.querySelectorAll('button')]
+            .find(b => b.textContent.includes('录入体征'))?.click();
+        }""")
+        page.wait_for_timeout(1200)
+        page.evaluate("""() => {
+          const dlg = [...document.querySelectorAll('.el-dialog')]
+            .find(d => d.textContent.includes('录入体征') && d.offsetParent !== null);
+          [...dlg.querySelectorAll('button')].find(b => b.textContent.includes('保存'))?.click();
+        }""")
+        page.wait_for_timeout(2000)
+        vs = api("/nur/vital-signs?admissionId=%s" % adm_nr, nurse_tok)
+        rows = vs.get("data") if isinstance(vs.get("data"), list) else (vs.get("data") or {}).get("list") or []
+        check("护理·体征录入链路（UI 保存 + 历史可见）", len(rows) > 0, len(rows))
+
         browser.close()
 
     failed = [n for n, ok in results if not ok]
