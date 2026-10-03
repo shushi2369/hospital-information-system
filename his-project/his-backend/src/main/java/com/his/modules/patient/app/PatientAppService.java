@@ -7,6 +7,8 @@ import com.his.modules.patient.entity.PatMedicalCard;
 import com.his.modules.patient.entity.PatPatient;
 import com.his.modules.patient.mapper.PatMedicalCardMapper;
 import com.his.modules.patient.mapper.PatPatientMapper;
+import com.his.modules.plt.entity.PltMasterIndex;
+import com.his.modules.plt.mapper.PltMasterIndexMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -20,10 +22,36 @@ import java.util.List;
 public class PatientAppService {
     private final PatPatientMapper patientMapper;
     private final PatMedicalCardMapper cardMapper;
+    private final PltMasterIndexMapper pltMasterIndexMapper;
 
+    /** 六十三轮：EMPI 归一读取——源患者已合并时沿链解析到存活主索引的患者，防合并后病历视图分裂 */
     public PatientDTO getById(Long patientId) {
-        PatPatient patient = patientMapper.selectById(patientId);
+        PatPatient patient = patientMapper.selectById(resolveActivePatientId(patientId));
         return patient == null ? null : toDTO(patient);
+    }
+
+    /**
+     * 解析合并链：patient_id → plt_master_index(merge_flag=1) → merged_into(目标主索引 id)
+     * → 目标 patient_id，最多 5 跳（A→B→C 归一场景；环路由 merge 写入口守卫阻断）。
+     */
+    private Long resolveActivePatientId(Long patientId) {
+        Long current = patientId;
+        for (int hop = 0; hop < 5; hop++) {
+            PltMasterIndex idx = pltMasterIndexMapper.selectOne(
+                    new LambdaQueryWrapper<PltMasterIndex>()
+                            .eq(PltMasterIndex::getPatientId, current)
+                            .last("LIMIT 1"));
+            if (idx == null || idx.getMergeFlag() == null || idx.getMergeFlag() != 1
+                    || idx.getMergedInto() == null) {
+                return current;
+            }
+            PltMasterIndex target = pltMasterIndexMapper.selectById(idx.getMergedInto());
+            if (target == null || target.getPatientId() == null) {
+                return current;
+            }
+            current = target.getPatientId();
+        }
+        return current;
     }
 
     /** 患者不存在或停用抛 A0001 */
