@@ -36,16 +36,29 @@ public class SessionService {
     /** 会话不存在返回 null（由过滤器按未登录处理） */
     public LoginUser get(Long userId) {
         String key = KEY_PREFIX + userId;
+        String json;
         try {
             // 注：getAndExpire 需 Redis 6.2+（GETEX），Windows 演示环境为 Redis 5，回退为两步调用
-            String json = redis.opsForValue().get(key);
-            if (json == null) {
-                return null;
-            }
+            json = redis.opsForValue().get(key);
+        } catch (Exception e) {
+            // 读取失败：连接级故障（宕机/超时）——按未登录处理（fail-closed，runbook 演练结论）
+            log.error("会话读取失败", e);
+            return null;
+        }
+        if (json == null) {
+            return null;
+        }
+        try {
+            // 六十四轮：续期失败不再杀死会话——滑动 TTL 丢失是小损失，
+            // 返回 null 则合法会话被瞬时抖动误杀（批跑幻影 401 的根因）
             redis.expire(key, TTL);
+        } catch (Exception e) {
+            log.warn("会话续期失败（下次访问重试）: {}", e.getMessage());
+        }
+        try {
             return objectMapper.readValue(json, LoginUser.class);
         } catch (Exception e) {
-            log.error("会话读取失败", e);
+            log.error("会话反序列化失败", e);
             return null;
         }
     }
