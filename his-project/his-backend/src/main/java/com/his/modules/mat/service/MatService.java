@@ -8,6 +8,7 @@ import com.his.common.ErrorCode;
 import com.his.common.PageResult;
 import com.his.infrastructure.security.CurrentUser;
 import com.his.infrastructure.util.IdGenerator;
+import com.his.infrastructure.util.JsonEscapeUtil;
 import com.his.modules.basedata.app.BasedataAppService;
 import com.his.modules.mat.dto.*;
 import com.his.modules.mat.entity.*;
@@ -191,7 +192,7 @@ public class MatService {
                     .set(MatBatch::getStatus, 1));
         }
         pltService.recordEvent("mat.purchase.received", po.getPoNo(),
-                "{\"qty\":" + po.getQuantity() + ",\"batch\":\"" + bn + "\"}");
+                "{\"qty\":" + po.getQuantity() + ",\"batch\":\"" + JsonEscapeUtil.escape(bn) + "\"}");
     }
 
     /** 取消（M-07）：10/20 → 40 */

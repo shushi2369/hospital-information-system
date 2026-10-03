@@ -421,11 +421,8 @@ public class RisService {
         };
     }
 
-    /** 事件载荷 JSON 字符串转义（引号/反斜杠/换行） */
+    /** 事件载荷 JSON 字符串转义（五十六轮：原私有实现把 " 替换为 ' 篡改留痕数据，统一委托共享工具保真转义） */
     private String escapeJson(String s) {
-        if (s == null) {
-            return "";
-        }
-        return s.replace("\\", "\\\\").replace("\"", "'").replace("\n", " ").replace("\r", "");
+        return com.his.infrastructure.util.JsonEscapeUtil.escape(s);
     }
 }
