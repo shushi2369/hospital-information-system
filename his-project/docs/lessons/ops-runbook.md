@@ -53,6 +53,22 @@ Windows 服务：HIS-MySQL / HIS-Redis / HIS-Backend(WinSW) / HIS-Nginx(schtasks
 | 部署后新页面 404 | 浏览器缓存旧 index.html | nginx 已发 no-cache；仍命中则强刷 |
 | 登录报 C9001 会话写入失败 | Redis 不可用 | `net start HIS-Redis`；Redis 5 无 GETEX，代码已规避 |
 | 单号重复/断号 | Redis 不可用降级为实例内序号 | 恢复 Redis 后自然切回（集群部署必须 Redis） |
+| Redis 恢复后收费报单号重复 | 恢复期 Redis 计数回退（重启丢失），INCR 从低位重新开始 | 五十一轮已修：发号器降级段走 500001+ 高基址、恢复时补偿跳号（IdGenerator）；若仍出现请核对 Redis 持久化配置 |
+| Redis 恢复后头几分钟接口仍失败 | 后端连接池懒重连 | 恢复后等待 5~10 秒再验证；首次登录失败属预期，重试即成功 |
+
+### Redis 停机演练实录（五十一轮，2026-10-03）
+
+`net stop HIS-Redis` → 探针 → `net start HIS-Redis`，七步结论：
+
+| 步骤 | 结果 |
+|---|---|
+| 宕机前合法令牌查询 | 200 OK |
+| 宕机期·同一合法令牌查询 | **401 A0002**（会话读取失败→按未登录处理，全系统认证瘫痪） |
+| 宕机期·登录 | **500 C9001 会话写入失败**（fail-closed，设计使然） |
+| 恢复后·宕机前旧令牌 | 200 OK（`net stop` 优雅关闭持久化了会话，恢复后原会话回归） |
+| 恢复后·重新登录 | 200 OK（注意恢复后首几秒连接池懒重连窗口，重试即成） |
+
+结论：**Redis 是认证单点**——全量宕机期间幂等/单号的降级代码不可达（都在认证之后），仅在部分降级（超时抖动）时生效。幂等 fail-open 由数据库唯一约束兜底；单号降级段 500001+ 与正常段物理隔离，恢复补偿跳号防撞号。集群部署必须 Redis 哨兵/集群。
 | 定时任务没跑 | schtasks 未触发 | 手动 `schtasks /run /tn HIS-Backup`；任务幂等可安全重跑 |
 | CI 巡检 job 失败 `Table doesn't exist` | 后端未就绪就跑了 SQL | 已改为轮询 Flyway V37 完成标记；勿回退为固定 sleep |
 | CI 登录探活报 C9001 | 该 job 没有 Redis service | 探活方式必须匹配 job 依赖；或补 redis service |
@@ -69,6 +85,7 @@ Windows 服务：HIS-MySQL / HIS-Redis / HIS-Backend(WinSW) / HIS-Nginx(schtasks
 - GitHub Steps 默认 `bash -e`：`V=$(mysql ...)` 赋值失败即整步退出，须 `|| true`；探活方式必须匹配 job 的 service 依赖。
 - 前端自动化：Element Plus 的 select/radio-button 会被内层元素遮挡（Playwright actionability 卡住），用原生事件 dispatch 或坐标点击兜底。
 - 批量改文件后跑 `wc -c` 清单核对（python open('w') 异常路径会把源文件截断为 0 字节）。
+- 血袋分页按效期升序（近效期优先），新入库袋在结果尾部——跨轮数据累积过百后首页检索不到本轮新袋，测试断言用 `GET /bb/bags?bagNo=` 精确定位（五十一轮）。
 
 ## 6. 版本与迁移纪律
 

@@ -27,8 +27,9 @@ public class BbController {
     public R<PageResult<BbBloodBag>> bags(com.his.common.PageQuery query,
             @RequestParam(required = false) Integer bloodType,
             @RequestParam(required = false) Integer component,
-            @RequestParam(required = false) Integer status) {
-        return R.ok(bbService.bagPage(query, bloodType, component, status));
+            @RequestParam(required = false) Integer status,
+            @RequestParam(required = false) String bagNo) {
+        return R.ok(bbService.bagPage(query, bloodType, component, status, bagNo));
     }
 
     @GetMapping("/bags/available")

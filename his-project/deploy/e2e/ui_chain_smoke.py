@@ -296,19 +296,29 @@ def main():
             page.wait_for_timeout(400)
             page.locator(".el-dialog:visible .el-form-item", has_text="主刀医生ID").locator(
                 "input").fill("2")
-            # 提交 → 若"台次被占用"（前序 e2e 占了槽位）则递增台次重试，顺带覆盖冲突拦截
+            # 提交 → "台次被占用"则轮换 手术间×台次 重试（今日多轮回归易占满 OR01 单间台次）
             ok30 = False
-            for attempt in range(8):
-                page.get_by_role("button", name="提交").click()
-                page.wait_for_timeout(2200)
-                ol = api("/ors/requests?admissionId=%s" % adm_or, login("dr.li"))
-                target = [o for o in ol["data"]["list"] if o["surgeryName"] == "UI链路术式" + uid]
-                if target and target[0]["status"] == 30:
-                    ok30 = True
+            target = None
+            for room_i in range(3):
+                if room_i > 0:
+                    page.locator(".el-dialog:visible .el-select__wrapper").first.click()
+                    page.wait_for_timeout(500)
+                    page.locator(".el-select-dropdown:visible .el-select-dropdown__item").nth(room_i).click()
+                    page.wait_for_timeout(400)
+                for seq_val in range(1, 6):
+                    if not (room_i == 0 and seq_val == 1):
+                        seq_input = page.locator(".el-dialog:visible .el-form-item", has_text="台次").locator("input")
+                        seq_input.fill(str(seq_val))
+                        page.wait_for_timeout(300)
+                    page.get_by_role("button", name="提交").click()
+                    page.wait_for_timeout(2000)
+                    ol = api("/ors/requests?admissionId=%s" % adm_or, login("dr.li"))
+                    target = [o for o in ol["data"]["list"] if o["surgeryName"] == "UI链路术式" + uid]
+                    if target and target[0]["status"] == 30:
+                        ok30 = True
+                        break
+                if ok30:
                     break
-                seq_input = page.locator(".el-dialog:visible .el-form-item", has_text="台次").locator("input")
-                seq_input.fill(str(attempt + 2))
-                page.wait_for_timeout(300)
             check("手术·UI 排台完成（status=30 已排台）", ok30,
                   target[0]["status"] if target else "row-missing")
 

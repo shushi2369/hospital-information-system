@@ -153,7 +153,8 @@ def main():
           len(det["crossMatches"]) == 2 and len(det["issues"]) == 1
           and len(det["transfusions"]) == 1 and len(det["adverses"]) == 1,
           {k: len(det[k]) for k in ("crossMatches", "issues", "transfusions", "adverses")})
-    st, bl = call("GET", "/bb/bags?pageNum=1&pageSize=100&status=2", bb_tech)
+    # 五十一轮：血袋分页按效期升序、新袋在尾页（status=2 已累积 120+），改用 bagNo 精确定位
+    st, bl = call("GET", "/bb/bags?pageNum=1&pageSize=20&status=2&bagNo=XDJ-FX-%s" % uid, bb_tech)
     used_bag = next((b for b in bl["data"]["list"] if b["id"] == new_bag_id), None)
     check("17. 本轮血袋状态已发用", used_bag is not None and used_bag["status"] == 2,
           (used_bag or {}).get("status"))

@@ -41,13 +41,14 @@ public class BbService {
     private final PltService pltService;
     private final IdGenerator idGenerator;
 
-    /** 血袋分页（B-01 查询侧） */
-    public PageResult<BbBloodBag> bagPage(com.his.common.PageQuery query, Integer bloodType, Integer component, Integer status) {
+    /** 血袋分页（B-01 查询侧）；bagNo 用于按单号精确定位（效期升序分页下新袋在尾部，跨页检索不可靠） */
+    public PageResult<BbBloodBag> bagPage(com.his.common.PageQuery query, Integer bloodType, Integer component, Integer status, String bagNo) {
         Page<BbBloodBag> page = bagMapper.selectPage(query.toPage(),
                 new LambdaQueryWrapper<BbBloodBag>()
                         .eq(bloodType != null, BbBloodBag::getBloodType, bloodType)
                         .eq(component != null, BbBloodBag::getComponent, component)
                         .eq(status != null, BbBloodBag::getStatus, status)
+                        .eq(bagNo != null && !bagNo.isBlank(), BbBloodBag::getBagNo, bagNo)
                         .orderByAsc(BbBloodBag::getExpireDate));
         return PageResult.of(page);
     }
