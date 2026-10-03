@@ -281,14 +281,18 @@ public class OrsService {
         if (request.getStatus() != 40) {
             throw new BizException(ErrorCode.A0001, "手术不在术中状态");
         }
+        // 五十九轮：结束手术前麻醉记录必须存在（临床完整性，与一致性巡检 inconsistent_done_no_anesthesia 对齐）
+        OrsAnesthesiaRecord record = anesthesiaMapper.selectOne(new LambdaQueryWrapper<OrsAnesthesiaRecord>()
+                .eq(OrsAnesthesiaRecord::getRequestId, id).last("LIMIT 1"));
+        if (record == null) {
+            throw new BizException(ErrorCode.A0001, "结束手术前须保存麻醉记录");
+        }
         request.setStatus(50);
         request.setEndTime(LocalDateTime.now());
         if (requestMapper.updateById(request) != 1) {
             throw new BizException(ErrorCode.A0001, "手术状态已变化，请刷新后重试");
         }
-        OrsAnesthesiaRecord record = anesthesiaMapper.selectOne(new LambdaQueryWrapper<OrsAnesthesiaRecord>()
-                .eq(OrsAnesthesiaRecord::getRequestId, id).last("LIMIT 1"));
-        if (record != null && record.getEndTime() == null) {
+        if (record.getEndTime() == null) {
             record.setEndTime(LocalDateTime.now());
             anesthesiaMapper.updateById(record);
         }

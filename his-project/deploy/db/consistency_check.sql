@@ -158,3 +158,33 @@ SELECT 'inconsistent_cnt_30_no_opinion' AS chk, q.id FROM cnt_request q
 WHERE q.status = 30 AND (q.opinion IS NULL OR q.opinion_time IS NULL) LIMIT 5;
 SELECT 'inconsistent_ae_40_no_closed_time' AS chk, e.id FROM ae_event e
 WHERE e.status = 40 AND e.closed_time IS NULL LIMIT 5;
+
+-- ============================================================
+-- 20. 五十~五十九轮新不变量（费用标记/账单对账/槽位活性/关档转归）
+-- ============================================================
+-- 49 轮：已结算住院不得残留未结费用（标记收窄 + 残留复查的落库不变量）
+SELECT 'settled_admission_unpaid_fee' AS chk, f.id FROM inp_daily_fee f
+JOIN inp_admission a ON f.admission_id = a.id
+WHERE a.status = 30 AND f.charge_status = 0 AND f.status = 1 LIMIT 5;
+-- 未结算住院不得存在已标记费用（标记只发生在结算事务内）
+SELECT 'marked_fee_in_active_admission' AS chk, f.id FROM inp_daily_fee f
+JOIN inp_admission a ON f.admission_id = a.id
+WHERE f.charge_status = 1 AND a.status < 30 LIMIT 5;
+-- 账单总额 = 明细和（收费/住院两类账单通用）
+SELECT 'bill_total_mismatch' AS chk, b.id FROM bil_charge_bill b
+JOIN (SELECT bill_id, SUM(amount) s FROM bil_charge_detail GROUP BY bill_id) d ON d.bill_id = b.id
+WHERE b.total_amount <> d.s LIMIT 5;
+-- 退费不得超过可付额（行锁 + 余量校验的落库不变量）
+SELECT 'refund_exceeds_payable' AS chk, id FROM bil_charge_bill
+WHERE refund_amount > payable_amount LIMIT 5;
+-- 终态手术（60 完成 / 70 取消）必须已释放槽位（31 轮修复 + V39 回溯）
+SELECT 'active_slot_on_terminal_request' AS chk, s.id FROM or_schedule s
+JOIN or_surgery_request r ON s.request_id = r.id
+WHERE s.slot_active = 1 AND r.status IN (60, 70) LIMIT 5;
+-- 住院账单存在则住院必已结算（同事务联动）
+SELECT 'admission_bill_not_settled' AS chk, b.id FROM bil_charge_bill b
+JOIN inp_admission a ON b.admission_id = a.id
+WHERE b.admission_id IS NOT NULL AND a.status <> 30 LIMIT 5;
+-- 五大中心关档（20）必须带转归
+SELECT 'emc_closed_no_outcome' AS chk, id FROM emc_visit
+WHERE status = 20 AND outcome IS NULL LIMIT 5;
