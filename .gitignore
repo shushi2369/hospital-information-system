@@ -24,3 +24,7 @@ logs/
 __pycache__/
 *.pyc
 账号密码.txt
+
+# 个人求职材料（不上传 GitHub）
+his-project/docs/portfolio/面试问答.md
+his-project/docs/portfolio/简历条目.md
