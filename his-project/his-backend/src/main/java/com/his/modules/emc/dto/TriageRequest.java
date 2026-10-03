@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -17,6 +18,7 @@ public class TriageRequest {
     private Long patientId;
     @NotBlank(message = "主诉不能为空")
     @jakarta.validation.constraints.Size(max = 256, message = "主诉过长")
+    @Size(max = 256)
     private String chiefComplaint;
     private BigDecimal bodyTemp;
     private Integer pulse;

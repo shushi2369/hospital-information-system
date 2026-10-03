@@ -59,6 +59,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(R.fail(ErrorCode.A0001, "请求体格式错误"));
     }
 
+    /** 六十二轮：数据库完整性冲突（字段超长/非空/外键等）翻译为友好 400，不再冒充 C9001 系统繁忙 */
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<R<Object>> handleIntegrity(org.springframework.dao.DataIntegrityViolationException e) {
+        log.warn("数据完整性冲突: {}", e.getMessage());
+        return ResponseEntity.badRequest().body(R.fail(ErrorCode.A0001, "数据保存失败：字段超长或违反完整性约束"));
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<R<Object>> handleDenied(AccessDeniedException e) {
         return ResponseEntity.status(403).body(R.fail(ErrorCode.A0003));

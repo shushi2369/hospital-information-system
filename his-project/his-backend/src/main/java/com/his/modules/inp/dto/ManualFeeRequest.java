@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -18,6 +19,7 @@ public class ManualFeeRequest {
     @Max(value = 8, message = "费用类别取值 1~8")
     private Integer feeType;
     @NotBlank(message = "项目名称不能为空")
+    @Size(max = 64)
     private String itemName;
     @NotNull(message = "数量不能为空")
     @DecimalMin(value = "0.01", message = "数量必须大于 0")

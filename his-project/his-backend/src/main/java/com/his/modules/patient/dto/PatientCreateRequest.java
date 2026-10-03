@@ -2,6 +2,7 @@ package com.his.modules.patient.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.Pattern;
 import lombok.Getter;
 import lombok.Setter;
@@ -12,6 +13,7 @@ import java.time.LocalDate;
 @Setter
 public class PatientCreateRequest {
     @NotBlank(message = "姓名不能为空")
+    @Size(max = 32)
     private String name;
     @NotNull(message = "性别不能为空")
     private Integer gender;

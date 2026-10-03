@@ -2,6 +2,7 @@ package com.his.modules.ors.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -23,6 +24,7 @@ public class SurgeryCreateRequest {
     private String surgeryCode;
     @NotBlank(message = "术前诊断不能为空")
     @jakarta.validation.constraints.Size(max = 256, message = "术前诊断过长")
+    @Size(max = 256)
     private String diagnosis;
     @NotNull(message = "拟手术日期不能为空")
     private LocalDate plannedDate;
