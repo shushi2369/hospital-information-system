@@ -42,6 +42,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { getEfficiency, getSafety, getWorkload } from '@/api/kpi'
+import { useCountUp } from '@/composables/useCountUp'
 
 const workload = ref<Record<string, number | string>>({})
 const efficiency = ref<Record<string, number | string>>({})
@@ -77,9 +78,25 @@ onMounted(fetchAll)
 
 <style scoped>
 .kpi-row { margin-bottom: 12px; }
-.kpi-card { text-align: center; }
-.kpi-label { color: #909399; font-size: 13px; }
-.kpi-value { font-size: 26px; font-weight: 600; margin-top: 6px; }
+.kpi-card {
+  text-align: center;
+  background: var(--ak-bg-card-alt) !important;
+  border: 1px solid var(--ak-border-light) !important;
+  border-top: 2px solid var(--ak-primary) !important;
+  border-radius: 0 !important;
+}
+.kpi-label {
+  color: var(--ak-text-sec) !important;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+}
+.kpi-value {
+  font-size: 26px;
+  font-weight: 700;
+  margin-top: 6px;
+  color: var(--ak-primary) !important;
+  font-family: var(--ak-font-mono);
+}
 .mt4 { margin-top: 4px; }
 .mt8 { margin-top: 12px; font-weight: 600; }
 </style>
