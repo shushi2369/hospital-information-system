@@ -35,6 +35,7 @@ public class EmrService {
     private final EmrRecordMapper recordMapper;
     private final EmrTemplateMapper templateMapper;
     private final InpAppService inpAppService;
+    private final com.his.modules.mrc.mapper.MrcRecordMapper mrcRecordMapper;
     private final IdGenerator idGenerator;
     private final ObjectMapper objectMapper;
 
@@ -79,7 +80,10 @@ public class EmrService {
         if (req.getContent() != null) {
             record.setContentJson(toJson(req.getContent()));
         }
-        recordMapper.updateById(record);
+        // 六十轮：@Version 乐观锁——并发保存后到者影响 0 行，必须显式失败（静默丢失=用户以为存上了）
+        if (recordMapper.updateById(record) != 1) {
+            throw new BizException(ErrorCode.A0001, "病历已被他人修改，请刷新后重试");
+        }
     }
 
     /** 提交（E-03）：必填节校验（B6201） */
@@ -111,7 +115,7 @@ public class EmrService {
         recordMapper.updateById(record);
     }
 
-    /** 质控（E-06）：通过 → 锁定；退回 → 可修改 */
+    /** 质控（E-06）：通过 → 锁定；退回 → 可修改。已归档/借阅病案冻结质控（退回会让封存病历重新可写） */
     @Transactional
     public void qc(Long recordId, EmrQcRequest req) {
         EmrRecord record = recordMapper.selectById(recordId);
@@ -121,6 +125,7 @@ public class EmrService {
         if (record.getStatus() != 20) {
             throw new BizException(ErrorCode.B6202, "文书未提交，不能质控");
         }
+        requireNotArchived(record.getAdmissionId());
         record.setStatus(Boolean.TRUE.equals(req.getPass()) ? 30 : 40);
         record.setQcBy(CurrentUser.id());
         record.setQcTime(LocalDateTime.now());
@@ -129,7 +134,9 @@ public class EmrService {
         } catch (Exception ignored) {
             record.setQcIssues("[]");
         }
-        recordMapper.updateById(record);
+        if (recordMapper.updateById(record) != 1) {
+            throw new BizException(ErrorCode.A0001, "病历状态已变化，请刷新后重试");
+        }
     }
 
     /** 待质控队列（E-08） */
@@ -202,7 +209,20 @@ public class EmrService {
         if (record.getStatus() != 10 && record.getStatus() != 40) {
             throw new BizException(ErrorCode.B6202);
         }
+        requireNotArchived(record.getAdmissionId());
         return record;
+    }
+
+    /** 六十轮：病案已归档/借阅中则文书冻结（封存语义——归档后修改病历会使封存失效） */
+    private void requireNotArchived(Long admissionId) {
+        com.his.modules.mrc.entity.MrcRecord mrc = mrcRecordMapper.selectOne(
+                new LambdaQueryWrapper<com.his.modules.mrc.entity.MrcRecord>()
+                        .eq(com.his.modules.mrc.entity.MrcRecord::getAdmissionId, admissionId)
+                        .last("LIMIT 1"));
+        if (mrc != null && mrc.getArchiveStatus() != null
+                && (mrc.getArchiveStatus() == 20 || mrc.getArchiveStatus() == 30)) {
+            throw new BizException(ErrorCode.B6202, "病案已归档或借阅中，文书不可修改");
+        }
     }
 
     private String toJson(Map<String, Object> content) {
