@@ -5,7 +5,45 @@
    ================================================================ */
 
 /* ===== 设计令牌 ===== */
+
+/* --- 日间模式（白底 + 浅蓝 + 黑字） --- */
 :root {
+  --ak-bg-root: #f0f2f5;
+  --ak-bg-page: #f5f6f8;
+  --ak-bg-card: #ffffff;
+  --ak-bg-card-alt: #fafbfc;
+  --ak-bg-input: #ffffff;
+  --ak-bg-hover: #edf2f7;
+  --ak-aside-bg: #ffffff;
+  --ak-header-bg: #ffffff;
+  --ak-primary: #3b9bd5;
+  --ak-primary-light: #6bbde8;
+  --ak-primary-dim: rgba(59, 155, 213, 0.08);
+  --ak-primary-stripe: rgba(59, 155, 213, 0.03);
+  --ak-text: #1a1a2e;
+  --ak-text-sec: #5a6a7a;
+  --ak-text-dim: #9ca8b4;
+  --ak-border: #d5dce3;
+  --ak-border-light: #e4e9ee;
+  --ak-danger: #e84749;
+  --ak-success: #48a868;
+  --ak-warning: #e8a040;
+  --ak-info: #3b9bd5;
+  --ak-radius: 0px;
+  --ak-cut: 6px;
+  --ak-font: 'Rajdhani', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --ak-font-mono: 'Rajdhani', 'Consolas', monospace;
+  --ak-ease: cubic-bezier(0.2, 0, 0.2, 1);
+  --ak-ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ak-ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ak-dur-fast: 150ms;
+  --ak-dur: 250ms;
+  --ak-dur-slow: 300ms;
+  --ak-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+/* --- 夜间模式（暗色 + 琥珀橙，明日方舟风格） --- */
+html.dark {
   --ak-bg-root: #141414;
   --ak-bg-page: #1b1b1b;
   --ak-bg-card: #222222;
@@ -27,16 +65,7 @@
   --ak-success: #5cb85c;
   --ak-warning: #e8a040;
   --ak-info: #5b9bd5;
-  --ak-radius: 0px;
-  --ak-cut: 6px;
-  --ak-font: 'Rajdhani', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  --ak-font-mono: 'Rajdhani', 'Consolas', monospace;
-  --ak-ease: cubic-bezier(0.2, 0, 0.2, 1);
-  --ak-ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  --ak-ease-in: cubic-bezier(0.4, 0, 1, 1);
-  --ak-dur-fast: 150ms;
-  --ak-dur: 250ms;
-  --ak-dur-slow: 300ms;
+  --ak-shadow: none;
 }
 
 /* ===== 全局基础 ===== */
@@ -49,6 +78,28 @@ body {
   color: var(--ak-text);
   background-color: var(--ak-bg-root);
   -webkit-font-smoothing: antialiased;
+}
+
+/* ===== Element Plus 日间变量 ===== */
+:root {
+  --el-color-primary: var(--ak-primary);
+  --el-bg-color: var(--ak-bg-card);
+  --el-bg-color-page: var(--ak-bg-page);
+  --el-bg-color-overlay: var(--ak-bg-card-alt);
+  --el-text-color-primary: var(--ak-text);
+  --el-text-color-regular: #4a4a5a;
+  --el-text-color-secondary: var(--ak-text-sec);
+  --el-text-color-placeholder: var(--ak-text-dim);
+  --el-border-color: var(--ak-border);
+  --el-border-color-light: var(--ak-border-light);
+  --el-border-color-lighter: #ebeef2;
+  --el-fill-color: var(--ak-bg-hover);
+  --el-fill-color-light: #f5f6f8;
+  --el-fill-color-blank: var(--ak-bg-card);
+  --el-color-danger: var(--ak-danger);
+  --el-color-success: var(--ak-success);
+  --el-color-warning: var(--ak-warning);
+  --el-color-info: var(--ak-info);
 }
 
 /* ===== Element Plus 暗色变量覆盖 ===== */
@@ -100,6 +151,7 @@ html.dark {
   background: var(--ak-bg-card);
   border: 1px solid var(--ak-border-light);
   border-left: 3px solid var(--ak-primary);
+  box-shadow: var(--ak-shadow);
   border-radius: var(--ak-radius);
   padding: 16px;
   min-height: 100%;
@@ -262,10 +314,17 @@ html.dark {
   background: var(--ak-primary);
 }
 
-.layout-menu { border-right: none !important; }
+.el-menu {
+  --el-menu-bg-color: var(--ak-aside-bg);
+  --el-menu-text-color: var(--ak-text-sec);
+  --el-menu-active-color: var(--ak-primary);
+  --el-menu-hover-bg-color: var(--ak-bg-hover);
+}
+.layout-menu { border-right: none !important; background: var(--ak-aside-bg) !important; }
 .layout-menu .el-menu-item,
 .layout-menu .el-sub-menu__title {
   color: var(--ak-text-sec) !important;
+  background: transparent;
   border-left: 3px solid transparent;
   transition: border-color var(--ak-dur-fast) var(--ak-ease), color var(--ak-dur-fast) var(--ak-ease), background var(--ak-dur-fast) var(--ak-ease), padding-left var(--ak-dur-fast) var(--ak-ease-out);
 }
@@ -286,6 +345,7 @@ html.dark {
 .layout-menu .el-menu .el-menu-item {
   padding-left: 44px !important;
   font-size: 13px;
+  background: transparent;
 }
 
 .layout-header {
@@ -318,6 +378,14 @@ html.dark {
   clip-path: polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px);
 }
 .user-name { color: var(--ak-text); font-size: 13px; }
+
+.theme-toggle {
+  font-size: 18px;
+  cursor: pointer;
+  color: var(--ak-text-sec);
+  transition: color var(--ak-dur-fast);
+}
+.theme-toggle:hover { color: var(--ak-primary); }
 .layout-main {
   background: var(--ak-bg-page);
   padding: 16px;

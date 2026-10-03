@@ -9,9 +9,6 @@
         :collapse="isCollapse"
         :collapse-transition="false"
         router
-        background-color="#0d0d0d"
-        text-color="#909090"
-        active-text-color="#e8a040"
       >
         <template v-for="item in visibleTopMenus" :key="item.id">
           <!-- 目录：渲染子菜单（页面） -->
@@ -52,6 +49,12 @@
           </el-breadcrumb>
         </div>
         <div class="header-right">
+          <el-tooltip :content="isDark ? '切换日间模式' : '切换夜间模式'" placement="bottom">
+            <el-icon class="theme-toggle" @click="toggleTheme">
+              <Sunny v-if="isDark" />
+              <Moon v-else />
+            </el-icon>
+          </el-tooltip>
           <el-dropdown trigger="click" @command="handleCommand">
             <span class="user-info">
               <el-avatar :size="28" class="user-avatar">{{ avatarText }}</el-avatar>
@@ -117,8 +120,10 @@ import {
   Fold,
   Lock,
   Menu as MenuIcon,
+  Moon,
   OfficeBuilding,
   Setting,
+  Sunny,
   SwitchButton,
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
@@ -129,6 +134,14 @@ const router = useRouter()
 const userStore = useUserStore()
 
 const isCollapse = ref(false)
+
+const isDark = ref(document.documentElement.classList.contains('dark'))
+
+function toggleTheme() {
+  isDark.value = !isDark.value
+  document.documentElement.classList.toggle('dark', isDark.value)
+  localStorage.setItem('his_theme', isDark.value ? 'dark' : 'light')
+}
 
 const activeMenu = computed(() => route.path)
 const pageTitle = computed(() => (route.meta?.title as string) || '')
