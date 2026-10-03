@@ -40,6 +40,8 @@
   --ak-dur: 250ms;
   --ak-dur-slow: 300ms;
   --ak-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  --ak-table-header-bg: #f5f6f8;
+  --ak-table-header-text: #5a6a7a;
 }
 
 /* --- 夜间模式（暗色 + 琥珀橙，明日方舟风格） --- */
@@ -66,6 +68,8 @@ html.dark {
   --ak-warning: #e8a040;
   --ak-info: #5b9bd5;
   --ak-shadow: none;
+  --ak-table-header-bg: #1a1a1a;
+  --ak-table-header-text: var(--ak-primary);
 }
 
 /* ===== 全局基础 ===== */
@@ -430,7 +434,7 @@ html.dark {
 .el-table {
   --el-table-bg-color: var(--ak-bg-card);
   --el-table-tr-bg-color: var(--ak-bg-card);
-  --el-table-header-bg-color: #1a1a1a;
+  --el-table-header-bg-color: var(--ak-table-header-bg);
   --el-table-border-color: var(--ak-border-light);
   --el-table-row-hover-bg-color: var(--ak-bg-hover);
 }
@@ -439,7 +443,7 @@ html.dark {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--ak-primary) !important;
+  color: var(--ak-table-header-text) !important;
   border-bottom: 2px solid var(--ak-primary) !important;
 }
 
