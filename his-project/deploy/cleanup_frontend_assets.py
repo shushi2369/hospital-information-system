@@ -26,8 +26,10 @@ import sys
 import time
 
 # Vite 产物文件名（含哈希）与静态资源引用都长这样
+# 七十八轮修复：首字符类含下划线——Vite 会产出 _plugin-vue_export-helper-* 等
+# 下划线开头的公共 chunk，漏掉它们会让 --days 0 清理误删活文件
 ASSET_RE = re.compile(
-    r"[A-Za-z0-9][A-Za-z0-9_.@-]*\.(?:js|mjs|css|woff2?|ttf|otf|png|jpe?g|svg|gif|ico|webp)"
+    r"[A-Za-z0-9_][A-Za-z0-9_.@-]*\.(?:js|mjs|css|woff2?|ttf|otf|png|jpe?g|svg|gif|ico|webp)"
 )
 
 
