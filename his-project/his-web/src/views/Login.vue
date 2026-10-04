@@ -2,7 +2,7 @@
   <div class="login-page">
     <div class="login-panel">
       <div class="login-title">医院信息系统</div>
-      <div class="login-subtitle">HIS 一期 · 基础底座</div>
+      <div class="login-subtitle">HIS · 门诊到绩效全闭环（四期）</div>
       <el-form ref="formRef" :model="form" :rules="rules" size="large" @keyup.enter="handleLogin">
         <el-form-item prop="username">
           <el-input v-model="form.username" placeholder="用户名" :prefix-icon="User" clearable />
