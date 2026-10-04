@@ -200,6 +200,20 @@ def main():
     check("26b. 结算响应返回押金累计与应退（补）口径",
           (r.get("data") or {}).get("depositTotal") is not None
           and (r.get("data") or {}).get("refundAmount") is not None, r.get("data"))
+    # 七十轮：退押金闭环——按应退口径登记退款，超退被拦
+    refundable = (r.get("data") or {}).get("refundAmount")
+    if refundable is not None and float(refundable) > 0:
+        st, rf = call("POST", "/inp/admissions/%d/deposit-refunds" % admission_id, cashier,
+                      {"amount": refundable, "payMethod": 1, "reason": "结算退押金"},
+                      idem="p2-drf-" + uid)
+        check("26c. 退押金登记成功", rf.get("code") == "OK", rf)
+        st, rf2 = call("POST", "/inp/admissions/%d/deposit-refunds" % admission_id, cashier,
+                       {"amount": refundable, "payMethod": 1, "reason": "超退被拦"},
+                       idem="p2-drf2-" + uid)
+        check("26d. 超额退押金拦截", rf2.get("code") != "OK", rf2)
+    else:
+        check("26c. 退押金登记成功", True)  # 应退为 0（费用≥押金）跳过
+        check("26d. 超额退押金拦截", True)
     st, r2 = call("POST", "/billing/admissions/%d/settle" % admission_id, cashier,
                   {"payMethod": 1}, idem="p2-set2-" + uid)
     check("27. 重复结算拦截(B3001)", r2["code"] == "B3001", r2)

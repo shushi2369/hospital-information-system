@@ -207,3 +207,12 @@ WHERE s.merge_flag = 1 AND p.status <> 0 LIMIT 5;
 SELECT 'archived_admission_draft_emr' AS chk, e.id FROM mrc_record m
 JOIN emr_record e ON e.admission_id = m.admission_id
 WHERE m.archive_status IN (20, 30) AND e.status IN (10, 40) LIMIT 5;
+
+-- 七十轮：押金台账与住院行冗余字段一致（原子增减的落库不变量）
+SELECT 'deposit_total_mismatch' AS chk, a.id FROM inp_admission a
+JOIN (SELECT admission_id, SUM(amount) s FROM inp_deposit GROUP BY admission_id) d ON d.admission_id = a.id
+WHERE a.deposit_total <> d.s LIMIT 5;
+-- 已结算住院的押金余额不得低于账单额（退押金上限校验的落库不变量）
+SELECT 'settled_deposit_below_bill' AS chk, a.id FROM inp_admission a
+JOIN bil_charge_bill b ON b.admission_id = a.id
+WHERE a.status = 30 AND a.deposit_total < b.total_amount LIMIT 5;

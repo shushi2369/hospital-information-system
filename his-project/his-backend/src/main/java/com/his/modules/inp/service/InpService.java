@@ -11,7 +11,10 @@ import com.his.infrastructure.util.IdGenerator;
 import com.his.modules.basedata.app.BasedataAppService;
 import com.his.modules.basedata.app.ChargeItemDTO;
 import com.his.modules.basedata.app.DepartmentDTO;
+import com.his.modules.billing.entity.BilChargeBill;
+import com.his.modules.billing.mapper.BilChargeBillMapper;
 import com.his.modules.inp.app.InpAppService;
+import com.his.modules.inp.dto.DepositRefundRequest;
 import com.his.modules.inp.dto.AdmissionCreateRequest;
 import com.his.modules.inp.dto.AdmissionQuery;
 import com.his.modules.inp.dto.AdmissionResponse;
@@ -61,6 +64,7 @@ public class InpService {
     private final InpWardMapper wardMapper;
     private final InpTransferMapper transferMapper;
     private final InpDepositMapper depositMapper;
+    private final BilChargeBillMapper billMapper;
     private final InpDailyFeeMapper dailyFeeMapper;
     private final PatientAppService patientAppService;
     private final BasedataAppService basedataAppService;
@@ -130,6 +134,30 @@ public class InpService {
                 .eq(InpAdmission::getId, admissionId)
                 .setSql("deposit_total = deposit_total + {0}", added));
         return admission.getDepositTotal().add(added);
+    }
+
+    /** 退押金（七十轮）：仅已结算住院可退，上限 = 押金余额 - 结算账单额（对齐结算响应应退口径） */
+    @Transactional
+    public BigDecimal refundDeposit(Long admissionId, DepositRefundRequest req) {
+        InpAdmission admission = inpAppService.requireAdmission(admissionId);
+        if (admission.getStatus() == null || admission.getStatus() != 30) {
+            throw new BizException(ErrorCode.A0001, "住院未结算，不能退押金");
+        }
+        BigDecimal billTotal = BigDecimal.ZERO;
+        BilChargeBill bill = billMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<BilChargeBill>()
+                .eq(BilChargeBill::getAdmissionId, admissionId).last("LIMIT 1"));
+        if (bill != null && bill.getTotalAmount() != null) {
+            billTotal = bill.getTotalAmount();
+        }
+        BigDecimal refundable = admission.getDepositTotal().subtract(billTotal);
+        if (req.getAmount().compareTo(refundable) > 0) {
+            throw new BizException(ErrorCode.A0001, "退押金超过应退金额（上限 " + refundable + "）");
+        }
+        saveDeposit(admissionId, req.getAmount().negate(), req.getPayMethod());
+        admissionMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<InpAdmission>()
+                .eq(InpAdmission::getId, admissionId)
+                .setSql("deposit_total = deposit_total - {0}", req.getAmount()));
+        return admission.getDepositTotal().subtract(req.getAmount());
     }
 
     /** 转科（I-07）：释放原床位 + 占用新床位 + 记录留痕，一个事务 */

@@ -14,6 +14,7 @@ import com.his.modules.inp.mapper.InpAdmissionMapper;
 import com.his.modules.inp.mapper.InpBedMapper;
 import com.his.modules.inp.mapper.InpDailyFeeMapper;
 import com.his.modules.inp.mapper.InpDepositMapper;
+import com.his.modules.billing.mapper.BilChargeBillMapper;
 import com.his.modules.inp.mapper.InpTransferMapper;
 import com.his.modules.inp.mapper.InpWardMapper;
 import com.his.modules.patient.app.PatientAppService;
@@ -35,6 +36,7 @@ class InpServiceTest extends UnitTestBase {
     private final InpWardMapper wardMapper = mock(InpWardMapper.class);
     private final InpTransferMapper transferMapper = mock(InpTransferMapper.class);
     private final InpDepositMapper depositMapper = mock(InpDepositMapper.class);
+    private final BilChargeBillMapper billMapper = mock(BilChargeBillMapper.class);
     private final InpDailyFeeMapper dailyFeeMapper = mock(InpDailyFeeMapper.class);
     private final PatientAppService patientAppService = mock(PatientAppService.class);
     private final BasedataAppService basedataAppService = mock(BasedataAppService.class);
@@ -47,7 +49,7 @@ class InpServiceTest extends UnitTestBase {
                     mock(ObjectProvider.class);
 
     private final InpService service = new InpService(
-            admissionMapper, bedMapper, wardMapper, transferMapper, depositMapper,
+            admissionMapper, bedMapper, wardMapper, transferMapper, depositMapper, billMapper,
             dailyFeeMapper, patientAppService, basedataAppService, inpAppService,
             pltService, idGenerator, dischargeHooks);
 

@@ -8,6 +8,7 @@ import com.his.modules.inp.dto.AdmissionCreateRequest;
 import com.his.modules.inp.dto.AdmissionQuery;
 import com.his.modules.inp.dto.AdmissionResponse;
 import com.his.modules.inp.dto.BedVO;
+import com.his.modules.inp.dto.DepositRefundRequest;
 import com.his.modules.inp.dto.DepositRequest;
 import com.his.modules.inp.dto.DischargeRequest;
 import com.his.modules.inp.dto.FeeGroupResponse;
@@ -105,6 +106,15 @@ public class InpController {
     @AuditLog(module = "inp", action = "缴纳押金", bizType = "inp_deposit")
     public R<BigDecimal> deposit(@PathVariable Long id, @Valid @RequestBody DepositRequest req) {
         return R.ok(inpService.addDeposit(id, req));
+    }
+
+    /** 退押金（七十轮）：仅已结算住院，上限 = 押金余额 - 账单额（应退口径） */
+    @PostMapping("/admissions/{id}/deposit-refunds")
+    @PreAuthorize("@ss.hasPerm('inp:deposit:refund')")
+    @Idempotent
+    @AuditLog(module = "inp", action = "退押金", bizType = "inp_deposit")
+    public R<BigDecimal> refundDeposit(@PathVariable Long id, @Valid @RequestBody DepositRefundRequest req) {
+        return R.ok(inpService.refundDeposit(id, req));
     }
 
     @GetMapping("/admissions/{id}/daily-fees")
