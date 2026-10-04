@@ -66,10 +66,18 @@ def ensure_free_bed(admin, uid, tag="IP"):
 def seed_admission(admin, cashier, uid, name_prefix, ascii_tag, diagnosis, seq):
     """患者 + 床位 + 入院登记，返回 (patientId, admissionId)。seq 用于同轮多患者去重；
     幂等键一律 ASCII（HTTP 头不允许非 latin-1 字符）"""
-    api("/patients", cashier, {"name": name_prefix + uid, "gender": 1,
+    cr = api("/patients", cashier, {"name": name_prefix + uid, "gender": 1,
         "birthDate": "1990-01-01", "idCardNo": "3401041990010%s%d" % (uid[-4:], seq),
         "phone": "13%d%s" % (seq % 10, uid[:8])}, idem="ui-adm-pt-" + ascii_tag + uid)
     pl = api("/patients?name=" + urllib.parse.quote(name_prefix + uid), cashier)
+    if not pl.get("data", {}).get("list"):
+        # 七十三轮：建档后查询为空——打印建档响应定位（B1001/校验失败会在这里现形）
+        print("[seed-debug] create=", json.dumps(cr, ensure_ascii=False)[:200])
+        time.sleep(1)
+        pl = api("/patients?name=" + urllib.parse.quote(name_prefix + uid), cashier)
+        if not pl.get("data", {}).get("list"):
+            print("[seed-debug] create重放=", json.dumps(cr, ensure_ascii=False)[:200])
+            raise SystemExit("[seed-debug] 患者建档后查询仍为空")
     pid = pl["data"]["list"][0]["id"]
     bed = ensure_free_bed(admin, uid)
     r = api("/inp/admissions", admin, {
@@ -308,7 +316,7 @@ def main():
                     page.wait_for_timeout(500)
                     page.locator(".el-select-dropdown:visible .el-select-dropdown__item").nth(room_i).click()
                     page.wait_for_timeout(400)
-                for seq_val in range(1, 6):
+                for seq_val in range(1, 11):  # 台次 1~10 全空间（七十一轮：多日多房连跑后残余空闲分散）
                     if not (room_i == 0 and seq_val == 1):
                         seq_input = page.locator(".el-dialog:visible .el-form-item", has_text="台次").locator("input")
                         seq_input.fill(str(seq_val))
@@ -481,6 +489,88 @@ def main():
         check("CDSS·规则表可见新规则", page.locator("tr", has_text=rule_code).count() > 0)
         check("CDSS·命中留痕可见（提示不阻断）",
               page.locator("tr", has_text="配伍禁忌演练UI").count() > 0)
+
+        # ---------------- ⑪ RIS 链：检查医嘱执行(API) → 预约/开始/Mock影像/书写(UI) → 审核(doctor UI) ----------------
+        ris_tok = login("ris.zhang")
+        pid_ri, adm_ri = seed_admission(admin, cashier, uid, "链路影像", "ri", "链路影像诊断", 4)  # seq=7 与 EMC 链身份证撞车
+        exam_item = api("/basedata/charge-items?category=3&status=1", admin)["data"][0]
+        api("/doc/orders", doc_tok2, {"admissionId": adm_ri, "orderClass": 2, "category": 2,
+            "items": [{"chargeItemId": exam_item["id"], "quantity": 1}]}, idem="ui-ris-ord-" + uid)
+        ol_ri = api("/doc/orders?admissionId=%s&category=2" % adm_ri, doc_tok2)["data"]["list"][0]
+        d_ri = api("/doc/orders/%s" % ol_ri["id"], doc_tok2)["data"]
+        ex_ri = [e for e in d_ri["executions"] if e["execType"] == 2][0]
+        api("/doc/executions/%s/do" % ex_ri["id"], login("nurse.wang"), method="POST",
+            idem="ui-ris-ex-" + uid)  # 无 body POST 必须显式 method（五十轮教训）
+        rq = api("/ris/requests?admissionId=%s" % adm_ri, ris_tok)["data"]["list"][0]
+        check("影像·RIS 申请自动生成（JC 待预约）", rq["status"] == 10 and rq["requestNo"].startswith("JC"), rq["requestNo"])
+        page.evaluate("(t) => localStorage.setItem('his_token', t)", ris_tok)
+        page.goto(BASE + "/ris/workbench")
+        page.wait_for_timeout(2500)
+        page.locator(".el-input-number input").first.fill(str(adm_ri))
+        page.get_by_role("button", name="查询").click()
+        page.wait_for_timeout(1500)
+        rrow = page.locator("tr", has_text=rq["requestNo"])
+        check("影像·申请单可见（就诊ID 过滤）", rrow.count() > 0)
+        rrow.first.get_by_role("button", name="预约").click()
+        page.wait_for_timeout(1000)
+        dlg_ri = page.locator(".el-dialog:visible")
+        dlg_ri.locator(".el-select__wrapper").first.click()
+        page.wait_for_timeout(600)
+        page.locator(".el-select-dropdown:visible .el-select-dropdown__item").first.click()
+        page.wait_for_timeout(400)
+        dlg_ri.locator(".el-date-editor input").first.fill(time.strftime("%Y-%m-%d") + " 09:00:00")
+        page.keyboard.press("Enter")
+        page.wait_for_timeout(400)
+        dlg_ri.get_by_role("button", name="提交").click()
+        page.wait_for_timeout(1800)
+        check("影像·预约完成（出现开始检查）", rrow.first.get_by_role("button", name="开始检查").count() > 0)
+        rrow.first.get_by_role("button", name="开始检查").click()
+        page.wait_for_timeout(1800)
+        # ris.zhang：Mock 影像（行内按钮 JS 点击，绕过重渲染/透明层）
+        page.evaluate("""(rq) => {
+          const tr = [...document.querySelectorAll('tr')].find(t => t.textContent.includes(rq));
+          const b = tr && [...tr.querySelectorAll('button')].find(x => x.textContent.includes('Mock 影像'));
+          b?.click();
+        }""", rq["requestNo"])
+        page.wait_for_timeout(2000)
+        # doctor：书写报告 → 审核发布（技师无 ris:report:write——phase3b 负向断言的设计语义）
+        page.evaluate("(t) => localStorage.setItem('his_token', t)", doc_tok2)
+        page.reload()
+        page.wait_for_timeout(2500)
+        page.locator(".el-input-number input").first.fill(str(adm_ri))
+        page.get_by_role("button", name="查询").click()
+        page.wait_for_timeout(1500)
+        rrow = page.locator("tr", has_text=rq["requestNo"])
+        rrow.first.get_by_role("button", name="书写报告").click()
+        page.wait_for_timeout(1500)
+        dlg_ri = page.locator(".el-dialog:visible")
+        dlg_ri.locator(".el-form-item", has_text="影像所见").locator("textarea").fill("链路影像所见：未见明显异常")
+        dlg_ri.locator(".el-form-item", has_text="诊断意见").locator("textarea").fill("链路诊断意见：正常")
+        dlg_ri.get_by_role("button", name="保存").click()
+        page.wait_for_timeout(1800)
+        # 审核：dr.wang（writer=dr.li，不得自审自签）
+        wang_tok = login("dr.wang")
+        page.evaluate("(t) => localStorage.setItem('his_token', t)", wang_tok)
+        page.reload()
+        page.wait_for_timeout(2500)
+        page.locator(".el-input-number input").first.fill(str(adm_ri))
+        page.get_by_role("button", name="查询").click()
+        page.wait_for_timeout(1500)
+        rrow = page.locator("tr", has_text=rq["requestNo"])
+        rrow.first.get_by_role("button", name="审核发布").click()
+        page.wait_for_timeout(800)
+        page.locator(".el-message-box__btns button", has_text="确定").click()
+        page.wait_for_timeout(1800)
+        # 审核通过即发布：请求 30→40（查看报告），无需另行完成检查
+        rq2 = api("/ris/requests?admissionId=%s" % adm_ri, ris_tok)["data"]["list"][0]
+        check("影像·审核发布（status=40 查看报告）", rq2["status"] == 40, rq2["status"])
+        page.locator(".el-input-number input").first.fill(str(adm_ri))
+        page.get_by_role("button", name="查询").click()
+        page.wait_for_timeout(1500)
+        check("影像·行内出现查看报告", page.locator("tr", has_text=rq["requestNo"])
+              .first.get_by_role("button", name="查看报告").count() > 0)
+
+        browser.close()
 
         browser.close()
 
