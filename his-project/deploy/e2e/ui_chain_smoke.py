@@ -461,6 +461,27 @@ def main():
         pe_rec = api("/pe/records?patientId=%s" % pe_pid, pe_tok)["data"]["list"][0]
         check("体检·全链路（开始→分项×2→完成→总检发布 TJB）", pe_rec["status"] == 40, pe_rec["status"])
 
+        # ---------------- ⑩ CDSS 链：规则(API) → 双药医嘱命中(API) → 命中+规则双表 UI 可见 ----------------
+        drugs = api("/basedata/drugs?status=1", admin)["data"]
+        drugs = drugs["list"] if isinstance(drugs, dict) else drugs
+        drug_a, drug_b = drugs[0], drugs[1]
+        name_a = drug_a.get("drugName") or drug_a.get("name") or ("药品" + str(drug_a["id"]))
+        name_b = drug_b.get("drugName") or drug_b.get("name") or ("药品" + str(drug_b["id"]))
+        rule_code = "CDSS-UI-" + uid
+        api("/cdss/rules", admin, {"ruleCode": rule_code, "ruleType": 1,
+            "refAId": drug_a["id"], "refBId": drug_b["id"],
+            "message": "配伍禁忌演练UI：" + name_a + " 与 " + name_b}, idem="ui-cdss-rule-" + uid)
+        api("/doc/orders", doc_tok2, {"admissionId": adm_or, "orderClass": 2, "category": 1,
+            "frequency": "qd",
+            "items": [{"drugId": drug_a["id"], "quantity": 1},
+                      {"drugId": drug_b["id"], "quantity": 1}]}, idem="ui-cdss-ord-" + uid)
+        page.evaluate("(t) => localStorage.setItem('his_token', t)", admin)
+        page.goto(BASE + "/cdss/hits")
+        page.wait_for_timeout(2500)
+        check("CDSS·规则表可见新规则", page.locator("tr", has_text=rule_code).count() > 0)
+        check("CDSS·命中留痕可见（提示不阻断）",
+              page.locator("tr", has_text="配伍禁忌演练UI").count() > 0)
+
         browser.close()
 
     failed = [n for n, ok in results if not ok]
