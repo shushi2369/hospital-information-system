@@ -403,6 +403,64 @@ def main():
         rows = vs.get("data") if isinstance(vs.get("data"), list) else (vs.get("data") or {}).get("list") or []
         check("护理·体征录入链路（UI 保存 + 历史可见）", len(rows) > 0, len(rows))
 
+        # ---------------- ⑨ 体检链：登记(API) → 开始/分项×2/完成(UI) → 总检发布(doctor UI) ----------------
+        pe_tok = login("pe.nurse")
+        doc_tok2 = login("dr.li")
+        api("/patients", cashier, {"name": "链路体检" + uid, "gender": 1,
+            "birthDate": "1998-01-01", "idCardNo": "34010519980101" + uid[-4:],
+            "phone": "135" + uid[:8]}, idem="ui-pe-pt-" + uid)
+        pl_pe = api("/patients?name=" + urllib.parse.quote("链路体检" + uid), cashier)
+        pe_pid = pl_pe["data"]["list"][0]["id"]
+        it_pool = api("/basedata/charge-items?category=4&status=1", admin)["data"] or []
+        if len(it_pool) < 2:
+            it_pool = it_pool + (api("/basedata/charge-items?category=5&status=1", admin)["data"] or [])
+        it1, it2 = it_pool[0], it_pool[1]
+        api("/pe/packages", pe_tok, {"name": "链路套餐" + uid, "price": 100.00,
+            "items": [{"chargeItemId": it1["id"], "itemName": it1["itemName"], "price": 50.00},
+                      {"chargeItemId": it2["id"], "itemName": it2["itemName"], "price": 50.00}]},
+            idem="ui-pe-pkg-" + uid)
+        pkg_list = api("/pe/packages?pageNum=1&pageSize=50", pe_tok)["data"]["list"]
+        pkg_id = next(p["id"] for p in pkg_list if p["name"] == "链路套餐" + uid)
+        api("/pe/records", pe_tok, {"patientId": pe_pid, "packageId": pkg_id,
+            "examDate": time.strftime("%Y-%m-%d")}, idem="ui-pe-rec-" + uid)
+        page.evaluate("(t) => localStorage.setItem('his_token', t)", pe_tok)
+        page.goto(BASE + "/pe/workbench")
+        page.wait_for_timeout(2500)
+        prow = page.locator("tr", has_text=str(pe_pid))
+        check("体检·登记记录可见", prow.count() > 0)
+        prow.first.get_by_role("button", name="开始").click()
+        page.wait_for_timeout(1500)
+        for it in (it1, it2):
+            prow.first.get_by_role("button", name="分项录入").click()
+            page.wait_for_timeout(1200)
+            dlg_pe = page.locator(".el-dialog:visible")
+            dlg_pe.locator(".el-select__wrapper").first.click()
+            page.wait_for_timeout(600)
+            page.locator(".el-select-dropdown:visible .el-select-dropdown__item",
+                         has_text=it["itemName"]).first.click()
+            page.wait_for_timeout(400)
+            dlg_pe.locator(".el-form-item", has_text="结果值").locator("input").fill(
+                "正常" if it["id"] == it1["id"] else "轻度异常")
+            dlg_pe.get_by_role("button", name="保存").click()
+            page.wait_for_timeout(1500)
+        prow.first.get_by_role("button", name="完成").click()
+        page.wait_for_timeout(800)
+        page.locator(".el-message-box__btns button", has_text="确定").click()
+        page.wait_for_timeout(1500)
+        # 总检发布：doctor 权限（pe.nurse 越权已被 e2e 覆盖）
+        page.evaluate("(t) => localStorage.setItem('his_token', t)", doc_tok2)
+        page.reload()
+        page.wait_for_timeout(2500)
+        prow = page.locator("tr", has_text=str(pe_pid))
+        prow.first.get_by_role("button", name="总检发布").click()
+        page.wait_for_timeout(1000)
+        dlg_pe = page.locator(".el-dialog:visible")
+        dlg_pe.locator("textarea").fill("链路总检结论：未见明显异常")
+        dlg_pe.get_by_role("button", name="发布").click()
+        page.wait_for_timeout(2000)
+        pe_rec = api("/pe/records?patientId=%s" % pe_pid, pe_tok)["data"]["list"][0]
+        check("体检·全链路（开始→分项×2→完成→总检发布 TJB）", pe_rec["status"] == 40, pe_rec["status"])
+
         browser.close()
 
     failed = [n for n, ok in results if not ok]

@@ -85,7 +85,8 @@ public class PeService {
                 new LambdaQueryWrapper<PeRecord>()
                         .eq(query.getPatientId() != null, PeRecord::getPatientId, query.getPatientId())
                         .eq(query.getStatus() != null, PeRecord::getStatus, query.getStatus())
-                        .orderByAsc(PeRecord::getStatus).orderByDesc(PeRecord::getId));
+                        // 七十三轮：最新优先（原 status ASC 待办优先会把陈年未检记录顶在首页，新登记被挤到后页）
+                        .orderByDesc(PeRecord::getId));
         return PageResult.of(page);
     }
 
