@@ -11,6 +11,7 @@ import java.time.LocalDate;
 public class BillQuery extends PageQuery {
     private String billNo;
     private Long patientId;
+    private Long admissionId;
     private Long cashierId;
     private LocalDate startDate;
     private LocalDate endDate;

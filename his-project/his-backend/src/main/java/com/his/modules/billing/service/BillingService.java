@@ -529,6 +529,7 @@ public class BillingService {
                 new LambdaQueryWrapper<BilChargeBill>()
                         .like(query.getBillNo() != null && !query.getBillNo().isBlank(), BilChargeBill::getBillNo, query.getBillNo())
                         .eq(query.getPatientId() != null, BilChargeBill::getPatientId, query.getPatientId())
+                        .eq(query.getAdmissionId() != null, BilChargeBill::getAdmissionId, query.getAdmissionId())
                         .eq(query.getCashierId() != null, BilChargeBill::getCashierId, query.getCashierId())
                         .ge(query.getStartDate() != null, BilChargeBill::getPayTime, query.getStartDate() == null ? null : query.getStartDate().atStartOfDay())
                         .le(query.getEndDate() != null, BilChargeBill::getPayTime, query.getEndDate() == null ? null : query.getEndDate().atTime(23, 59, 59))

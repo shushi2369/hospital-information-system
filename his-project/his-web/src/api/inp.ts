@@ -183,6 +183,16 @@ export const dischargeAdmission = (id: number, data: DischargePayload) =>
 export const settleInpAdmission = (admissionId: number, payMethod: number) =>
   post<InpSettleResult>(`/billing/admissions/${admissionId}/settle`, { payMethod })
 
+// ---------------- 七十二轮：押金退还登记 ----------------
+export interface DepositRefundPayload {
+  amount: number
+  payMethod: number
+  reason?: string
+}
+
+export const refundDeposit = (admissionId: number, data: DepositRefundPayload) =>
+  post<number>(`/inp/admissions/${admissionId}/deposit-refunds`, data)
+
 // ---------------- 数据字典 ----------------
 
 export const INP_STATUS_OPTIONS: DictOption[] = [

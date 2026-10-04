@@ -15,11 +15,17 @@
         <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
         <el-button :icon="Refresh" @click="handleReset">重置</el-button>
       </el-form-item>
+      <el-form-item>
+        <el-radio-group v-model="viewMode" @change="handleSearch">
+          <el-radio-button value="unsettled">出院未结</el-radio-button>
+          <el-radio-button value="deposit">押金退还</el-radio-button>
+        </el-radio-group>
+      </el-form-item>
     </el-form>
 
     <div class="table-toolbar">
-      <span class="toolbar-title">出院未结住院</span>
-      <span class="toolbar-tip">患者已出院但尚未结算费用，请在此办理出院结算</span>
+      <span class="toolbar-title">{{ viewMode === 'unsettled' ? '出院未结住院' : '已结算押金退还' }}</span>
+      <span class="toolbar-tip">{{ viewMode === 'unsettled' ? '患者已出院但尚未结算费用，请在此办理出院结算' : '已结算住院的押金退还登记：应退 = 押金累计 - 结算账单额' }}</span>
     </div>
 
     <!-- 列表 -->
@@ -49,8 +55,11 @@
       </el-table-column>
       <el-table-column label="操作" width="110" align="center" fixed="right">
         <template #default="{ row }">
-          <el-button v-perm="'billing:charge:create'" link type="primary" @click="openSettle(row)">
+          <el-button v-if="viewMode === 'unsettled'" v-perm="'billing:charge:create'" link type="primary" @click="openSettle(row)">
             出院结算
+          </el-button>
+          <el-button v-else v-perm="'inp:deposit:refund'" link type="warning" @click="openRefund(row)">
+            退押金
           </el-button>
         </template>
       </el-table-column>
@@ -101,14 +110,44 @@
         <el-button type="primary" :loading="submitting" @click="handleSettle">确认结算</el-button>
       </template>
     </el-dialog>
+
+    <!-- 退押金登记弹窗（七十二轮）：应退 = 押金累计 - 结算账单额 -->
+    <el-dialog v-model="refundVisible" title="押金退还登记" width="480px" destroy-on-close>
+      <template v-if="refundRow">
+        <el-descriptions :column="1" border size="small">
+          <el-descriptions-item label="住院号">{{ refundRow.admissionNo }}</el-descriptions-item>
+          <el-descriptions-item label="押金累计">¥{{ fmtMoney(refundRow.depositTotal) }}</el-descriptions-item>
+          <el-descriptions-item label="结算账单额">¥{{ refundBillTotal === null ? '-' : fmtMoney(refundBillTotal) }}</el-descriptions-item>
+          <el-descriptions-item label="应退金额">¥{{ fmtMoney(refundable) }}</el-descriptions-item>
+        </el-descriptions>
+        <el-form label-width="90px" style="margin-top: 10px">
+          <el-form-item label="退还金额">
+            <el-input-number v-model="refundAmount" :min="0.01" :max="refundable || undefined" :precision="2" style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="支付方式">
+            <el-radio-group v-model="refundPayMethod">
+              <el-radio-button v-for="o in PAY_METHOD_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</el-radio-button>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item label="备注">
+            <el-input v-model="refundReason" maxlength="128" placeholder="选填" />
+          </el-form-item>
+        </el-form>
+      </template>
+      <template #footer>
+        <el-button @click="refundVisible = false">取消</el-button>
+        <el-button type="primary" :loading="refundSubmitting" :disabled="!refundable" @click="handleRefundSubmit">确认退还</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { h, onMounted, reactive, ref } from 'vue'
+import { computed, h, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Search } from '@element-plus/icons-vue'
-import { payMethodLabel, PAY_METHOD_OPTIONS } from '@/api/billing'
+import { getBillPage, payMethodLabel, PAY_METHOD_OPTIONS } from '@/api/billing'
+import { refundDeposit } from '@/api/inp'
 import { fmtMoney } from '@/api/registration'
 import {
   getAdmissionPage,
@@ -121,6 +160,9 @@ import {
 const loading = ref(false)
 const list = ref<Admission[]>([])
 const total = ref(0)
+// 七十二轮：视图切换——出院未结（20）/ 已结算押金退还（30）
+const viewMode = ref<'unsettled' | 'deposit'>('unsettled')
+
 const query = reactive({
   pageNum: 1,
   pageSize: 10,
@@ -133,7 +175,7 @@ async function fetchList() {
     const res = await getAdmissionPage({
       pageNum: query.pageNum,
       pageSize: query.pageSize,
-      status: 20,
+      status: viewMode.value === 'unsettled' ? 20 : 30,
       admissionNo: query.admissionNo.trim() || undefined,
     })
     list.value = res.list ?? []
@@ -168,6 +210,61 @@ function openSettle(row: Admission) {
   currentRow.value = row
   payMethod.value = 1
   dialogVisible.value = true
+}
+
+// 七十二轮：押金退还登记（应退 = 押金累计 - 结算账单额）
+const refundVisible = ref(false)
+const refundSubmitting = ref(false)
+const refundRow = ref<Admission | null>(null)
+const refundBillTotal = ref<number | null>(null)
+const refundAmount = ref<number | null>(null)
+const refundPayMethod = ref(1)
+const refundReason = ref('')
+
+const refundable = computed(() => {
+  const dep = Number(refundRow.value?.depositTotal ?? 0)
+  const bill = Number(refundBillTotal.value ?? 0)
+  return Math.max(dep - bill, 0)
+})
+
+async function openRefund(row: Admission) {
+  refundRow.value = row
+  refundBillTotal.value = null
+  refundAmount.value = null
+  refundPayMethod.value = 1
+  refundReason.value = ''
+  refundVisible.value = true
+  try {
+    const res = await getBillPage({ pageNum: 1, pageSize: 1, admissionId: row.id })
+    const bill = res.list?.[0]
+    refundBillTotal.value = bill ? Number(bill.totalAmount) : 0
+    refundAmount.value = refundable.value > 0 ? refundable.value : null
+  } catch {
+    // 账单额展示 '-'，金额留空由收银台手填
+  }
+}
+
+async function handleRefundSubmit() {
+  if (!refundRow.value) return
+  if (!refundAmount.value || refundAmount.value <= 0) {
+    ElMessage.warning('请输入退还金额')
+    return
+  }
+  refundSubmitting.value = true
+  try {
+    await refundDeposit(refundRow.value.id, {
+      amount: refundAmount.value,
+      payMethod: refundPayMethod.value,
+      reason: refundReason.value.trim() || undefined,
+    })
+    ElMessage.success('押金退还已登记')
+    refundVisible.value = false
+    fetchList()
+  } catch {
+    // 拦截器已统一提示
+  } finally {
+    refundSubmitting.value = false
+  }
 }
 
 function resultLines(row: Admission, res: InpSettleResult): string[] {
