@@ -49,7 +49,6 @@ def login(username):
 def main():
     cashier = login("cashier.li")
     admin = login("admin")
-    reg_date = (datetime.date.today() + datetime.timedelta(days=1)).isoformat()  # 预约明日号源，避开当日已耗尽配额
     latencies = []
     errors = []
     lock = threading.Lock()
@@ -60,22 +59,31 @@ def main():
     run_birth_ymd = "%04d%02d%02d" % (_y, _m, _d)
     run_birth = "%04d-%02d-%02d" % (_y, _m, _d)
 
-    # 动态容量感知：号源按 医生×日期×时段 限流，选剩余额度 ≥ ROUNDS+2 的桶
+    # 动态容量感知：号源按 医生×日期×时段 限流，选剩余额度 ≥ ROUNDS+2 的桶；
+    # 七十一轮：多日搜索（明日 → 7 天内），重复连跑耗尽近日号源后自动排更远
     st, dl = call("GET", "/basedata/doctors?pageNum=1&pageSize=50", admin)
     dl_rows = dl["data"] if isinstance(dl["data"], list) else dl["data"].get("list", [])
     quota = {d["id"]: d["dailyQuota"] for d in dl_rows if d.get("status") == 1 and d.get("dailyQuota")}
     buckets = []
-    for did, q in quota.items():
-        for period in (1, 2):
-            st, rl = call("GET", "/registrations?regDate=%s&doctorId=%s&period=%d&pageNum=1&pageSize=1"
-                          % (reg_date, did, period), cashier)
-            remain = q - rl["data"]["total"]
-            if remain >= ROUNDS + 2:
-                buckets.append({"doctorId": did, "period": period})
+    reg_date = None
+    for day_offset in range(1, 8):
+        day = (datetime.date.today() + datetime.timedelta(days=day_offset)).isoformat()
+        day_buckets = []
+        for did, q in quota.items():
+            for period in (1, 2):
+                st, rl = call("GET", "/registrations?regDate=%s&doctorId=%s&period=%d&pageNum=1&pageSize=1"
+                              % (day, did, period), cashier)
+                remain = q - rl["data"]["total"]
+                if remain >= ROUNDS + 2:
+                    day_buckets.append({"doctorId": did, "period": period})
+        if day_buckets:
+            buckets = day_buckets
+            reg_date = day
+            break
     if not buckets:
-        print("FAIL 无剩余号源充足的挂号桶（今日号源耗尽），请换日期或提高配额")
+        print("FAIL 7 天内无剩余号源充足的挂号桶，请提高配额或清理历史号")
         sys.exit(1)
-    print("挂号桶: %s" % [(_b['doctorId'], _b['period']) for _b in buckets])
+    print("挂号日期: %s 桶: %s" % (reg_date, [(_b['doctorId'], _b['period']) for _b in buckets]))
 
     def worker(wid):
         for rnd in range(ROUNDS):

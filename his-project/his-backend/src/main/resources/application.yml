@@ -10,8 +10,10 @@ spring:
     password: ${DB_PASSWORD:root123}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
-      maximum-pool-size: 20
-      minimum-idle: 5
+      # 七十一轮调优：压测 40-80 并发线程下池 20 饥饿（吞吐随线程数仍线性上升），
+      # 提至 30（MySQL max_connections 151 内），min-idle 10 防冷启动尖刺
+      maximum-pool-size: 30
+      minimum-idle: 10
   flyway:
     enabled: true
     # demo 目录仅放演示数据；生产环境通过 FLYWAY_LOCATIONS 覆盖为 classpath:db/migration
