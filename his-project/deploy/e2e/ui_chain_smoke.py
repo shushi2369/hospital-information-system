@@ -570,6 +570,36 @@ def main():
         check("影像·行内出现查看报告", page.locator("tr", has_text=rq["requestNo"])
               .first.get_by_role("button", name="查看报告").count() > 0)
 
+        # ---------------- ⑫ 押金退还 UI 链：双视图 → 弹窗预填应退 → 台账归齐账单额 ----------------
+        pid_dr, adm_dr = seed_admission(admin, cashier, uid, "链路退押", "dr", "链路退押诊断", 2)
+        api("/inp/daily-fees/manual?admissionId=%s" % adm_dr, admin,
+            {"feeType": 1, "itemName": "链路退押护理费", "quantity": 1, "unitPrice": 50},
+            idem="ui-dr-fee-" + uid)
+        api("/inp/admissions/%s/discharge" % adm_dr, admin,
+            {"dischargeWay": 2, "dischargeDiagnosis": "链路退押出院"}, idem="ui-dr-dc-" + uid)
+        st_dr = api("/billing/admissions/%s/settle" % adm_dr, cashier, {"payMethod": 1},
+                    idem="ui-dr-st-" + uid)  # 结算经办人=cashier（真实流程，账单对其可见）
+        refundable = float(st_dr["data"]["refundAmount"])
+        page.evaluate("(t) => localStorage.setItem('his_token', t)", cashier)
+        page.goto(BASE + "/inpatient/settle")
+        page.wait_for_timeout(2500)
+        page.locator(".el-radio-button", has_text="押金退还").click()
+        page.wait_for_timeout(1800)
+        drow = page.locator("tr", has_text="链路退押" + uid)
+        check("押金·退还视图行可见", drow.count() > 0)
+        drow.first.get_by_role("button", name="退押金").click()
+        page.wait_for_timeout(1500)
+        dlg_dr = page.locator(".el-dialog:visible")
+        prefill = dlg_dr.locator(".el-input-number input").first.input_value()
+        check("押金·应退金额自动预填", abs(float(prefill) - refundable) < 0.01,
+              (prefill, refundable))
+        dlg_dr.get_by_role("button", name="确认退还").click()
+        page.wait_for_timeout(2000)
+        ad_dr = api("/inp/admissions/%s" % adm_dr, admin)
+        check("押金·台账归齐账单额（deposit_total=账单）",
+              abs(float(ad_dr["data"]["depositTotal"]) - 50.0) < 0.01,
+              ad_dr["data"].get("depositTotal"))
+
         browser.close()
 
         browser.close()
