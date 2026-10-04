@@ -600,6 +600,17 @@ def main():
               abs(float(ad_dr["data"]["depositTotal"]) - 50.0) < 0.01,
               ad_dr["data"].get("depositTotal"))
 
+        # ---------------- ⑬ KPI 看板 UI 链：指标卡渲染 + 数字非零（演示中心页面） ----------------
+        page.evaluate("(t) => localStorage.setItem('his_token', t)", admin)
+        page.goto(BASE + "/kpi/board")
+        page.wait_for_timeout(3000)  # useCountUp 数字滚动完成后取值
+        cards = page.locator(".kpi-card")
+        check("KPI·指标卡渲染（≥12 张）", cards.count() >= 12, cards.count())
+        kz = page.locator(".kpi-card", has_text="门诊人次").locator(".kpi-value").inner_text().strip()
+        check("KPI·门诊人次非零", kz not in ("-", "0", "0.0", ""), kz)
+        bed = page.locator(".kpi-card", has_text="床位使用率").locator(".kpi-value").inner_text().strip()
+        check("KPI·床位使用率可算", bed not in ("-", ""), bed)
+
         browser.close()
 
         browser.close()
