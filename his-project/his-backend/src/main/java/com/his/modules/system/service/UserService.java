@@ -45,6 +45,8 @@ public class UserService {
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>()
                 .like(query.getUsername() != null && !query.getUsername().isBlank(), SysUser::getUsername, query.getUsername())
                 .like(query.getRealName() != null && !query.getRealName().isBlank(), SysUser::getRealName, query.getRealName())
+                // 七十九轮：状态筛选（验收测试账号卫生）
+                .eq(query.getStatus() != null, SysUser::getStatus, query.getStatus())
                 .orderByDesc(SysUser::getId);
         if (query.getRoleId() != null) {
             List<Long> userIds = userRoleMapper.selectList(new LambdaQueryWrapper<SysUserRole>()

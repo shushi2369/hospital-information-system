@@ -72,6 +72,8 @@ export interface UserQuery {
   username?: string
   realName?: string
   roleId?: number
+  /** 七十九轮：状态筛选（1 启用 / 0 停用，缺省全部） */
+  status?: number
 }
 
 export const getUserPage = (params: UserQuery) => get<PageResult<SystemUser>>('/system/users', params)

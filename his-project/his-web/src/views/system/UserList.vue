@@ -25,6 +25,12 @@
           <el-option v-for="role in roleOptions" :key="role.id" :label="role.roleName" :value="role.id" />
         </el-select>
       </el-form-item>
+      <el-form-item label="状态">
+        <el-select v-model="query.status" placeholder="全部状态" clearable style="width: 130px">
+          <el-option label="启用" :value="1" />
+          <el-option label="停用" :value="0" />
+        </el-select>
+      </el-form-item>
       <el-form-item>
         <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
         <el-button :icon="Refresh" @click="handleReset">重置</el-button>
@@ -187,6 +193,7 @@ const query = reactive({
   username: '',
   realName: '',
   roleId: undefined as number | undefined,
+  status: undefined as number | undefined,
 })
 
 async function fetchList() {
@@ -198,6 +205,7 @@ async function fetchList() {
       username: query.username || undefined,
       realName: query.realName || undefined,
       roleId: query.roleId,
+      status: query.status,
     })
     list.value = res.list ?? []
     total.value = res.total ?? 0

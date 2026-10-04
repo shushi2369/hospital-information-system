@@ -55,6 +55,14 @@ def main():
     today = time.strftime("%Y-%m-%d")
 
     admin = login("admin")
+    # 七十九轮：账号卫生——停用历史验收账号（rj%），防用户列表被测试账号灌满。
+    # 账单引用保留（审计完整），仅停登录；本轮新账号在下方创建。
+    st, olds = call("GET", "/system/users?username=rj&pageSize=100&status=1", admin)
+    for u in (olds.get("data", {}).get("list") or []):
+        if u.get("username") != "admin":
+            # PUT 端点带 @Idempotent——必须携带幂等头（七十九轮：缺头 A0004 静默失败）
+            call("PUT", "/system/users/%s/status" % u["id"], admin, {"status": 0},
+                 idem="e2e-dis-%s" % u["id"])
     # 一次性收费员：每轮运行动态创建——日结锁定（B3006）生效后，固定收费员的当日历史日结会污染本轮
     st, roles = call("GET", "/system/roles", admin)
     cashier_role_id = [x for x in roles["data"] if x["roleCode"] == "CASHIER"][0]["id"]
