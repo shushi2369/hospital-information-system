@@ -203,19 +203,23 @@ public class ClinicAppService {
         return result;
     }
 
-    /** 退费联动作废处方（《05》R9：仅未发药处方，幂等） */
+    /**
+     * 退费联动作废处方（《05》R9：仅未发药处方，幂等）。
+     * 不抛异常：本方法经代理加入退费宿主事务，BizException 穿越代理边界会把共享事务标记
+     * rollback-only，外层 catch 也救不回，提交时整单 UnexpectedRollbackException（八十六轮并发审计）。
+     * 竞态（读后并发发药/驳回）由条件更新 0 行兜住，联动作废跳过仅告警，不阻断退费主流程。
+     */
     @Transactional
     public void voidPrescriptionForRefund(Long rxId) {
-        CliPrescription rx = prescriptionMapper.selectById(rxId);
-        if (rx == null || rx.getStatus() == 50) {
-            return;
+        int voided = prescriptionMapper.update(null, new LambdaUpdateWrapper<CliPrescription>()
+                .eq(CliPrescription::getId, rxId)
+                .in(CliPrescription::getStatus, 10, 20)
+                .set(CliPrescription::getStatus, 50)
+                .set(CliPrescription::getVoidReason, "退费"));
+        if (voided != 1) {
+            org.slf4j.LoggerFactory.getLogger(ClinicAppService.class)
+                    .warn("退费联动作废处方跳过（处方状态已变化或不存在）rxId={}", rxId);
         }
-        if (rx.getStatus() != 10 && rx.getStatus() != 20) {
-            throw new BizException(ErrorCode.B3004);
-        }
-        rx.setStatus(50);
-        rx.setVoidReason("退费");
-        prescriptionMapper.updateById(rx);
     }
 
     // ---------------- 只读统计（报表模块 T-02） ----------------
@@ -310,13 +314,15 @@ public class ClinicAppService {
     /** 整方退药：处方 30→50（void_reason=退药），恢复该方药品费可退 */
     @Transactional
     public void markPrescriptionReturned(Long rxId) {
-        CliPrescription rx = prescriptionMapper.selectById(rxId);
-        if (rx == null || rx.getStatus() != 30) {
+        // 条件更新断言前态：快照读+无断言更新在并发双跑下会双倍回补库存（八十六轮并发审计）
+        int returned = prescriptionMapper.update(null, new LambdaUpdateWrapper<CliPrescription>()
+                .eq(CliPrescription::getId, rxId)
+                .eq(CliPrescription::getStatus, 30)
+                .set(CliPrescription::getStatus, 50)
+                .set(CliPrescription::getVoidReason, "退药"));
+        if (returned != 1) {
             throw new BizException(ErrorCode.B4007);
         }
-        rx.setStatus(50);
-        rx.setVoidReason("退药");
-        prescriptionMapper.updateById(rx);
     }
 
     private BillingVisitDTO toBillingVisit(CliVisit visit) {

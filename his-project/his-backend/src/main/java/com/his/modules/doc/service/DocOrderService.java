@@ -222,8 +222,14 @@ public class DocOrderService {
             inpAppService.addExecFee(order.getAdmissionId(), 7, item.getItemName(),
                     item.getQuantity(), item.getUnitPrice(), item.getId());
         }
-        order.setStatus(30);
-        orderMapper.updateById(order);
+        // 条件更新断言前态：@Version 冲突 0 行静默成功 = 并发双跑双倍扣库存+双记账（八十六轮并发审计 P0）
+        int dispensed = orderMapper.update(null, new LambdaUpdateWrapper<DocOrder>()
+                .eq(DocOrder::getId, orderId)
+                .eq(DocOrder::getStatus, 20)
+                .set(DocOrder::getStatus, 30));
+        if (dispensed != 1) {
+            throw new BizException(ErrorCode.B6102, "医嘱状态已变化（可能已并发摆药），请刷新后重试");
+        }
         pltService.recordEvent("order.dispensed", order.getOrderNo(), "{}");
     }
 

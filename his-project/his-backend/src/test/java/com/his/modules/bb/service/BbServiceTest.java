@@ -10,6 +10,7 @@ import com.his.modules.inp.app.InpAppService;
 import com.his.modules.inp.entity.InpAdmission;
 import com.his.modules.plt.service.PltService;
 import com.his.modules.system.app.SystemAppService;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -23,6 +24,17 @@ import static org.mockito.Mockito.when;
 
 /** 输血闭环单测：三道安全门禁 + 状态机 + 归属校验 + 配血安全。 */
 class BbServiceTest extends UnitTestBase {
+
+    @BeforeAll
+    static void initMpLambdaCache() {
+        // 纯 Mockito 环境无 MP 容器：LambdaUpdateWrapper.set(实体::getter) 需要实体 lambda cache
+        org.apache.ibatis.builder.MapperBuilderAssistant assistant =
+                new org.apache.ibatis.builder.MapperBuilderAssistant(
+                        new com.baomidou.mybatisplus.core.MybatisConfiguration(), "");
+        for (Class<?> entity : new Class<?>[]{com.his.modules.bb.entity.BbBloodBag.class}) {
+            com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(assistant, entity);
+        }
+    }
 
     private final BbBloodBagMapper bagMapper = mock(BbBloodBagMapper.class);
     private final BbRequestMapper requestMapper = mock(BbRequestMapper.class);
@@ -113,6 +125,7 @@ class BbServiceTest extends UnitTestBase {
         when(systemAppService.getUsername(anyLong())).thenReturn("护士");
         Mockito.doReturn(1).when(requestMapper).updateById(any());
         Mockito.doReturn(1).when(bagMapper).updateById(any());
+        when(bagMapper.update(any(), any())).thenReturn(1); // 占袋条件更新
         setupAs(3L, "BB_USER");
         Long issueId = svc().issue(1L, issueReq(10L));
         assertNotNull(issueId);

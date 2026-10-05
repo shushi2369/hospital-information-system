@@ -155,9 +155,14 @@ public class InpService {
             throw new BizException(ErrorCode.A0001, "退押金超过应退金额（上限 " + refundable + "）");
         }
         saveDeposit(admissionId, req.getAmount().negate(), req.getPayMethod());
-        admissionMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<InpAdmission>()
+        // 上限校验是无锁读：递减必须带 >= amount 守卫并断言，否则并发双退穿透押金账本（八十六轮并发审计）
+        int decreased = admissionMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<InpAdmission>()
                 .eq(InpAdmission::getId, admissionId)
+                .ge(InpAdmission::getDepositTotal, req.getAmount())
                 .setSql("deposit_total = deposit_total - {0}", req.getAmount()));
+        if (decreased != 1) {
+            throw new BizException(ErrorCode.A0001, "押金余额已变化，退押金失败，请刷新后重试");
+        }
         return admission.getDepositTotal().subtract(req.getAmount());
     }
 
@@ -177,7 +182,10 @@ public class InpService {
         if (occupy == 0) {
             throw new BizException(ErrorCode.B6005);
         }
-        bedMapper.releaseBed(admission.getBedId(), admissionId);
+        int released = bedMapper.releaseBed(admission.getBedId(), admissionId);
+        if (released != 1) {
+            throw new BizException(ErrorCode.B6005, "原床位释放失败（可能已被并发处理），请刷新后重试");
+        }
         InpTransfer transfer = new InpTransfer();
         transfer.setAdmissionId(admissionId);
         transfer.setFromDeptId(admission.getDeptId());
@@ -192,7 +200,10 @@ public class InpService {
         admission.setDeptId(toWard.getDeptId());
         admission.setWardId(req.getToWardId());
         admission.setBedId(req.getToBedId());
-        admissionMapper.updateById(admission);
+        // @Version 冲突 0 行静默 = 另一床悬挂占用永不释放（八十六轮并发审计），必须断言
+        if (admissionMapper.updateById(admission) != 1) {
+            throw new BizException(ErrorCode.B6005, "住院状态已变化，请刷新后重试");
+        }
         pltService.recordEvent("admission.transferred", admission.getAdmissionNo(),
                 "{\"toWardId\":" + req.getToWardId() + "}");
     }
@@ -208,7 +219,9 @@ public class InpService {
                 throw new BizException(ErrorCode.B6006, blocker);
             }
         }
-        bedMapper.releaseBed(admission.getBedId(), admissionId);
+        if (bedMapper.releaseBed(admission.getBedId(), admissionId) != 1) {
+            throw new BizException(ErrorCode.B6005, "床位释放失败（可能已被并发处理），请刷新后重试");
+        }
         admission.setDischargeWay(req.getDischargeWay());
         admission.setDischargeDiagnosis(req.getDischargeDiagnosis());
         admission.setDischargeTime(LocalDateTime.now());
@@ -219,7 +232,9 @@ public class InpService {
                 .eq(InpDailyFee::getStatus, 1));
         boolean autoSettled = unpaidFees == null || unpaidFees == 0;
         admission.setStatus(autoSettled ? 30 : 20);
-        admissionMapper.updateById(admission);
+        if (admissionMapper.updateById(admission) != 1) {
+            throw new BizException(ErrorCode.B6005, "住院状态已变化，请刷新后重试");
+        }
         pltService.recordEvent("admission.discharged", admission.getAdmissionNo(),
                 "{\"way\":" + req.getDischargeWay() + ",\"autoSettled\":" + autoSettled + "}");
     }

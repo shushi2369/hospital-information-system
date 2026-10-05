@@ -66,7 +66,12 @@ public class EmrService {
         record.setDoctorId(CurrentUser.id());
         record.setRecordTime(LocalDateTime.now());
         record.setStatus(10);
-        recordMapper.insert(record);
+        try {
+            recordMapper.insert(record);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            // uk_emr_admission_record（生成列仅对 doc_type=1 生效，V47）：预检窗口的并发兜底
+            throw new BizException(ErrorCode.B6203);
+        }
         return Map.of("recordNo", record.getRecordNo(), "id", record.getId());
     }
 

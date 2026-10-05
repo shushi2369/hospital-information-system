@@ -1,5 +1,6 @@
 package com.his.modules.bb.service;
 
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.his.common.BizException;
@@ -270,8 +271,14 @@ public class BbService {
         } catch (org.springframework.dao.DuplicateKeyException e) {
             throw new BizException(ErrorCode.A0001, "该血袋已发血");
         }
-        bag.setStatus(2);
-        bagMapper.updateById(bag);
+        // 条件更新占袋（1→2）：不同申请并发发同一袋血时 uk_issue_req_bag 不拦跨申请，必须在此闸死
+        int occupied = bagMapper.update(null, new LambdaUpdateWrapper<BbBloodBag>()
+                .eq(BbBloodBag::getId, bag.getId())
+                .eq(BbBloodBag::getStatus, 1)
+                .set(BbBloodBag::getStatus, 2));
+        if (occupied != 1) {
+            throw new BizException(ErrorCode.A0001, "血袋已被并发发血，请刷新后重试");
+        }
         request.setStatus(40);
         if (requestMapper.updateById(request) != 1) {
             throw new BizException(ErrorCode.A0001, "申请状态已变化，请刷新后重试");
