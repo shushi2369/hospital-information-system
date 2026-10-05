@@ -44,7 +44,7 @@ public class AuditQueryService {
                                                   String bizId, java.time.LocalDate startDate,
                                                   java.time.LocalDate endDate) {
         LambdaQueryWrapper<SysOperationLog> wrapper = new LambdaQueryWrapper<SysOperationLog>()
-                .like(username != null && !username.isBlank(), SysOperationLog::getUsername, LikeEscapeUtil.escape(username))
+                .likeRight(username != null && !username.isBlank(), SysOperationLog::getUsername, LikeEscapeUtil.escape(username))
                 .eq(module != null && !module.isBlank(), SysOperationLog::getModule, module)
                 .eq(bizId != null && !bizId.isBlank(), SysOperationLog::getBizId, bizId)
                 .ge(startDate != null, SysOperationLog::getCreatedAt, startDate == null ? null : startDate.atStartOfDay())
@@ -56,7 +56,7 @@ public class AuditQueryService {
     public Page<SysLoginLog> pageLoginLog(PageQuery query, String username, Integer success,
                                           java.time.LocalDate startDate, java.time.LocalDate endDate) {
         LambdaQueryWrapper<SysLoginLog> wrapper = new LambdaQueryWrapper<SysLoginLog>()
-                .like(username != null && !username.isBlank(), SysLoginLog::getUsername, LikeEscapeUtil.escape(username))
+                .likeRight(username != null && !username.isBlank(), SysLoginLog::getUsername, LikeEscapeUtil.escape(username))
                 .eq(success != null, SysLoginLog::getSuccess, success)
                 .ge(startDate != null, SysLoginLog::getCreatedAt, startDate == null ? null : startDate.atStartOfDay())
                 .le(endDate != null, SysLoginLog::getCreatedAt, endDate == null ? null : endDate.atTime(23, 59, 59))

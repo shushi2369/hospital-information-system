@@ -92,7 +92,7 @@ public class PatientAppService {
     /** 按姓名模糊查询患者 ID 集合（EMPI 检索用） */
     public List<Long> searchIdsByName(String name) {
         return patientMapper.selectList(new LambdaQueryWrapper<PatPatient>()
-                        .like(PatPatient::getName, LikeEscapeUtil.escape(name)))
+                        .likeRight(PatPatient::getName, LikeEscapeUtil.escape(name)))
                 .stream().map(PatPatient::getId).toList();
     }
 

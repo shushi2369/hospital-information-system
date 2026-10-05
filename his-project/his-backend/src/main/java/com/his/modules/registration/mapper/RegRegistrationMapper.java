@@ -37,6 +37,6 @@ public interface RegRegistrationMapper extends BaseMapper<RegRegistration> {
     @Select("SELECT d.dept_name AS `name`, COUNT(*) AS count FROM reg_registration r "
             + "JOIN bas_department d ON r.dept_id = d.id "
             + "WHERE r.reg_date BETWEEN #{start} AND #{end} AND r.status <> 20 "
-            + "GROUP BY d.dept_name ORDER BY count DESC")
+            + "GROUP BY d.id, d.dept_name ORDER BY count DESC")
     List<DailyStatDTO> deptRegistrationRanking(LocalDate start, LocalDate end);
 }

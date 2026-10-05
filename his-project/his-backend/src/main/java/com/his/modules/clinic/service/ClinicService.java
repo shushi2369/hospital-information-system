@@ -319,7 +319,8 @@ public class ClinicService {
             throw new BizException(ErrorCode.B2003);
         }
         visit.setStatus(30);
-        visit.setEndTime(LocalDateTime.now());
+        // 截断到秒：DATETIME(0) 对纳秒四舍五入，23:59:59.5 完成就诊会被存成次日零点（T-02 日归属错天）
+        visit.setEndTime(LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
         visitMapper.updateById(visit);
     }
 
