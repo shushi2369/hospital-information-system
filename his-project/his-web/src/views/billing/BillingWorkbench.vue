@@ -523,9 +523,15 @@ async function handleSelectVisit(row: UnpaidVisit) {
   payable.value = null
   payableLoading.value = true
   try {
-    payable.value = await getPayable(row.visitId)
+    const result = await getPayable(row.visitId)
+    // 乱序守卫：期间用户已选中另一行则丢弃本次明细
+    if (selectedVisit.value === row) {
+      payable.value = result
+    }
   } catch {
-    payable.value = null
+    if (selectedVisit.value === row) {
+      payable.value = null
+    }
   } finally {
     payableLoading.value = false
   }
@@ -669,10 +675,13 @@ async function openRefundDialog(row: Bill) {
   refundLoading.value = true
   try {
     const detail = await getBillDetail(row.id)
-    // 默认按明细全量预填退数量；已全退行不可退
+    // 按剩余可退量预填（quantity - refundedQty）；已全退行不可退（八十七轮契约审计）
     refundRows.value = (detail.details ?? []).map((d) => ({
       ...d,
-      refundQty: d.refundStatus === 2 ? 0 : Number(d.quantity) || 0,
+      refundQty:
+        d.refundStatus === 2
+          ? 0
+          : Math.max(0, (Number(d.quantity) || 0) - (Number(d.refundedQty) || 0)),
     }))
   } catch {
     refundRows.value = []
@@ -694,7 +703,9 @@ async function handleRefundSubmit() {
   }
   const over = details.find((d) => {
     const row = refundRows.value.find((r) => r.id === d.chargeDetailId)
-    return row ? d.refundQuantity > Number(row.quantity) : false
+    return row
+      ? d.refundQuantity > (Number(row.quantity) || 0) - (Number(row.refundedQty) || 0)
+      : false
   })
   if (over) {
     ElMessage.warning('本次退数量不能超过明细数量')

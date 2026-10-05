@@ -272,8 +272,19 @@ const settleQuery = reactive({
   status: undefined as number | undefined,
 })
 
-/** 已申报账单集合（用于标记申报状态） */
-const settledBillIds = computed(() => new Set(settles.value.map((s) => s.billId)))
+/** 已申报账单集合（用于标记申报状态）：必须全量拉取申报单——只看当前页会把
+ *  落在后面页的已申报账单误标为"未申报"并放出申报按钮（八十七轮审计 P1-3） */
+const settleFlags = ref<InsuranceSettle[]>([])
+const settledBillIds = computed(() => new Set(settleFlags.value.map((s) => s.billId)))
+
+async function fetchSettleFlags() {
+  try {
+    const res = await getInsuranceSettlePage({ pageNum: 1, pageSize: 200 })
+    settleFlags.value = res.list ?? []
+  } catch {
+    settleFlags.value = []
+  }
+}
 
 async function fetchSettles() {
   settleLoading.value = true
@@ -289,6 +300,7 @@ async function fetchSettles() {
   } finally {
     settleLoading.value = false
   }
+  await fetchSettleFlags()
 }
 
 function handleSettleSearch() {

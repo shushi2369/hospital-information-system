@@ -92,9 +92,12 @@ router.beforeEach(async (to) => {
     } catch {
       // 加载失败（token 失效/后端不可用）：清理本地状态回登录页，避免死循环
       store.resetAuth()
-      return { path: '/login' }
+      return { path: '/login', query: { redirect: to.fullPath } }
     }
-    buildDynamicRoutes(store.menus).forEach((route) => router.addRoute('Layout', route))
+    buildDynamicRoutes(store.menus).forEach((route) => {
+      if (route.name) dynamicRouteNames.push(String(route.name))
+      router.addRoute('Layout', route)
+    })
     store.routesLoaded = true
     if (to.path === '/') {
       // / 重定向到第一个可见菜单
@@ -112,3 +115,12 @@ router.beforeEach(async (to) => {
 })
 
 export default router
+
+/** 已注册的动态路由名（登出/切换账号时卸载，防低权限账号直输 URL 到达前任页面壳） */
+const dynamicRouteNames: string[] = []
+
+export function clearDynamicRoutes(): void {
+  for (const name of dynamicRouteNames.splice(0)) {
+    if (router.hasRoute(name)) router.removeRoute(name)
+  }
+}

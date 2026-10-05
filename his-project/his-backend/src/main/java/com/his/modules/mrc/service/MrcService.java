@@ -1,6 +1,7 @@
 package com.his.modules.mrc.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.his.common.BizException;
 import com.his.infrastructure.util.LikeEscapeUtil;
@@ -200,10 +201,15 @@ public class MrcService {
         if (homepage == null || homepage.getCodeTime() == null) {
             throw new BizException(ErrorCode.A0001, "首页尚未编码");
         }
-        record.setQcStatus(Boolean.TRUE.equals(req.getPass()) ? 1 : 2);
-        record.setQcBy(CurrentUser.id());
-        record.setQcTime(LocalDateTime.now());
-        recordMapper.updateById(record);
+        int qcStatus = Boolean.TRUE.equals(req.getPass()) ? 1 : 2;
+        int updated = recordMapper.update(null, new LambdaUpdateWrapper<MrcRecord>()
+                .eq(MrcRecord::getId, record.getId())
+                .set(MrcRecord::getQcStatus, qcStatus)
+                .set(MrcRecord::getQcBy, CurrentUser.id())
+                .set(MrcRecord::getQcTime, LocalDateTime.now()));
+        if (updated != 1) {
+            throw new BizException(ErrorCode.A0001, "病案状态已变化，请刷新后重试");
+        }
     }
 
     /** 归档（M-02）：双前置——住院已结算 + 首页质控通过 */
@@ -252,8 +258,14 @@ public class MrcService {
                 : LocalDateTime.now().plusDays(req.getExpectReturnDays()));
         borrow.setStatus(1);
         borrowMapper.insert(borrow);
-        record.setArchiveStatus(30);
-        recordMapper.updateById(record);
+        // 条件更新断言借出前态：0 行（并发归还/归档）时不能让借阅单悬挂在"已借出"之外
+        int updated = recordMapper.update(null, new LambdaUpdateWrapper<MrcRecord>()
+                .eq(MrcRecord::getId, record.getId())
+                .eq(MrcRecord::getArchiveStatus, 20)
+                .set(MrcRecord::getArchiveStatus, 30));
+        if (updated != 1) {
+            throw new BizException(ErrorCode.B6303);
+        }
         return borrow.getId();
     }
 
@@ -268,11 +280,21 @@ public class MrcService {
         if (borrow == null) {
             throw new BizException(ErrorCode.B6303, "该病案无借阅中的记录");
         }
-        borrow.setStatus(2);
-        borrow.setReturnTime(LocalDateTime.now());
-        borrowMapper.updateById(borrow);
-        record.setArchiveStatus(20);
-        recordMapper.updateById(record);
+        int updated = borrowMapper.update(null, new LambdaUpdateWrapper<MrcBorrow>()
+                .eq(MrcBorrow::getId, borrow.getId())
+                .eq(MrcBorrow::getStatus, 1)
+                .set(MrcBorrow::getStatus, 2)
+                .set(MrcBorrow::getReturnTime, LocalDateTime.now()));
+        if (updated != 1) {
+            throw new BizException(ErrorCode.B6303, "借阅记录已变化，请刷新后重试");
+        }
+        int back = recordMapper.update(null, new LambdaUpdateWrapper<MrcRecord>()
+                .eq(MrcRecord::getId, record.getId())
+                .eq(MrcRecord::getArchiveStatus, 30)
+                .set(MrcRecord::getArchiveStatus, 20));
+        if (back != 1) {
+            throw new BizException(ErrorCode.A0001, "病案状态已变化，请刷新后重试");
+        }
     }
 
     /** ICD-10 字典查询 */

@@ -4,7 +4,7 @@
     <div class="table-toolbar">
       <span class="toolbar-title">急诊分诊</span>
       <div>
-        <el-button v-perm="'emc:triage:create'" type="danger" @click="triageVisible = true">分诊登记</el-button>
+        <el-button v-perm="'emc:triage:create'" type="danger" @click="resetTriageForm(); triageVisible = true">分诊登记</el-button>
         <el-button v-perm="'emc:stats:query'" link type="primary" @click="loadStats">达标统计</el-button>
       </div>
     </div>
@@ -146,6 +146,18 @@
       </template>
     </el-dialog>
 
+    <el-dialog v-model="linkVisible" title="关联住院（绿通入急诊后收治）" width="420px" destroy-on-close>
+      <el-form :model="linkForm" label-width="90px">
+        <el-form-item label="住院 ID" required>
+          <el-input-number v-model="linkForm.admissionId" :min="1" style="width: 100%" placeholder="在院住院 ID" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="linkVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleLink">关联</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 时间轴抽屉 -->
     <el-drawer v-model="detailVisible" title="救治时间轴与达标预警" size="560px" destroy-on-close>
       <template v-if="detail">
@@ -269,7 +281,7 @@ async function fetchNodeDict() {
 }
 
 const centerNodes = computed(() =>
-  nodeDict.value.filter((n) => !tpRow || n.centerType === tpRow.centerType),
+  nodeDict.value.filter((n) => !tpRow.value || n.centerType === tpRow.value.centerType),
 )
 
 const triageVisible = ref(false)
@@ -286,6 +298,9 @@ const triageForm = reactive({
   greenChannel: false,
 })
 
+function resetTriageForm() {
+  Object.assign(triageForm, { patientId: undefined, chiefComplaint: '', bodyTemp: undefined, pulse: undefined, respiration: undefined, bloodPressure: '', spo2: undefined, triageLevel: 3, centerType: undefined, greenChannel: false })
+}
 async function handleTriage() {
   if (!triageForm.patientId || !triageForm.chiefComplaint) {
     ElMessage.warning('请填写患者与主诉')
@@ -328,21 +343,22 @@ async function handleRegister() {
 
 const tpVisible = ref(false)
 const tpForm = reactive<{ nodeCode: string; nodeTime: string }>({ nodeCode: '', nodeTime: '' })
-let tpRow: EmcVisit | null = null
+// ref 而非 let：computed(centerNodes) 依赖非响应式变量会永久缓存首次结果（八十七轮审计 P2-3）
+const tpRow = ref<EmcVisit | null>(null)
 
 async function openTimepoint(row: EmcVisit) {
-  tpRow = row
+  tpRow.value = row
   tpForm.nodeCode = ''
   tpForm.nodeTime = ''
   tpVisible.value = true
 }
 
 async function handleTimepoint() {
-  if (!tpRow || !tpForm.nodeCode || !tpForm.nodeTime) {
+  if (!tpRow.value || !tpForm.nodeCode || !tpForm.nodeTime) {
     ElMessage.warning('请选择节点与时间')
     return
   }
-  await addTimepoint(tpRow.id, { nodeCode: tpForm.nodeCode, nodeTime: tpForm.nodeTime })
+  await addTimepoint(tpRow.value.id, { nodeCode: tpForm.nodeCode, nodeTime: tpForm.nodeTime })
   ElMessage.success('节点已录入')
   tpVisible.value = false
 }

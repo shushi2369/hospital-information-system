@@ -1,6 +1,7 @@
 package com.his.modules.lis.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.his.common.BizException;
 import com.his.common.ErrorCode;
@@ -88,12 +89,22 @@ public class LisService {
         specimen.setCollectorId(CurrentUser.id());
         specimen.setStatus(1);
         if (specimen.getId() == null) {
-            specimenMapper.insert(specimen);
+            try {
+                specimenMapper.insert(specimen);
+            } catch (org.springframework.dao.DuplicateKeyException e) {
+                // uk_specimen_req（V48）：并发采集同一申请只有一条标本
+                throw new BizException(ErrorCode.A0001, "该申请已采集标本，请刷新后重试");
+            }
         } else {
             specimenMapper.updateById(specimen);
         }
-        request.setStatus(20);
-        requestMapper.updateById(request);
+        int updated = requestMapper.update(null, new LambdaUpdateWrapper<LisRequest>()
+                .eq(LisRequest::getId, requestId)
+                .eq(LisRequest::getStatus, 10)
+                .set(LisRequest::getStatus, 20));
+        if (updated != 1) {
+            throw new BizException(ErrorCode.A0001, "检验申请状态已变化，请刷新后重试");
+        }
         pltService.recordEvent("lis.specimen.collected", request.getRequestNo(), "{}");
         return Map.of("requestNo", request.getRequestNo(), "specimenNo", specimen.getSpecimenNo());
     }
@@ -111,8 +122,13 @@ public class LisService {
             specimen.setStatus(2);
             specimenMapper.updateById(specimen);
         }
-        request.setStatus(30);
-        requestMapper.updateById(request);
+        int updated = requestMapper.update(null, new LambdaUpdateWrapper<LisRequest>()
+                .eq(LisRequest::getId, requestId)
+                .eq(LisRequest::getStatus, 20)
+                .set(LisRequest::getStatus, 30));
+        if (updated != 1) {
+            throw new BizException(ErrorCode.A0001, "检验申请状态已变化，请刷新后重试");
+        }
     }
 
     /** 结果录入（L-05）：Mock 仪器取数或手工行；危急判定 → 危急值 */
@@ -220,8 +236,13 @@ public class LisService {
         report.setMutualFlag(mutualFlag == null ? 0 : mutualFlag);
         report.setMutualNote(mutualNote);
         reportMapper.insert(report);
-        request.setStatus(40);
-        requestMapper.updateById(request);
+        int updated = requestMapper.update(null, new LambdaUpdateWrapper<LisRequest>()
+                .eq(LisRequest::getId, requestId)
+                .eq(LisRequest::getStatus, 30)
+                .set(LisRequest::getStatus, 40));
+        if (updated != 1) {
+            throw new BizException(ErrorCode.A0001, "检验申请状态已变化，请刷新后重试");
+        }
         pltService.recordEvent("lis.report.published", report.getReportNo(), "{}");
         return report.getReportNo();
     }

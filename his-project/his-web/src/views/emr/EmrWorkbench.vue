@@ -11,7 +11,7 @@
           :loading="admSearching"
           placeholder="输入住院号搜索在院患者"
           style="width: 330px"
-          @change="fetchRecords"
+          @change="admissionId ? ((query.pageNum = 1), fetchRecords()) : null"
           @visible-change="(v: boolean) => v && !admissionId && searchAdmissions('')"
         >
           <el-option

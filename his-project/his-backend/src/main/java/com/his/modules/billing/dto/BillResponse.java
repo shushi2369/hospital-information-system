@@ -48,6 +48,8 @@ public class BillResponse {
         private BigDecimal unitPrice;
         private BigDecimal amount;
         private Integer refundStatus;
+        /** 已退数量（前端按 剩余可退 = quantity - refundedQty 预填校验，八十七轮契约审计） */
+        private BigDecimal refundedQty;
     }
 
     @Getter

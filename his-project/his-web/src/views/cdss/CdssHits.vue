@@ -25,7 +25,7 @@
       <el-tab-pane v-if="canManageRule" label="规则维护" name="rules">
         <div class="table-toolbar">
           <span class="toolbar-title">CDSS 规则（提示级，不阻断开单）</span>
-          <el-button type="primary" @click="ruleVisible = true">新建规则</el-button>
+          <el-button type="primary" @click="resetRuleForm(); ruleVisible = true">新建规则</el-button>
         </div>
         <el-table v-loading="ruleLoading" :data="rules" border stripe size="small">
           <el-table-column prop="id" label="ID" width="70" align="center" />
@@ -74,7 +74,8 @@ import { useUserStore } from '@/stores/user'
 import { createRule, cdssTypeLabel, CDSS_TYPE_OPTIONS, getHitPage, getRulePage, type CdssHit, type CdssRule } from '@/api/cdss'
 
 const auth = useUserStore()
-const canManageRule = computed(() => (auth.userInfo?.roleCodes ?? []).includes('ADMIN'))
+// 与后端 @PreAuthorize('cdss:rule:manage') 同口径——硬编码 ADMIN 会让持码角色永远看不到维护页签
+const canManageRule = computed(() => (auth.userInfo?.permissions ?? []).includes('cdss:rule:manage'))
 
 const tab = ref('hits')
 const loading = ref(false)
@@ -101,6 +102,9 @@ async function fetchRules() {
 }
 
 const ruleVisible = ref(false)
+function resetRuleForm() {
+  Object.assign(ruleForm, { ruleCode: '', ruleType: 2, refAId: undefined, refBId: undefined, message: '' })
+}
 const ruleForm = reactive<{ ruleCode: string; ruleType: number; refAId?: number; refBId?: number; message: string }>({ ruleCode: '', ruleType: 2, refAId: undefined, refBId: undefined, message: '' })
 
 async function handleCreateRule() {

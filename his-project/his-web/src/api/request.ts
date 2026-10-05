@@ -48,6 +48,23 @@ const service: AxiosInstance = axios.create({
   timeout: 15000,
 })
 
+/**
+ * 在途写请求去重（八十七轮前端审计 P1-2）：同 method+url+body 的写请求在上一笔返回前
+ * 再次发起（典型=双击按钮）直接本地拒绝。后端幂等头按"每请求新 UUID"生成，防不住双击；
+ * 项目内约 29 个提交按钮无 loading 守卫，此处是兜底防线。仅影响同一浏览器页签。
+ */
+const pendingWrites = new Set<string>()
+
+function writeKey(method: string, url: string, data: unknown): string {
+  let body = ''
+  try {
+    body = JSON.stringify(data ?? null)
+  } catch {
+    body = String(data)
+  }
+  return `${method}:${url}:${body}`
+}
+
 // 请求拦截器：注入 token 与幂等键
 service.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = localStorage.getItem(TOKEN_KEY)
@@ -57,6 +74,13 @@ service.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const method = (config.method || '').toLowerCase()
   // 所有 POST/PUT 请求自动携带 X-Idempotency-Key（接口设计 §1.1 / A0004）
   if (method === 'post' || method === 'put') {
+    const key = writeKey(method, config.url || '', config.data)
+    if (pendingWrites.has(key)) {
+      ElMessage.warning('请求处理中，请勿重复提交')
+      return Promise.reject({ code: 'DUP', message: '请求处理中，请勿重复提交' })
+    }
+    pendingWrites.add(key)
+    config.headers['X-Inflight-Key'] = key
     config.headers['X-Idempotency-Key'] = genIdempotencyKey()
   }
   return config
@@ -65,6 +89,8 @@ service.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 // 响应拦截器：统一处理业务码与 HTTP 错误
 service.interceptors.response.use(
   (response) => {
+    const inflight = response.config.headers?.['X-Inflight-Key']
+    if (inflight) pendingWrites.delete(String(inflight))
     const res = response.data as ApiResult
     if (res && res.code === 'OK') {
       // 直接返回 data，业务层拿到的是 data 本体
@@ -75,6 +101,8 @@ service.interceptors.response.use(
     return Promise.reject({ code: res && res.code, message })
   },
   (error: AxiosError) => {
+    const inflight = error.config?.headers?.['X-Inflight-Key']
+    if (inflight) pendingWrites.delete(String(inflight))
     const status = error.response?.status
     // 401 未登录/会话失效：清 token 跳登录页
     if (status === 401) {

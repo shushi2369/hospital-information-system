@@ -325,9 +325,14 @@ public class DocOrderService {
         if (order.getStatus() != 50) {
             throw new BizException(ErrorCode.B6101, "医嘱不在停止状态");
         }
-        order.setStatus(30);
-        order.setStopTime(null);
-        orderMapper.updateById(order);
+        int resumed = orderMapper.update(null, new LambdaUpdateWrapper<DocOrder>()
+                .eq(DocOrder::getId, orderId)
+                .eq(DocOrder::getStatus, 50)
+                .set(DocOrder::getStatus, 30)
+                .set(DocOrder::getStopTime, null));
+        if (resumed != 1) {
+            throw new BizException(ErrorCode.B6101, "医嘱状态已变化，请刷新后重试");
+        }
         LocalDate today = LocalDate.now();
         List<String> slots = FREQUENCY_SLOTS.getOrDefault(
                 order.getFrequency() == null ? "qd" : order.getFrequency(), List.of("08:00"));
@@ -353,9 +358,14 @@ public class DocOrderService {
         if (order.getStatus() == 30 || order.getStatus() == 40) {
             throw new BizException(ErrorCode.B6106, "已执行的医嘱不可作废");
         }
-        order.setStatus(60);
-        order.setVoidReason(req.getReason());
-        orderMapper.updateById(order);
+        int voided = orderMapper.update(null, new LambdaUpdateWrapper<DocOrder>()
+                .eq(DocOrder::getId, orderId)
+                .in(DocOrder::getStatus, 10, 20)
+                .set(DocOrder::getStatus, 60)
+                .set(DocOrder::getVoidReason, req.getReason()));
+        if (voided != 1) {
+            throw new BizException(ErrorCode.B6106, "已执行的医嘱不可作废");
+        }
         skipFutureExec(order.getId(), LocalDate.now());
         // 检查申请联动作废（doc → ris 单向，《16》§4.2 承诺）
         risAppService.voidByOrder(orderId);
@@ -371,15 +381,23 @@ public class DocOrderService {
         if (exec.getStatus() == 2) {
             throw new BizException(ErrorCode.B6103, "皮试已登记");
         }
-        exec.setStatus(2);
-        exec.setNurseId(CurrentUser.id());
-        exec.setResult(req.getResult());
-        execMapper.updateById(exec);
+        // 并发双登记只有一笔成功——皮试结果不能被后来者覆盖（八十六轮并发审计 P2-1）
+        int registered = execMapper.update(null, new LambdaUpdateWrapper<DocOrderExec>()
+                .eq(DocOrderExec::getId, execId)
+                .eq(DocOrderExec::getStatus, 1)
+                .set(DocOrderExec::getStatus, 2)
+                .set(DocOrderExec::getNurseId, CurrentUser.id())
+                .set(DocOrderExec::getResult, req.getResult()));
+        if (registered != 1) {
+            throw new BizException(ErrorCode.B6103, "皮试已登记");
+        }
         if ("阳性".equals(req.getResult())) {
-            DocOrder order = requireOrder(exec.getOrderId());
-            order.setStatus(60);
-            order.setVoidReason("皮试阳性，医嘱作废");
-            orderMapper.updateById(order);
+            // 仅赢家作废医嘱：条件更新兜并发（医嘱可能已被并发停止）
+            orderMapper.update(null, new LambdaUpdateWrapper<DocOrder>()
+                    .eq(DocOrder::getId, exec.getOrderId())
+                    .in(DocOrder::getStatus, 10, 20, 30)
+                    .set(DocOrder::getStatus, 60)
+                    .set(DocOrder::getVoidReason, "皮试阳性，医嘱作废"));
         }
     }
 

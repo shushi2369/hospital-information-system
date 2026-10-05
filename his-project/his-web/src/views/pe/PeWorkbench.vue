@@ -4,7 +4,7 @@
       <span class="toolbar-title">体检登记</span>
       <div>
         <el-button v-perm="'pe:package:manage'" type="primary" plain @click="pkgVisible = true">新建套餐</el-button>
-        <el-button v-perm="'pe:record:create'" type="danger" @click="regVisible = true">体检登记</el-button>
+        <el-button v-perm="'pe:record:create'" type="danger" @click="resetRegForm(); regVisible = true">体检登记</el-button>
       </div>
     </div>
 
@@ -68,6 +68,31 @@
       </template>
     </el-dialog>
 
+    <el-dialog v-model="pkgVisible" title="新建体检套餐" width="560px" destroy-on-close>
+      <el-form :model="pkgForm" label-width="80px">
+        <el-form-item label="名称" required>
+          <el-input v-model="pkgForm.name" maxlength="32" />
+        </el-form-item>
+        <el-form-item label="套餐价" required>
+          <el-input-number v-model="pkgForm.price" :min="0" :precision="2" style="width: 200px" />
+        </el-form-item>
+        <el-form-item label="项目" required>
+          <div v-for="(row, i) in pkgForm.items" :key="i" style="display: flex; gap: 8px; margin-bottom: 6px; width: 100%">
+            <el-select v-model="row.chargeItemId" filterable placeholder="收费项目" style="width: 260px" @change="(id: number) => onPkgItemChange(i, id)">
+              <el-option v-for="c in chargeItems" :key="c.id" :value="c.id" :label="`${c.itemCode} ${c.itemName}`" />
+            </el-select>
+            <el-input-number v-model="row.price" :min="0" :precision="2" placeholder="价" style="width: 130px" />
+            <el-button link type="danger" @click="pkgForm.items.splice(i, 1)">删</el-button>
+          </div>
+          <el-button link type="primary" @click="pkgForm.items.push({ chargeItemId: undefined as unknown as number, itemName: '', price: 0 })">+ 加项目</el-button>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="pkgVisible = false">取消</el-button>
+        <el-button type="primary" :loading="pkgSubmitting" @click="handleCreatePackage">创建</el-button>
+      </template>
+    </el-dialog>
+
     <el-dialog v-model="reportVisible" title="总检报告发布" width="520px" destroy-on-close>
       <el-form label-width="90px">
         <el-form-item label="总检结论" required><el-input v-model="reportSummary" type="textarea" :rows="4" /></el-form-item>
@@ -118,6 +143,7 @@ import {
   peStatusLabel, peStatusTagType, publishPeReport, registerPe, savePeResult, startPe,
   type PePackage, type PeRecord,
 } from '@/api/pe'
+import { getChargeItemList, type ChargeItem } from '@/api/basedata'
 
 const loading = ref(false)
 const list = ref<PeRecord[]>([])
@@ -139,6 +165,9 @@ async function fetchPackages() {
 }
 
 const regVisible = ref(false)
+function resetRegForm() {
+  Object.assign(regForm, { patientId: undefined, packageId: undefined, examDate: '' })
+}
 const regForm = reactive<{ patientId?: number; packageId?: number; examDate: string }>({ patientId: undefined, packageId: undefined, examDate: '' })
 
 async function handleRegister() {
@@ -230,8 +259,49 @@ async function openDetail(row: PeRecord) {
 }
 
 const pkgVisible = ref(false)
+const pkgSubmitting = ref(false)
+const pkgForm = reactive<{
+  name: string
+  price: number
+  items: Array<{ chargeItemId: number; itemName: string; price: number }>
+}>({ name: '', price: 0, items: [{ chargeItemId: undefined as unknown as number, itemName: '', price: 0 }] })
+const chargeItems = ref<ChargeItem[]>([])
 
-onMounted(() => { fetchList(); fetchPackages() })
+function onPkgItemChange(index: number, id: number) {
+  const item = chargeItems.value.find((c) => c.id === id)
+  if (item && pkgForm.items[index]) {
+    pkgForm.items[index].itemName = item.itemName
+  }
+}
+
+async function fetchChargeItems() {
+  try {
+    chargeItems.value = await getChargeItemList({ status: 1 })
+  } catch {
+    chargeItems.value = []
+  }
+}
+
+async function handleCreatePackage() {
+  if (!pkgForm.name.trim() || pkgForm.items.length === 0 || pkgForm.items.some((i) => !i.chargeItemId)) {
+    ElMessage.warning('请填写名称并至少选择一个收费项目')
+    return
+  }
+  pkgSubmitting.value = true
+  try {
+    await createPackage({ name: pkgForm.name.trim(), price: pkgForm.price, items: pkgForm.items })
+    ElMessage.success('套餐已创建')
+    pkgVisible.value = false
+    Object.assign(pkgForm, { name: '', price: 0, items: [{ chargeItemId: undefined as unknown as number, itemName: '', price: 0 }] })
+    await fetchPackages()
+  } catch {
+    // 校验错误由拦截器统一提示
+  } finally {
+    pkgSubmitting.value = false
+  }
+}
+
+onMounted(() => { fetchList(); fetchPackages(); fetchChargeItems() })
 </script>
 
 <style scoped>

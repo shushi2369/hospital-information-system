@@ -604,9 +604,18 @@ public class BillingService {
         if (visit != null) {
             resp.setVisitNo(visit.getVisitNo());
         }
-        resp.setDetails(chargeDetailMapper.selectList(new LambdaQueryWrapper<BilChargeDetail>()
-                        .eq(BilChargeDetail::getBillId, billId).orderByAsc(BilChargeDetail::getId))
-                .stream().map(d -> {
+        List<BilChargeDetail> detailRows = chargeDetailMapper.selectList(new LambdaQueryWrapper<BilChargeDetail>()
+                .eq(BilChargeDetail::getBillId, billId).orderByAsc(BilChargeDetail::getId));
+        Map<Long, BigDecimal> refundedQty = new HashMap<>();
+        if (!detailRows.isEmpty()) {
+            for (BilRefundDetail rd : refundDetailMapper.selectList(new LambdaQueryWrapper<BilRefundDetail>()
+                    .in(BilRefundDetail::getChargeDetailId,
+                            detailRows.stream().map(BilChargeDetail::getId).toList()))) {
+                refundedQty.merge(rd.getChargeDetailId(), rd.getRefundQuantity(), BigDecimal::add);
+            }
+        }
+        final Map<Long, BigDecimal> refundedQtyFinal = refundedQty;
+        resp.setDetails(detailRows.stream().map(d -> {
                     BillResponse.Detail item = new BillResponse.Detail();
                     item.setId(d.getId());
                     item.setFeeType(d.getFeeType());
@@ -617,6 +626,7 @@ public class BillingService {
                     item.setUnitPrice(d.getUnitPrice());
                     item.setAmount(d.getAmount());
                     item.setRefundStatus(d.getRefundStatus());
+                    item.setRefundedQty(refundedQtyFinal.getOrDefault(d.getId(), BigDecimal.ZERO));
                     return item;
                 }).toList());
         resp.setPayments(paymentRecordMapper.selectList(new LambdaQueryWrapper<BilPaymentRecord>()

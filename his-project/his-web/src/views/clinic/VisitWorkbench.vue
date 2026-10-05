@@ -132,7 +132,7 @@
           <el-tab-pane label="诊断" name="diagnosis">
             <div class="table-toolbar">
               <span class="toolbar-title">诊断信息</span>
-              <el-button v-if="!readonly" type="primary" size="small" :icon="Plus" @click="openDiagDialog">
+              <el-button v-if="!readonly" v-perm="'clinic:diagnosis:create'" type="primary" size="small" :icon="Plus" @click="openDiagDialog">
                 新增诊断
               </el-button>
             </div>
@@ -150,7 +150,7 @@
               <el-table-column prop="diagnosisName" label="诊断名称" min-width="180" />
               <el-table-column v-if="!readonly" label="操作" width="80" align="center">
                 <template #default="{ row }">
-                  <el-button link type="danger" size="small" @click="handleDeleteDiagnosis(row)">
+                  <el-button link type="danger" size="small" v-perm="'clinic:diagnosis:create'" @click="handleDeleteDiagnosis(row)">
                     删除
                   </el-button>
                 </template>
@@ -162,7 +162,7 @@
           <el-tab-pane label="处方" name="prescription">
             <div class="table-toolbar">
               <span class="toolbar-title">处方信息</span>
-              <el-button v-if="!readonly" type="primary" size="small" :icon="Plus" @click="openRxDialog">
+              <el-button v-if="!readonly" v-perm="'clinic:prescription:create'" type="primary" size="small" :icon="Plus" @click="openRxDialog">
                 新开处方
               </el-button>
             </div>
@@ -220,7 +220,7 @@
           <el-tab-pane label="检查/检验" name="exam">
             <div class="table-toolbar">
               <span class="toolbar-title">检查/检验申请</span>
-              <el-button v-if="!readonly" type="primary" size="small" :icon="Plus" @click="openExamDialog">
+              <el-button v-if="!readonly" v-perm="'clinic:exam:create'" type="primary" size="small" :icon="Plus" @click="openExamDialog">
                 新增申请
               </el-button>
             </div>

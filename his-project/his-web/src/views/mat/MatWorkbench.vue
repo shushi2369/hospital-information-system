@@ -28,7 +28,7 @@
       <el-tab-pane label="采购单" name="purchase">
         <div class="table-toolbar">
           <span class="toolbar-title">采购单</span>
-          <el-button v-perm="'mat:purchase:create'" type="primary" @click="poVisible = true">新建采购</el-button>
+          <el-button v-perm="'mat:purchase:create'" type="primary" @click="resetPoForm(); poVisible = true">新建采购</el-button>
         </div>
         <el-table v-loading="poLoading" :data="purchases" border stripe size="small">
           <el-table-column prop="id" label="ID" width="70" align="center" />
@@ -157,6 +157,9 @@ async function fetchReq() {
 }
 
 const poVisible = ref(false)
+function resetPoForm() {
+  Object.assign(poForm, { supplierId: undefined, materialId: undefined, quantity: 100, unitPrice: 1 })
+}
 const poForm = reactive<{ supplierId?: number; materialId?: number; quantity: number; unitPrice: number }>({ supplierId: undefined, materialId: undefined, quantity: 100, unitPrice: 1 })
 
 async function handleCreatePo() {

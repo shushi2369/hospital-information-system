@@ -272,8 +272,6 @@ public class ClinicService {
         prescriptionMapper.updateById(prescription);
     }
 
-    /** 检查/检验申请（C-09）：项目类别 3检查费→1检查，4检验费→2检验 */
-    @Transactional
     /** 门诊检查/检验申请列表（四期二批：回写状态验证） */
     public List<com.his.modules.clinic.entity.CliExamApplication> listExamApplications(Long visitId) {
         return examApplicationMapper.selectList(new LambdaQueryWrapper<com.his.modules.clinic.entity.CliExamApplication>()
@@ -281,6 +279,8 @@ public class ClinicService {
                 .orderByAsc(com.his.modules.clinic.entity.CliExamApplication::getId));
     }
 
+    /** 检查/检验申请（C-09）：项目类别 3检查费→1检查，4检验费→2检验 */
+    @Transactional
     public ExamCreateResult createExamApplication(Long visitId, ExamApplicationCreateRequest req) {
         CliVisit visit = requireVisitInProgress(visitId);
         ChargeItemDTO item = basedataAppService.getChargeItem(req.getChargeItemId());

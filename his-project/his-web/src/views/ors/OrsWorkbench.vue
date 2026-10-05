@@ -16,7 +16,7 @@
       <el-form-item>
         <el-button type="primary" :icon="Search" @click="handleSearch">查询</el-button>
         <el-button :icon="Refresh" @click="handleReset">重置</el-button>
-        <el-button v-perm="'or:request:create'" type="success" @click="createVisible = true">
+        <el-button v-perm="'or:request:create'" type="success" @click="resetCreateForm(); createVisible = true">
           新建手术申请
         </el-button>
       </el-form-item>
@@ -278,6 +278,9 @@ async function confirmAction(message: string, title: string): Promise<boolean> {
 }
 
 const createVisible = ref(false)
+function resetCreateForm() {
+  Object.assign(createForm, { admissionId: undefined, patientId: undefined, surgeryName: '', diagnosis: '', surgeryItemId: undefined, anesthesiaItemId: undefined, plannedDate: '', anesthesiaMethod: 1 })
+}
 const createForm = reactive({
   admissionId: undefined as number | undefined,
   patientId: undefined as number | undefined,

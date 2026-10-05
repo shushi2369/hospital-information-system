@@ -236,6 +236,8 @@ async function openRefund(row: Admission) {
   refundVisible.value = true
   try {
     const res = await getBillPage({ pageNum: 1, pageSize: 1, admissionId: row.id })
+    // 乱序守卫：响应回来时已切换另一行则丢弃（防 A 住院的应退金额预填进 B 弹窗）
+    if (refundRow.value !== row) return
     const bill = res.list?.[0]
     refundBillTotal.value = bill ? Number(bill.totalAmount) : 0
     refundAmount.value = refundable.value > 0 ? refundable.value : null

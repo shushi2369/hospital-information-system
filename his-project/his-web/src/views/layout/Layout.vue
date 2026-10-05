@@ -113,6 +113,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { clearDynamicRoutes } from '@/router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import {
   ArrowDown,
@@ -232,6 +233,7 @@ async function handleLogout() {
     return
   }
   await userStore.logout()
+  clearDynamicRoutes()
   ElMessage.success('已退出登录')
   router.replace('/login')
 }

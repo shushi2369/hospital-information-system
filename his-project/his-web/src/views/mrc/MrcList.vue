@@ -353,7 +353,8 @@ async function openCodeDialog(row: MrcRecord) {
   // 预填已有首页编码
   try {
     const hp = await getHomepage(row.admissionId)
-    if (hp) {
+    // 乱序守卫：期间用户已切换到另一行则丢弃本次预填（防 A 病案编码写进 B 弹窗）
+    if (hp && codeRow.value === row) {
       codeForm.mainDiagnosisCode = hp.mainDiagnosisCode || ''
       codeForm.mainDiagnosisName = hp.mainDiagnosisName || ''
       codeForm.otherDiagnoses = otherDiagnosesText(hp.otherDiagnoses)

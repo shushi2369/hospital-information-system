@@ -1,6 +1,7 @@
 package com.his.modules.alert.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.his.common.BizException;
 import com.his.common.ErrorCode;
@@ -92,10 +93,15 @@ public class AlertService {
         if (alert.getStatus() != 10) {
             throw new BizException(ErrorCode.A0001, "危急值不在待处理状态");
         }
-        alert.setStatus(20);
-        alert.setNotifiedNurse(CurrentUser.id());
-        alert.setNotifiedAt(LocalDateTime.now());
-        alertMapper.updateById(alert);
+        int updated = alertMapper.update(null, new LambdaUpdateWrapper<AlertCritical>()
+                .eq(AlertCritical::getId, alertId)
+                .eq(AlertCritical::getStatus, 10)
+                .set(AlertCritical::getStatus, 20)
+                .set(AlertCritical::getNotifiedNurse, CurrentUser.id())
+                .set(AlertCritical::getNotifiedAt, LocalDateTime.now()));
+        if (updated != 1) {
+            throw new BizException(ErrorCode.A0001, "危急值状态已变化，请刷新后重试");
+        }
     }
 
     /** 医生确认（W-03）：20 → 30，仅本人管床（管理员豁免） */
@@ -106,10 +112,15 @@ public class AlertService {
             throw new BizException(ErrorCode.A0001, "危急值未完成通知登记");
         }
         checkDoctorScope(alert);
-        alert.setStatus(30);
-        alert.setConfirmedDoctor(CurrentUser.id());
-        alert.setConfirmedAt(LocalDateTime.now());
-        alertMapper.updateById(alert);
+        int updated = alertMapper.update(null, new LambdaUpdateWrapper<AlertCritical>()
+                .eq(AlertCritical::getId, alertId)
+                .eq(AlertCritical::getStatus, 20)
+                .set(AlertCritical::getStatus, 30)
+                .set(AlertCritical::getConfirmedDoctor, CurrentUser.id())
+                .set(AlertCritical::getConfirmedAt, LocalDateTime.now()));
+        if (updated != 1) {
+            throw new BizException(ErrorCode.A0001, "危急值状态已变化，请刷新后重试");
+        }
     }
 
     /** 处置闭环（W-04）：30 → 40 */
@@ -120,9 +131,14 @@ public class AlertService {
             throw new BizException(ErrorCode.A0001, "危急值未确认，不能闭环");
         }
         checkDoctorScope(alert);
-        alert.setStatus(40);
-        alert.setHandleNote(handleNote);
-        alertMapper.updateById(alert);
+        int updated = alertMapper.update(null, new LambdaUpdateWrapper<AlertCritical>()
+                .eq(AlertCritical::getId, alertId)
+                .eq(AlertCritical::getStatus, 30)
+                .set(AlertCritical::getStatus, 40)
+                .set(AlertCritical::getHandleNote, handleNote));
+        if (updated != 1) {
+            throw new BizException(ErrorCode.A0001, "危急值状态已变化，请刷新后重试");
+        }
         pltService.recordEvent("alert.closed", alert.getAlertNo(), "{}");
     }
 

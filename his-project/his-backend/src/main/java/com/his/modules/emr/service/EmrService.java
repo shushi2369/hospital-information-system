@@ -1,6 +1,7 @@
 package com.his.modules.emr.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.his.common.BizException;
 import com.his.common.ErrorCode;
@@ -117,7 +118,15 @@ public class EmrService {
                 }
             }
         }
-        recordMapper.updateById(record);
+        int submitted = recordMapper.update(null, new LambdaUpdateWrapper<EmrRecord>()
+                .eq(EmrRecord::getId, recordId)
+                .in(EmrRecord::getStatus, 10, 40)
+                .set(EmrRecord::getStatus, 20)
+                .set(EmrRecord::getRecordTime, record.getRecordTime())
+                .set(EmrRecord::getQcIssues, record.getQcIssues()));
+        if (submitted != 1) {
+            throw new BizException(ErrorCode.A0001, "文书状态已变化，请刷新后重试");
+        }
     }
 
     /** 质控（E-06）：通过 → 锁定；退回 → 可修改。已归档/借阅病案冻结质控（退回会让封存病历重新可写） */

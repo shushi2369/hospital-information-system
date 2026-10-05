@@ -1,6 +1,7 @@
 package com.his.modules.whse.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.his.common.BizException;
 import com.his.common.ErrorCode;
@@ -82,10 +83,15 @@ public class WhseService {
         if (po.getStatus() != 10) {
             throw new BizException(ErrorCode.A0001, "采购单不在待审批状态");
         }
-        po.setStatus(20);
-        po.setApproverId(CurrentUser.id());
-        po.setApprovedAt(LocalDateTime.now());
-        poMapper.updateById(po);
+        int updated = poMapper.update(null, new LambdaUpdateWrapper<WhsePurchaseOrder>()
+                .eq(WhsePurchaseOrder::getId, poId)
+                .eq(WhsePurchaseOrder::getStatus, 10)
+                .set(WhsePurchaseOrder::getStatus, 20)
+                .set(WhsePurchaseOrder::getApproverId, CurrentUser.id())
+                .set(WhsePurchaseOrder::getApprovedAt, LocalDateTime.now()));
+        if (updated != 1) {
+            throw new BizException(ErrorCode.A0001, "采购单状态已变化，请刷新后重试");
+        }
         pltService.recordEvent("whse.po.approved", po.getPoNo(), "{}");
     }
 
@@ -104,9 +110,15 @@ public class WhseService {
         inbound.setUnitPrice(po.getUnitPrice());
         inbound.setSupplier(supplierName(po.getSupplierId()));
         String inboundNo = inventoryService.inbound(inbound);
-        po.setStatus(30);
-        po.setInboundNo(inboundNo);
-        poMapper.updateById(po);
+        // 双重入库 = 双倍库存：条件更新断言 20→30，并发 receive 只有一笔落库
+        int updated = poMapper.update(null, new LambdaUpdateWrapper<WhsePurchaseOrder>()
+                .eq(WhsePurchaseOrder::getId, poId)
+                .eq(WhsePurchaseOrder::getStatus, 20)
+                .set(WhsePurchaseOrder::getStatus, 30)
+                .set(WhsePurchaseOrder::getInboundNo, inboundNo));
+        if (updated != 1) {
+            throw new BizException(ErrorCode.A0001, "采购单已入库或已取消，请刷新后重试");
+        }
         pltService.recordEvent("whse.po.received", po.getPoNo(),
                 "{\"inboundNo\":\"" + inboundNo + "\"}");
         return inboundNo;
@@ -122,8 +134,14 @@ public class WhseService {
         if (po.getStatus() == 40) {
             throw new BizException(ErrorCode.A0001, "采购单已取消");
         }
-        po.setStatus(40);
-        poMapper.updateById(po);
+        // 条件更新兜并发：审批与取消同时进行时只有一方成功（实体无 @Version，必须显式守卫）
+        int updated = poMapper.update(null, new LambdaUpdateWrapper<WhsePurchaseOrder>()
+                .eq(WhsePurchaseOrder::getId, poId)
+                .in(WhsePurchaseOrder::getStatus, 10, 20)
+                .set(WhsePurchaseOrder::getStatus, 40));
+        if (updated != 1) {
+            throw new BizException(ErrorCode.A0001, "采购单状态已变化，请刷新后重试");
+        }
     }
 
     /** 采购单分页（S-02） */

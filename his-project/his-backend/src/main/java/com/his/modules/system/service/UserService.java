@@ -122,7 +122,9 @@ public class UserService {
         SysUser user = requireUser(id);
         user.setRealName(req.getRealName());
         user.setPhone(req.getPhone());
-        userMapper.updateById(user);
+        if (userMapper.updateById(user) != 1) {
+            throw new BizException(ErrorCode.A0001, "账号已被他人修改，请刷新后重试");
+        }
         if (req.getRoleIds() != null) {
             userRoleMapper.delete(new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getUserId, id));
             bindRoles(id, req.getRoleIds());

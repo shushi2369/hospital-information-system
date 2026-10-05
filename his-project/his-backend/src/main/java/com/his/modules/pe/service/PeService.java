@@ -1,6 +1,7 @@
 package com.his.modules.pe.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -238,8 +239,13 @@ public class PeService {
         report.setReportTime(LocalDateTime.now());
         report.setStatus(20);
         reportMapper.insert(report);
-        record.setStatus(40);
-        recordMapper.updateById(record);
+        int updated = recordMapper.update(null, new LambdaUpdateWrapper<PeRecord>()
+                .eq(PeRecord::getId, id)
+                .eq(PeRecord::getStatus, 30)
+                .set(PeRecord::getStatus, 40));
+        if (updated != 1) {
+            throw new BizException(ErrorCode.A0001, "体检记录状态已变化，请刷新后重试");
+        }
         pltService.recordEvent("pe.report.published", report.getReportNo(), "{}");
         return report.getReportNo();
     }

@@ -4,8 +4,8 @@
       <el-tab-pane label="用血申请" name="req">
         <div class="table-toolbar">
           <span class="toolbar-title">用血申请单</span>
-          <el-button v-perm="'bb:request:create'" type="danger" @click="reqVisible = true">用血申请</el-button>
-          <el-button v-perm="'bb:bags:manage'" link type="primary" @click="bagVisible = true">血袋入库</el-button>
+          <el-button v-perm="'bb:request:create'" type="danger" @click="resetReqForm(); reqVisible = true">用血申请</el-button>
+          <el-button v-perm="'bb:bags:manage'" link type="primary" @click="resetBagForm(); bagVisible = true">血袋入库</el-button>
         </div>
         <el-table v-loading="loading" :data="list" border stripe size="small">
           <el-table-column prop="id" label="ID" width="70" align="center" />
@@ -250,7 +250,7 @@ import {
 import { useUserStore } from '@/stores/user'
 
 const auth = useUserStore()
-const currentUserName = auth.userInfo?.realName ?? String(auth.userInfo?.id ?? '')
+const currentUserName = auth.userInfo?.realName ?? String(auth.userInfo?.userId ?? '')
 
 const tab = ref('req')
 const loading = ref(false)
@@ -280,6 +280,12 @@ const reqVisible = ref(false)
 const reqForm = reactive<{ admissionId?: number; patientId?: number; bloodType: number; rh: number; component: number; volumeMl: number; usePurpose: string }>(
   { admissionId: undefined, patientId: undefined, bloodType: 4, rh: 1, component: 1, volumeMl: 200, usePurpose: '' })
 
+function resetReqForm() {
+  Object.assign(reqForm, { admissionId: undefined, patientId: undefined, bloodType: 4, rh: 1, component: 1, volumeMl: 200, usePurpose: '' })
+}
+function resetBagForm() {
+  Object.assign(bagForm, { bagNo: '', bloodType: 4, rh: 1, component: 1, expireDate: '' })
+}
 async function handleCreateReq() {
   if (!reqForm.admissionId || !reqForm.patientId) {
     ElMessage.warning('请填写就诊与患者')
@@ -392,7 +398,7 @@ async function handleTransfusion() {
     ElMessage.warning('请填写血袋与第二核对签')
     return
   }
-  await startTransfusion(currentRow.id, { bagId: transForm.bagId, checker1Id: auth.userInfo?.id ?? 1, checker2Id: transForm.checker2Id, vitalBefore: transForm.vitalBefore || undefined })
+  await startTransfusion(currentRow.id, { bagId: transForm.bagId, checker1Id: auth.userInfo!.userId, checker2Id: transForm.checker2Id, vitalBefore: transForm.vitalBefore || undefined })
   ElMessage.success('双人双签通过，输注开始')
   transVisible.value = false
   fetchList()
