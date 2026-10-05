@@ -113,6 +113,7 @@ public class PltController {
             pm.put("gender", p.getGender());
             pm.put("birthDate", p.getBirthDate());
             pm.put("phone", com.his.common.util.MaskUtil.maskPhone(p.getPhone()));
+            pm.put("idCardNo", p.getMaskedIdCardNo());
             data.put("patient", pm);
         }
         return R.ok(data);

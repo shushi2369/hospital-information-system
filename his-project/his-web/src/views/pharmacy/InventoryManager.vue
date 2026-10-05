@@ -456,7 +456,8 @@ async function handleInboundSubmit() {
       unitPrice: inboundForm.unitPrice,
       supplier: inboundForm.supplier.trim() || undefined,
     })
-    ElMessage.success(`入库成功，入库单号：${res.inboundNo}`)
+    // 后端 data 直接是入库单号字符串（R<String>）
+    ElMessage.success(`入库成功，入库单号：${res}`)
     inboundDialogVisible.value = false
     fetchBatches()
   } catch {

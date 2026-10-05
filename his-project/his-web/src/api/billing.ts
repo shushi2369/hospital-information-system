@@ -124,10 +124,6 @@ export interface RefundPayload {
   details: RefundDetailPayload[]
 }
 
-export interface RefundResult {
-  refundNo: string
-}
-
 /** 日结执行结果（POST /billing/settlements） */
 export interface SettlementResult {
   settlementNo: string
@@ -193,7 +189,8 @@ export const getBillPage = (params: BillQuery) => get<PageResult<Bill>>('/billin
 export const getBillDetail = (id: number) => get<BillDetail>(`/billing/bills/${id}`)
 
 /** 退费（B3003 退费超限 / B3004 已发药先退药 / B3005 已完成就诊挂号费不可退） */
-export const createRefund = (data: RefundPayload) => post<RefundResult>('/billing/refunds', data)
+// 后端 data 直接是退费单号字符串（R<String>），不是对象
+export const createRefund = (data: RefundPayload) => post<string>('/billing/refunds', data)
 
 export const getRefundPage = (params: RefundQuery) =>
   get<PageResult<RefundBill>>('/billing/refunds', params)

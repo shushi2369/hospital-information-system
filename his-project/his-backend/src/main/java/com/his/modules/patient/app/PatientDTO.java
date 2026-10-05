@@ -17,6 +17,8 @@ public class PatientDTO {
     private Integer gender;
     private LocalDate birthDate;
     private String phone;
+    /** 脱敏身份证号（仅 getById 主索引详情等展示出口填充；列表出口不计算） */
+    private String maskedIdCardNo;
     private String allergyHistory;
     private Integer status;
 }

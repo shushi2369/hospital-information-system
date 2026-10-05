@@ -49,6 +49,8 @@ public class DocOrderService {
     private final DocOrderExecMapper execMapper;
     private final InpAppService inpAppService;
     private final BasedataAppService basedataAppService;
+    private final com.his.modules.patient.app.PatientAppService patientAppService;
+    private final com.his.modules.system.app.SystemAppService systemAppService;
     private final com.his.modules.pharmacy.service.InventoryService inventoryService;
     private final com.his.modules.lis.service.LisService lisAppService;
     private final com.his.modules.ris.service.RisService risAppService;
@@ -391,11 +393,39 @@ public class DocOrderService {
 
     /** 药师审核队列（药品类待审核） */
     public List<DocOrder> reviewQueue() {
-        return orderMapper.selectList(new LambdaQueryWrapper<DocOrder>()
+        List<DocOrder> list = orderMapper.selectList(new LambdaQueryWrapper<DocOrder>()
                 .eq(DocOrder::getCategory, 1)
                 .eq(DocOrder::getStatus, 10)
                 .orderByAsc(DocOrder::getId)
                 .last("LIMIT 100"));
+        fillDisplayNames(list);
+        return list;
+    }
+
+    /** 患者姓名/医生姓名批量回填（裸实体的 ID 列在前端是"幽灵字段"恒显示 '-'，八十六轮契约审计） */
+    private void fillDisplayNames(List<DocOrder> orders) {
+        if (orders.isEmpty()) {
+            return;
+        }
+        java.util.Set<Long> patientIds = new java.util.HashSet<>();
+        java.util.Set<Long> doctorIds = new java.util.HashSet<>();
+        for (DocOrder o : orders) {
+            if (o.getPatientId() != null) {
+                patientIds.add(o.getPatientId());
+            }
+            if (o.getDoctorId() != null) {
+                doctorIds.add(o.getDoctorId());
+            }
+        }
+        Map<Long, com.his.modules.patient.app.PatientDTO> patients = patientAppService
+                .listByIds(new java.util.ArrayList<>(patientIds)).stream()
+                .collect(Collectors.toMap(com.his.modules.patient.app.PatientDTO::getId, p -> p));
+        Map<Long, String> doctors = systemAppService.getUsernameMap(doctorIds);
+        for (DocOrder o : orders) {
+            com.his.modules.patient.app.PatientDTO p = patients.get(o.getPatientId());
+            o.setPatientName(p == null ? null : p.getName());
+            o.setDoctorName(doctors.get(o.getDoctorId()));
+        }
     }
 
     /** 医嘱分页 */
@@ -407,6 +437,7 @@ public class DocOrderService {
                         .eq(query.getCategory() != null, DocOrder::getCategory, query.getCategory())
                         .eq(query.getStatus() != null, DocOrder::getStatus, query.getStatus())
                         .orderByDesc(DocOrder::getId));
+        fillDisplayNames(page.getRecords());
         return PageResult.of(page);
     }
 

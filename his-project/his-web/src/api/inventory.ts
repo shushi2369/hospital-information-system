@@ -16,10 +16,6 @@ export interface InboundPayload {
   supplier?: string
 }
 
-export interface InboundResult {
-  inboundNo: string
-}
-
 /** 库存批次 */
 export interface InventoryBatch {
   id: number
@@ -76,7 +72,8 @@ export interface MovementQuery {
 
 /** 药品入库，返回入库单号 */
 export const createInbound = (data: InboundPayload) =>
-  post<InboundResult>('/inventory/inbound', data)
+  // 后端 data 直接是入库单号字符串（R<String>）
+  post<string>('/inventory/inbound', data)
 
 export const getBatchPage = (params: BatchQuery) =>
   get<PageResult<InventoryBatch>>('/inventory/batches', params)

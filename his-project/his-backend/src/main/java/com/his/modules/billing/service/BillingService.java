@@ -687,6 +687,16 @@ public class BillingService {
                         .eq(query.getSettleDate() != null, BilDailySettlement::getSettleDate, query.getSettleDate())
                         .eq(query.getCashierId() != null, BilDailySettlement::getCashierId, query.getCashierId())
                         .orderByDesc(BilDailySettlement::getId));
+        java.util.Set<Long> cashierIds = new java.util.HashSet<>();
+        for (BilDailySettlement s : page.getRecords()) {
+            if (s.getCashierId() != null) {
+                cashierIds.add(s.getCashierId());
+            }
+        }
+        Map<Long, String> names = systemAppService.getUsernameMap(cashierIds);
+        for (BilDailySettlement s : page.getRecords()) {
+            s.setCashierName(names.get(s.getCashierId()));
+        }
         return PageResult.of(page);
     }
 

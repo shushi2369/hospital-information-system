@@ -449,8 +449,9 @@ async function fetchVitals() {
     vitals.value =
       (await getVitalSigns({
         admissionId: vitalAdmissionId.value,
-        startTime: vitalRange.value?.[0] || undefined,
-        endTime: vitalRange.value?.[1] || undefined,
+        // 日期选择器值是 YYYY-MM-DD，后端收 LocalDateTime——拼接当日起止时刻（契约审计 P1）
+        startTime: vitalRange.value?.[0] ? `${vitalRange.value[0]}T00:00:00` : undefined,
+        endTime: vitalRange.value?.[1] ? `${vitalRange.value[1]}T23:59:59` : undefined,
       })) ?? []
   } catch {
     vitals.value = []

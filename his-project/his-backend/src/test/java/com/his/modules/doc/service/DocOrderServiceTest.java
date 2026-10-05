@@ -53,9 +53,14 @@ class DocOrderServiceTest extends UnitTestBase {
             mock(com.his.modules.cdss.service.CdssService.class);
     private final PltService pltService = mock(PltService.class);
     private final IdGenerator idGenerator = mock(IdGenerator.class);
+    private final com.his.modules.patient.app.PatientAppService patientAppService =
+            mock(com.his.modules.patient.app.PatientAppService.class);
+    private final com.his.modules.system.app.SystemAppService systemAppService =
+            mock(com.his.modules.system.app.SystemAppService.class);
 
     private final DocOrderService service = new DocOrderService(
             orderMapper, itemMapper, execMapper, inpAppService, basedataAppService,
+            patientAppService, systemAppService,
             inventoryService, lisAppService, risAppService, cdssAppService, pltService, idGenerator);
 
     private DocOrder order(int orderClass, int category, int status) {

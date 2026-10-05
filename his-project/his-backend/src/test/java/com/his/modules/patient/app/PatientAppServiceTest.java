@@ -22,8 +22,10 @@ class PatientAppServiceTest {
     private final PatMedicalCardMapper cardMapper = mock(PatMedicalCardMapper.class);
     private final PltMasterIndexMapper pltMasterIndexMapper = mock(PltMasterIndexMapper.class);
 
+    private final com.his.infrastructure.util.CryptoUtil cryptoUtil = mock(com.his.infrastructure.util.CryptoUtil.class);
+
     private final PatientAppService service = new PatientAppService(
-            patientMapper, cardMapper, pltMasterIndexMapper);
+            patientMapper, cardMapper, pltMasterIndexMapper, cryptoUtil);
 
     private PltMasterIndex idx(Long id, Long patientId, Integer mergeFlag, Long mergedInto) {
         PltMasterIndex idx = new PltMasterIndex();

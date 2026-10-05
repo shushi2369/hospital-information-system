@@ -1,5 +1,6 @@
 package com.his.modules.doc.entity;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.Version;
 import com.his.common.BaseEntity;
@@ -12,6 +13,11 @@ import lombok.Setter;
 @TableName("doc_order")
 public class DocOrder extends BaseEntity {
     private String orderNo;
+    /** 展示字段（不入库）：分页/审核队列批量回填（八十六轮契约审计） */
+    @TableField(exist = false)
+    private String patientName;
+    @TableField(exist = false)
+    private String doctorName;
     private Long admissionId;
     private Long patientId;
     private Long doctorId;

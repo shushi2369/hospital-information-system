@@ -24,11 +24,24 @@ public class PatientAppService {
     private final PatPatientMapper patientMapper;
     private final PatMedicalCardMapper cardMapper;
     private final PltMasterIndexMapper pltMasterIndexMapper;
+    private final com.his.infrastructure.util.CryptoUtil cryptoUtil;
 
     /** 六十三轮：EMPI 归一读取——源患者已合并时沿链解析到存活主索引的患者，防合并后病历视图分裂 */
     public PatientDTO getById(Long patientId) {
         PatPatient patient = patientMapper.selectById(resolveActivePatientId(patientId));
-        return patient == null ? null : toDTO(patient);
+        if (patient == null) {
+            return null;
+        }
+        PatientDTO dto = toDTO(patient);
+        // 主索引详情需要展示身份证（脱敏出站）；列表出口不算解密，保持零开销
+        try {
+            String plain = cryptoUtil.decrypt(patient.getIdCardNo());
+            dto.setMaskedIdCardNo(plain == null ? null
+                    : com.his.common.util.MaskUtil.maskIdCard(plain));
+        } catch (Exception e) {
+            dto.setMaskedIdCardNo(null);
+        }
+        return dto;
     }
 
     /**

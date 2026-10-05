@@ -707,7 +707,7 @@ async function handleRefundSubmit() {
       reason: refundForm.reason.trim(),
       details,
     })
-    ElMessage.success(`退费成功，退费单号：${res.refundNo}`)
+    ElMessage.success(`退费成功，退费单号：${res}`)
     refundDialogVisible.value = false
     fetchBills()
   } catch {
