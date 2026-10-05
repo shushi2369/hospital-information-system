@@ -130,6 +130,13 @@ public class MrcService {
         if (admission.getStatus() == 10) {
             throw new BizException(ErrorCode.B6003, "住院在院，不能编码首页");
         }
+        // 归档(20)/借阅中(30)冻结：法定病案首页归档后不可篡改且无版本留痕（八十八轮状态机审计）
+        MrcRecord recordForFreeze = recordMapper.selectOne(new LambdaQueryWrapper<MrcRecord>()
+                .eq(MrcRecord::getAdmissionId, admissionId).last("LIMIT 1"));
+        if (recordForFreeze != null && recordForFreeze.getArchiveStatus() != null
+                && recordForFreeze.getArchiveStatus() != 10) {
+            throw new BizException(ErrorCode.B6303, "病案已归档或借阅中，首页编码冻结");
+        }
         MrcHomepage homepage = homepageMapper.selectOne(new LambdaQueryWrapper<MrcHomepage>()
                 .eq(MrcHomepage::getAdmissionId, admissionId).last("LIMIT 1"));
         if (homepage == null) {
@@ -200,6 +207,10 @@ public class MrcService {
                 .eq(MrcHomepage::getAdmissionId, admissionId).last("LIMIT 1"));
         if (homepage == null || homepage.getCodeTime() == null) {
             throw new BizException(ErrorCode.A0001, "首页尚未编码");
+        }
+        // 归档(20)/借阅中(30)冻结：归档后质控结论不可改写（archive 前置 qcStatus==1 的不变量）
+        if (record.getArchiveStatus() == null || record.getArchiveStatus() != 10) {
+            throw new BizException(ErrorCode.A0001, "病案已归档或借阅中，质控结论冻结");
         }
         int qcStatus = Boolean.TRUE.equals(req.getPass()) ? 1 : 2;
         int updated = recordMapper.update(null, new LambdaUpdateWrapper<MrcRecord>()

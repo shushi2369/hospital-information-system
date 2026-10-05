@@ -78,6 +78,7 @@ public class BillingService {
     private final IdGenerator idGenerator;
     private final com.his.modules.inp.app.InpAppService inpAppService;
     private final com.his.modules.rpt.service.RptService rptService;
+    private final com.his.modules.medins.mapper.MedinsSettleMapper medinsSettleMapper;
 
     /** 未收费就诊列表（B-02 收费窗口工作队列） */
     public List<Map<String, Object>> unpaidVisits() {
@@ -240,6 +241,16 @@ public class BillingService {
         if (bill == null) {
             throw new BizException(ErrorCode.B3007);
         }
+        // 医保门禁（八十八轮状态机审计 P1-3）：已申报(10)/对账通过(20)的账单不可退——
+        // 申报按当时净额支付，事后退费差额无处冲销；须先冲销申报（status 30）再退
+        if (bill.getAdmissionId() != null && medinsSettleMapper != null) {
+            Long activeSettle = medinsSettleMapper.selectCount(new LambdaQueryWrapper<com.his.modules.medins.entity.MedinsSettle>()
+                    .eq(com.his.modules.medins.entity.MedinsSettle::getBillId, bill.getId())
+                    .in(com.his.modules.medins.entity.MedinsSettle::getStatus, 10, 20));
+            if (activeSettle != null && activeSettle > 0) {
+                throw new BizException(ErrorCode.B3003, "该账单已医保申报/对账通过，须先冲销申报再退费");
+            }
+        }
         // 数据范围（《04》§4）：收费员仅能退本人经办账单；管理员豁免（对齐 billPage）
         com.his.infrastructure.security.LoginUser refundUser = com.his.infrastructure.security.CurrentUser.get();
         if (!refundUser.getRoleCodes().contains("ADMIN")
@@ -294,6 +305,10 @@ public class BillingService {
             }
         }
 
+        // 检查/检验申请（sourceType=3）状态批量解析（八十八轮状态机审计 P0-1）
+        Map<Long, Integer> examStatusByAppId = clinicAppService.examStatusByIds(detailById.values().stream()
+                .filter(d -> d.getSourceType() == 3)
+                .map(BilChargeDetail::getSourceDetailId).toList());
         BigDecimal refundTotal = BigDecimal.ZERO;
         List<BilRefundDetail> refundDetails = new ArrayList<>();
         for (RefundRequest.Line line : req.getDetails()) {
@@ -314,6 +329,13 @@ public class BillingService {
                 Integer rxStatus = rxStatusByItemId.get(detail.getSourceDetailId());
                 if (rxStatus != null && rxStatus == 30) {
                     throw new BizException(ErrorCode.B3004, detail.getItemName() + " 已发药，请先到药房退药");
+                }
+            }
+            // 八十八轮状态机审计 P0-1：检查/检验申请费——已执行(30)不可退，服务已提供
+            if (detail.getSourceType() == 3) {
+                Integer examStatus = examStatusByAppId.get(detail.getSourceDetailId());
+                if (examStatus != null && examStatus == 30) {
+                    throw new BizException(ErrorCode.B3003, detail.getItemName() + " 检查/检验已执行，不可退费");
                 }
             }
             // B3005：挂号费/诊察费在就诊开始后不可退（CliVisit 仅在接诊时创建，20 就诊中/30 已完成均拦截）
@@ -765,6 +787,12 @@ public class BillingService {
                 } catch (BizException e) {
                     log.warn("退费联动作废处方失败 rxId={}: {}", entry.getKey(), e.getMessage());
                 }
+            }
+        }
+        // 检查/检验申请费全退 → 联动作废申请(20→50)与未开始的 RIS 检查单(10→50)（八十八轮审计 P0-1 方向B）
+        for (BilChargeDetail d : detailById.values()) {
+            if (d.getSourceType() == 3 && d.getRefundStatus() != null && d.getRefundStatus() == 2) {
+                clinicAppService.voidExamForRefund(d.getSourceDetailId());
             }
         }
         // 挂号费+诊查费全退且未完成就诊 → 挂号单置已退号（R5/R9）

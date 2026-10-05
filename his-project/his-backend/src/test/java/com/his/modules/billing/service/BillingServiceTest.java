@@ -62,7 +62,8 @@ class BillingServiceTest extends UnitTestBase {
             billMapper, chargeDetailMapper, paymentRecordMapper, refundBillMapper,
             refundDetailMapper, settlementMapper, clinicAppService, registrationAppService,
             patientAppService, systemAppService, pltService, risAppService,
-            basedataAppService, idGenerator, inpAppService, rptService);
+            basedataAppService, idGenerator, inpAppService, rptService,
+            mock(com.his.modules.medins.mapper.MedinsSettleMapper.class));
 
     private BillingVisitDTO visit() {
         BillingVisitDTO v = new BillingVisitDTO();

@@ -40,6 +40,7 @@ public class ClinicAppService {
     private final CliPrescriptionMapper prescriptionMapper;
     private final CliPrescriptionItemMapper prescriptionItemMapper;
     private final CliExamApplicationMapper examApplicationMapper;
+    private final com.his.modules.ris.mapper.RisRequestMapper risRequestMapper;
     private final PatientAppService patientAppService;
     private final BasedataAppService basedataAppService;
 
@@ -176,6 +177,48 @@ public class ClinicAppService {
                 .set(CliExamApplication::getStatus, 20)
                 .set(CliExamApplication::getChargeStatus, 1)
                 .set(CliExamApplication::getUpdatedAt, java.time.LocalDateTime.now()));
+    }
+
+    /** 检查申请 ID → 状态（退费校验：已执行(30)不可退——服务已提供） */
+    public Map<Long, Integer> examStatusByIds(Collection<Long> applyIds) {
+        Map<Long, Integer> result = new HashMap<>();
+        if (applyIds == null || applyIds.isEmpty()) {
+            return result;
+        }
+        for (com.his.modules.clinic.entity.CliExamApplication row : examApplicationMapper.selectBatchIds(applyIds)) {
+            result.put(row.getId(), row.getStatus());
+        }
+        return result;
+    }
+
+    /**
+     * 退费联动作废检查申请（八十八轮状态机审计 P0-1）：仅未执行(20)可废；
+     * 联动作废未开始的 RIS 检查单(status=10)——已开始的不可废。
+     * 不抛异常：经代理加入退费宿主事务，异常会标记 rollback-only；竞态仅告警。
+     */
+    public void voidExamForRefund(Long applyId) {
+        com.his.modules.clinic.entity.CliExamApplication exam =
+                examApplicationMapper.selectById(applyId);
+        if (exam == null) {
+            return;
+        }
+        int updated = examApplicationMapper.update(null, new LambdaUpdateWrapper<com.his.modules.clinic.entity.CliExamApplication>()
+                .eq(com.his.modules.clinic.entity.CliExamApplication::getId, applyId)
+                .eq(com.his.modules.clinic.entity.CliExamApplication::getStatus, 20)
+                .set(com.his.modules.clinic.entity.CliExamApplication::getStatus, 50)
+                .set(com.his.modules.clinic.entity.CliExamApplication::getUpdatedAt, java.time.LocalDateTime.now()));
+        if (updated != 1) {
+            org.slf4j.LoggerFactory.getLogger(ClinicAppService.class)
+                    .warn("退费联动作废检查申请跳过（状态已变化）applyId={}", applyId);
+            return;
+        }
+        if (exam.getRisRequestId() != null) {
+            risRequestMapper.update(null, new LambdaUpdateWrapper<com.his.modules.ris.entity.RisRequest>()
+                    .eq(com.his.modules.ris.entity.RisRequest::getId, exam.getRisRequestId())
+                    .eq(com.his.modules.ris.entity.RisRequest::getStatus, 10)
+                    .set(com.his.modules.ris.entity.RisRequest::getStatus, 50)
+                    .set(com.his.modules.ris.entity.RisRequest::getUpdatedAt, java.time.LocalDateTime.now()));
+        }
     }
 
     /** 处方明细 → 处方状态（退费校验 B3004：已发药须先退药） */

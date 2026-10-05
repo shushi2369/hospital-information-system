@@ -360,7 +360,8 @@ public class BbService {
     @Transactional
     public Long adverse(Long id, AdverseRequest req) {
         BbRequest request = requireRequest(id);
-        if (request.getStatus() < 50) {
+        // 仅输血中(50)/已结束(60)可补报；70已取消/80已驳回虽 >50 但从未发血（八十八轮状态机审计）
+        if (request.getStatus() != 50 && request.getStatus() != 60) {
             throw new BizException(ErrorCode.A0001, "血液未发血，无输注不良反应可报");
         }
         BbAdverse adverse = new BbAdverse();

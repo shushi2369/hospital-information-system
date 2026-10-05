@@ -20,6 +20,7 @@ import com.his.modules.inp.mapper.InpWardMapper;
 import com.his.modules.patient.app.PatientAppService;
 import com.his.modules.patient.app.PatientDTO;
 import com.his.modules.plt.service.PltService;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import org.springframework.beans.factory.ObjectProvider;
@@ -30,6 +31,17 @@ import static org.mockito.Mockito.*;
 
 /** InpService 入院登记单测：患者行锁顺序（三十一轮修复）+ 病区/床位校验 + 占床失败。 */
 class InpServiceTest extends UnitTestBase {
+
+    @BeforeAll
+    static void initMpLambdaCache() {
+        // 纯 Mockito 环境无 MP 容器：LambdaUpdateWrapper.set(实体::getter) 需要实体 lambda cache
+        org.apache.ibatis.builder.MapperBuilderAssistant assistant =
+                new org.apache.ibatis.builder.MapperBuilderAssistant(
+                        new com.baomidou.mybatisplus.core.MybatisConfiguration(), "");
+        for (Class<?> entity : new Class<?>[]{com.his.modules.inp.entity.InpAdmission.class}) {
+            com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(assistant, entity);
+        }
+    }
 
     private final InpAdmissionMapper admissionMapper = mock(InpAdmissionMapper.class);
     private final InpBedMapper bedMapper = mock(InpBedMapper.class);
@@ -138,14 +150,15 @@ class InpServiceTest extends UnitTestBase {
         when(dischargeHooks.iterator()).thenReturn(java.util.Collections.<com.his.modules.inp.spi.DischargeCheckHook>emptyList().iterator());
         when(bedMapper.releaseBed(300L, 8641L)).thenReturn(1);
         when(dailyFeeMapper.selectCount(any())).thenReturn(0L);
-        when(admissionMapper.updateById(admission)).thenReturn(1);
+        when(admissionMapper.update(any(), any())).thenReturn(1);
 
         com.his.modules.inp.dto.DischargeRequest req = new com.his.modules.inp.dto.DischargeRequest();
         req.setDischargeWay(1);
         req.setDischargeDiagnosis("治愈出院");
         service.discharge(8641L, req);
 
-        assertEquals(30, admission.getStatus());
+        // 窄列更新：状态落在 wrapper 参数里，不再回写内存实体
+        assertEquals(30, capturedDischargeStatus());
         verify(bedMapper).releaseBed(300L, 8641L);
     }
 
@@ -159,14 +172,14 @@ class InpServiceTest extends UnitTestBase {
         when(dischargeHooks.iterator()).thenReturn(java.util.Collections.<com.his.modules.inp.spi.DischargeCheckHook>emptyList().iterator());
         when(bedMapper.releaseBed(301L, 8642L)).thenReturn(1);
         when(dailyFeeMapper.selectCount(any())).thenReturn(2L); // 有未结费用 → 待结算
-        when(admissionMapper.updateById(admission)).thenReturn(1);
+        when(admissionMapper.update(any(), any())).thenReturn(1);
 
         com.his.modules.inp.dto.DischargeRequest req = new com.his.modules.inp.dto.DischargeRequest();
         req.setDischargeWay(1);
         req.setDischargeDiagnosis("未愈转院");
         service.discharge(8642L, req);
 
-        assertEquals(20, admission.getStatus());
+        assertEquals(20, capturedDischargeStatus());
     }
 
     @Test
@@ -180,5 +193,20 @@ class InpServiceTest extends UnitTestBase {
         BizException e = assertThrows(BizException.class, () -> service.createAdmission(req()));
         assertEquals(ErrorCode.B6001, e.getErrorCode());
         verify(pltService, never()).recordEvent(any(), any(), any());
+    }
+
+    /** 捕获 discharge 窄列更新 wrapper 中的 status 参数值 */
+    @SuppressWarnings("unchecked")
+    private Integer capturedDischargeStatus() {
+        org.mockito.ArgumentCaptor<com.baomidou.mybatisplus.core.conditions.Wrapper<InpAdmission>> captor =
+                org.mockito.ArgumentCaptor.forClass(
+                        (Class<com.baomidou.mybatisplus.core.conditions.Wrapper<InpAdmission>>) (Class<?>) com.baomidou.mybatisplus.core.conditions.Wrapper.class);
+        org.mockito.Mockito.verify(admissionMapper, org.mockito.Mockito.atLeastOnce())
+                .update(org.mockito.ArgumentMatchers.isNull(), captor.capture());
+        com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<InpAdmission> w =
+                (com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<InpAdmission>) captor.getValue();
+        return (Integer) w.getParamNameValuePairs().values().stream()
+                .filter(v -> v instanceof Integer && ((Integer) v) == 30 || v instanceof Integer && ((Integer) v) == 20)
+                .findFirst().orElseThrow();
     }
 }

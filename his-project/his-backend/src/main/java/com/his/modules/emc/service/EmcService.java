@@ -186,6 +186,10 @@ public class EmcService {
     @Transactional
     public void link(Long visitId, LinkRequest req) {
         EmcVisit visit = requireVisit(visitId);
+        // 关档(20)后关联单号冻结：达标统计口径不可事后改动（八十八轮状态机审计）
+        if (visit.getStatus() == null || visit.getStatus() != 10) {
+            throw new BizException(ErrorCode.A0001, "病例已关档，关联信息不可修改");
+        }
         if (req.getAdmissionId() != null) {
             inpAppService.requireAdmission(req.getAdmissionId());
             visit.setAdmissionId(req.getAdmissionId());

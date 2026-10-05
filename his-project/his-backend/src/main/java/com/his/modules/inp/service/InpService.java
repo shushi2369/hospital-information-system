@@ -197,11 +197,14 @@ public class InpService {
         transfer.setStatus(1);
         transferMapper.insert(transfer);
 
-        admission.setDeptId(toWard.getDeptId());
-        admission.setWardId(req.getToWardId());
-        admission.setBedId(req.getToBedId());
-        // @Version 冲突 0 行静默 = 另一床悬挂占用永不释放（八十六轮并发审计），必须断言
-        if (admissionMapper.updateById(admission) != 1) {
+        // 窄列更新（八十八轮状态机审计 P1-2）：全字段回写会把并发补押金的 deposit_total
+        // 用本事务旧快照覆盖（押金蒸发）；@Version 因原子 SQL 不 bump 而拦不住
+        int moved = admissionMapper.update(null, new LambdaUpdateWrapper<InpAdmission>()
+                .eq(InpAdmission::getId, admissionId)
+                .set(InpAdmission::getDeptId, toWard.getDeptId())
+                .set(InpAdmission::getWardId, req.getToWardId())
+                .set(InpAdmission::getBedId, req.getToBedId()));
+        if (moved != 1) {
             throw new BizException(ErrorCode.B6005, "住院状态已变化，请刷新后重试");
         }
         pltService.recordEvent("admission.transferred", admission.getAdmissionNo(),
@@ -231,8 +234,14 @@ public class InpService {
                 .eq(InpDailyFee::getChargeStatus, 0)
                 .eq(InpDailyFee::getStatus, 1));
         boolean autoSettled = unpaidFees == null || unpaidFees == 0;
-        admission.setStatus(autoSettled ? 30 : 20);
-        if (admissionMapper.updateById(admission) != 1) {
+        // 窄列更新（同 transfer：不回写金额列，防并发押金流水被覆盖）
+        int discharged = admissionMapper.update(null, new LambdaUpdateWrapper<InpAdmission>()
+                .eq(InpAdmission::getId, admissionId)
+                .set(InpAdmission::getStatus, autoSettled ? 30 : 20)
+                .set(InpAdmission::getDischargeWay, req.getDischargeWay())
+                .set(InpAdmission::getDischargeDiagnosis, req.getDischargeDiagnosis())
+                .set(InpAdmission::getDischargeTime, admission.getDischargeTime()));
+        if (discharged != 1) {
             throw new BizException(ErrorCode.B6005, "住院状态已变化，请刷新后重试");
         }
         pltService.recordEvent("admission.discharged", admission.getAdmissionNo(),

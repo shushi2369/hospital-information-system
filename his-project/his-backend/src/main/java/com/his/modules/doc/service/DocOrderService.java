@@ -188,6 +188,10 @@ public class DocOrderService {
         if (orderMapper.updateById(order) != 1) {
             throw new BizException(ErrorCode.B4008, "医嘱状态已变化，请刷新后重试");
         }
+        // 驳回(70)=作废路径之一：清理当日已生成的执行单，防死单永挂护士待执行列表
+        if (!Boolean.TRUE.equals(req.getPass())) {
+            skipFutureExec(orderId, LocalDate.now());
+        }
         pltService.recordEvent("order.reviewed", order.getOrderNo(),
                 "{\"pass\":" + req.getPass() + "}");
     }
