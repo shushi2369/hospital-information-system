@@ -14,6 +14,6 @@ import java.util.Map;
 public interface RefundStatMapper {
 
     @Select("SELECT DATE(refund_time) AS `date`, SUM(refund_amount) AS amount FROM bil_refund_bill "
-            + "WHERE refund_time BETWEEN #{s} AND #{e} GROUP BY DATE(refund_time)")
+            + "WHERE refund_time >= #{s} AND refund_time < #{e} GROUP BY DATE(refund_time)")
     List<Map<String, Object>> dailyRefund(LocalDateTime s, LocalDateTime e);
 }

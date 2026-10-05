@@ -30,3 +30,11 @@ his-project/docs/portfolio/面试问答.md
 his-project/docs/portfolio/简历条目.md
 # 会话续接上下文（不上传）
 his-project/prompt3.md
+
+# 会话/私有文件（八十九轮：勿入库）
+prompt*.md
+IDENTITY.md
+USER.md
+.opencode/
+config/mcporter.json
+.zcodeignore

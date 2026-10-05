@@ -102,6 +102,11 @@ def main():
     st, rl = call("GET", "/registrations?patientId=%d&regDate=%s" % (patient_id, today), cashier)
     reg_id = rl["data"]["list"][0]["id"]
     st, r2 = call("POST", "/registrations", cashier, reg_body, idem="e2e-r2-" + uid)
+    # 八十九轮：A0005 幂等键冲突——同键不同载荷必须拒绝（IdempotentAspect 摘要比对）。
+    # 注意：载荷差异必须落在 DTO 真实绑定字段上——未知字段反序列化即被丢弃，摘要不变走快照重放
+    tampered = dict(reg_body); tampered["doctorId"] = 3
+    st, r3 = call("POST", "/registrations", cashier, tampered, idem="e2e-r-" + uid)
+    check("幂等冲突 A0005（同键不同载荷）", r3.get("code") == "A0005", r3)
     check("7. 重复挂号拦截(B1002)", r2["code"] == "B1002", r2)
 
     # ---- 接诊与病历 ----

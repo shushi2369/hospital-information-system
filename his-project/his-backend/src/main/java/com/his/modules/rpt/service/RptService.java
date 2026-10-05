@@ -298,7 +298,7 @@ public class RptService {
     }
 
     /** 失败退避秒数：60s 起指数翻倍，封顶 10 分钟（第 5 次失败即转 FAILED，退避只影响 1~4 次） */
-    private long backoffSeconds(int retryCountAfterIncrement) {
+    static long backoffSeconds(int retryCountAfterIncrement) {
         long seconds = 60L;
         for (int i = 1; i < retryCountAfterIncrement && seconds < 600; i++) {
             seconds *= 2;

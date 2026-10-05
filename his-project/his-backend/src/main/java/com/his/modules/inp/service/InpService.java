@@ -142,7 +142,7 @@ public class InpService {
     public BigDecimal refundDeposit(Long admissionId, DepositRefundRequest req) {
         InpAdmission admission = inpAppService.requireAdmission(admissionId);
         if (admission.getStatus() == null || admission.getStatus() != 30) {
-            throw new BizException(ErrorCode.A0001, "住院未结算，不能退押金");
+            throw new BizException(ErrorCode.B6003, "住院未结算，不能退押金");
         }
         BigDecimal billTotal = BigDecimal.ZERO;
         BilChargeBill bill = billMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<BilChargeBill>()
@@ -152,7 +152,7 @@ public class InpService {
         }
         BigDecimal refundable = admission.getDepositTotal().subtract(billTotal);
         if (req.getAmount().compareTo(refundable) > 0) {
-            throw new BizException(ErrorCode.A0001, "退押金超过应退金额（上限 " + refundable + "）");
+            throw new BizException(ErrorCode.B6007, "退押金超过应退金额（上限 " + refundable + "）");
         }
         saveDeposit(admissionId, req.getAmount().negate(), req.getPayMethod());
         // 上限校验是无锁读：递减必须带 >= amount 守卫并断言，否则并发双退穿透押金账本（八十六轮并发审计）

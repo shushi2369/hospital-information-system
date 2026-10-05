@@ -36,7 +36,7 @@ public class AdmissionFeeTask {
     @Scheduled(cron = "0 20 0 * * ?")
     public void recordBedFees() {
         LocalDate feeDate = LocalDate.now().minusDays(1);
-        LocalDateTime dayEnd = feeDate.atTime(23, 59, 59);
+        LocalDateTime dayEnd = feeDate.plusDays(1).atStartOfDay(); // 半开区间上界（八十七轮审计 P2-1）
         List<InpAdmission> admissions = admissionMapper.selectList(
                 new LambdaQueryWrapper<InpAdmission>().eq(InpAdmission::getStatus, 10));
         int count = 0;

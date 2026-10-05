@@ -227,3 +227,29 @@ LEFT JOIN bas_department d ON h.dept_id = d.id WHERE d.id IS NULL LIMIT 5;
 SELECT 'rpt_stats_invariant' AS chk, d.diff FROM
 (SELECT IFNULL(SUM(status=10),0)+IFNULL(SUM(status=20),0)+IFNULL(SUM(status=30),0)-COUNT(*) AS diff FROM rpt_upload) d
 WHERE d.diff <> 0 LIMIT 5;
+
+-- ============================================================
+-- 23. 八十九轮：账本恒等 + 资源互斥（测试覆盖审计固化）
+-- ============================================================
+-- 退费账恒等：账单退费额 = 退费明细和（部分退费/88轮门禁最易撕开的漂移）
+SELECT 'refund_amount_mismatch' AS chk, b.id FROM bil_charge_bill b
+LEFT JOIN (SELECT bill_id, SUM(refund_amount) s FROM bil_refund_bill GROUP BY bill_id) r ON r.bill_id = b.id
+WHERE b.refund_amount <> IFNULL(r.s, 0) LIMIT 5;
+-- 血袋终态互证：已发/已用血袋必须有且仅有一条发血单；在库血袋不得有发血记录
+SELECT 'issued_bag_without_issue' AS chk, g.id FROM bb_blood_bag g
+WHERE g.status IN (2, 3) AND (SELECT COUNT(*) FROM bb_issue i WHERE i.bag_id = g.id) <> 1 LIMIT 5;
+SELECT 'instock_bag_with_issue' AS chk, g.id FROM bb_blood_bag g
+WHERE g.status = 1 AND EXISTS (SELECT 1 FROM bb_issue i WHERE i.bag_id = g.id) LIMIT 5;
+-- 床位↔在院互斥：非空闲床无在院指向（泄漏）｜在院患者的床显示空闲（幽灵占用）
+SELECT 'bed_occupied_no_admission' AS chk, b.id FROM inp_bed b
+WHERE b.bed_status <> 1 AND NOT EXISTS
+  (SELECT 1 FROM inp_admission a WHERE a.bed_id = b.id AND a.status = 10) LIMIT 5;
+SELECT 'admission_bed_free' AS chk, a.id FROM inp_admission a
+JOIN inp_bed b ON b.id = a.bed_id
+WHERE a.status = 10 AND b.bed_status = 1 LIMIT 5;
+-- 库存非负（FEFO 并发拆分最易撕开）
+SELECT 'negative_stock_qty' AS chk, b.id FROM inv_inventory_batch b WHERE b.quantity < 0 LIMIT 5;
+-- 重复活跃身份（EMPI 反向不变量：该合未合）
+SELECT 'duplicate_active_identity' AS chk, id_card_hash, COUNT(*) c FROM pat_patient
+WHERE status = 1 AND id_card_hash IS NOT NULL
+GROUP BY id_card_hash HAVING c > 1 LIMIT 5;

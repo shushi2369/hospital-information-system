@@ -16,6 +16,9 @@
   <env name="JWT_SECRET" value="dev-only-jwt-secret-please-change-0123456789abcdef"/>
   <env name="AES_KEY" value="QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUE="/>
   <env name="SWAGGER_ENABLED" value="false"/>
+  <!-- 注意：本文件是"本机演示实例"配置——FLYWAY_LOCATIONS 含 demo（演示数据）。
+       生产环境照抄会让演示数据进生产库；生产请按 deploy/部署指南.md §B3 内联模板
+       （FLYWAY_LOCATIONS 仅 classpath:db/migration，密钥换强随机值）。 -->
   <env name="FLYWAY_LOCATIONS" value="classpath:db/migration,classpath:db/demo"/>
   <env name="TZ" value="Asia/Shanghai"/>
   <onfailure action="restart"/>

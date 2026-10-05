@@ -89,19 +89,23 @@ jobs:
         working-directory: his-project/his-backend
         run: |
           mvn -B spring-boot:run &
-          # 本 job 无 Redis 服务，不能用登录接口探活；轮询 V37 迁移完成标记（末位迁移）
+          # 本 job 无 Redis 服务，不能用登录接口探活；轮询"迁移文件数 == 已成功迁移数"（自维护，
+          # 不再钉死单个版本号——88轮审计：钉 V37 会在 V38+ 未执行完时放行，巡检撞"表不存在"）
+          EXPECTED=$(ls src/main/resources/db/migration/V*.sql | wc -l)
           for i in $(seq 1 60); do
-            V=$(mysql -h 127.0.0.1 -uroot -proot123 his -N -e "SELECT success FROM flyway_schema_history WHERE version='37'" 2>/dev/null || true)
-            if [ "$V" = "1" ]; then echo "flyway complete after ${i} polls"; break; fi
+            APPLIED=$(mysql -h 127.0.0.1 -uroot -proot123 his -N -e "SELECT COUNT(*) FROM flyway_schema_history WHERE success=1 AND script LIKE 'V%.sql'" 2>/dev/null || true)
+            FAILED=$(mysql -h 127.0.0.1 -uroot -proot123 his -N -e "SELECT COUNT(*) FROM flyway_schema_history WHERE success=0" 2>/dev/null || true)
+            if [ "${APPLIED:-0}" -ge "$EXPECTED" ] && [ "${FAILED:-0}" = "0" ]; then echo "flyway complete after ${i} polls"; break; fi
             sleep 3
           done
-          V=$(mysql -h 127.0.0.1 -uroot -proot123 his -N -e "SELECT success FROM flyway_schema_history WHERE version='37'" 2>/dev/null || true)
-          if [ "$V" != "1" ]; then echo "Flyway V37 not applied successfully"; exit 1; fi
+          APPLIED=$(mysql -h 127.0.0.1 -uroot -proot123 his -N -e "SELECT COUNT(*) FROM flyway_schema_history WHERE success=1 AND script LIKE 'V%.sql'" 2>/dev/null || true)
+          FAILED=$(mysql -h 127.0.0.1 -uroot -proot123 his -N -e "SELECT COUNT(*) FROM flyway_schema_history WHERE success=0" 2>/dev/null || true)
+          if [ "${APPLIED:-0}" -lt "$EXPECTED" ] || [ "${FAILED:-0}" != "0" ]; then echo "Flyway incomplete: applied=$APPLIED/$EXPECTED failed=$FAILED"; exit 1; fi
         env:
           SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/his?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
           SPRING_DATASOURCE_USERNAME: root
           SPRING_DATASOURCE_PASSWORD: root123
-      - name: Run consistency check (27 segments, expect 0 orphans)
+      - name: Run consistency check (75 segments, expect 0 violations)
         run: |
           mysql -h 127.0.0.1 -uroot -proot123 his < his-project/deploy/db/consistency_check.sql
         env:

@@ -48,7 +48,7 @@ public class PltAppService {
                 .eq(eventType != null && !eventType.isBlank(), PltEventLog::getEventType, eventType)
                 .eq(bizNo != null && !bizNo.isBlank(), PltEventLog::getBizNo, bizNo)
                 .ge(start != null, PltEventLog::getCreatedAt, start)
-                .le(end != null, PltEventLog::getCreatedAt, end)
+                .lt(end != null, PltEventLog::getCreatedAt, end)
                 .orderByDesc(PltEventLog::getId)
                 .last("LIMIT 500"));
     }

@@ -227,8 +227,8 @@ public class PharmacyService {
                                 PhrDispenseOrder::getDispenseNo, LikeEscapeUtil.escape(query.getDispenseNo()))
                         .ge(query.getStartDate() != null, PhrDispenseOrder::getDispenseTime,
                                 query.getStartDate() == null ? null : query.getStartDate().atStartOfDay())
-                        .le(query.getEndDate() != null, PhrDispenseOrder::getDispenseTime,
-                                query.getEndDate() == null ? null : query.getEndDate().atTime(23, 59, 59))
+                        .lt(query.getEndDate() != null, PhrDispenseOrder::getDispenseTime,
+                                query.getEndDate() == null ? null : query.getEndDate().plusDays(1).atStartOfDay())
                         .orderByDesc(PhrDispenseOrder::getId));
         List<Long> rxIds = page.getRecords().stream().map(PhrDispenseOrder::getPrescriptionId).toList();
         Map<Long, String> rxNoById = new HashMap<>();

@@ -30,7 +30,7 @@ public class BillingAppService {
     /** 日收费/退费/净额（按支付与退费时间） */
     public List<DailyRevenueDTO> dailyRevenue(LocalDate start, LocalDate end) {
         LocalDateTime s = start.atStartOfDay();
-        LocalDateTime e = end.atTime(23, 59, 59);
+        LocalDateTime e = end.plusDays(1).atStartOfDay(); // 半开区间 [s, e)：末秒精度安全，升 DATETIME(3) 也不丢行
         Map<LocalDate, DailyRevenueDTO> byDate = new HashMap<>();
         for (Map<String, Object> row : chargeStatMapper.dailyCharge(s, e)) {
             LocalDate date = toLocalDate(row.get("date"));
@@ -51,7 +51,7 @@ public class BillingAppService {
     /** 费用类别分布（区间内收费金额，按 fee_type） */
     public List<DailyRevenueDTO.FeeTypeAmount> feeTypeDistribution(LocalDate start, LocalDate end) {
         LocalDateTime s = start.atStartOfDay();
-        LocalDateTime e = end.atTime(23, 59, 59);
+        LocalDateTime e = end.plusDays(1).atStartOfDay(); // 半开区间 [s, e)：末秒精度安全，升 DATETIME(3) 也不丢行
         List<DailyRevenueDTO.FeeTypeAmount> list = new ArrayList<>();
         for (Map<String, Object> row : chargeStatMapper.feeTypeDistribution(s, e)) {
             DailyRevenueDTO.FeeTypeAmount dto = new DailyRevenueDTO.FeeTypeAmount();
@@ -68,7 +68,7 @@ public class BillingAppService {
         long ps = Math.min(Math.max(1, pageSize), 200);
         long pn = Math.max(1, pageNum);
         LocalDateTime s = start.atStartOfDay();
-        LocalDateTime e = end.atTime(23, 59, 59);
+        LocalDateTime e = end.plusDays(1).atStartOfDay(); // 半开区间 [s, e)：末秒精度安全，升 DATETIME(3) 也不丢行
         long total = chargeStatMapper.detailRowsCount(s, e);
         List<RevenueDetailRowDTO> rows =
                 mapDetailRows(chargeStatMapper.detailRowsPage(s, e, (pn - 1) * ps, ps));
@@ -83,7 +83,7 @@ public class BillingAppService {
     public List<RevenueDetailRowDTO> revenueDetailBatch(LocalDate start, LocalDate end, long offset, int limit) {
         int capped = Math.min(Math.max(1, limit), 1000);
         LocalDateTime s = start.atStartOfDay();
-        LocalDateTime e = end.atTime(23, 59, 59);
+        LocalDateTime e = end.plusDays(1).atStartOfDay(); // 半开区间 [s, e)：末秒精度安全，升 DATETIME(3) 也不丢行
         List<RevenueDetailRowDTO> rows =
                 mapDetailRows(chargeStatMapper.detailRowsPage(s, e, Math.max(0, offset), capped));
         fillPatientNames(rows);

@@ -116,14 +116,21 @@ public class InventoryService {
         return PageResult.of(page, batch -> toVO(batch, drugNames));
     }
 
-    /** 库存预警（F-10）：可用总量 ≤ 药品预警下限（R13） */
+    /** 库存预警（F-10）：可用总量 ≤ 药品预警下限（R13）。
+     *  两查询 + 内存分组（八十七轮资源审计 P2-2：原逐药品查询是 N+1） */
     public List<WarningDTO> warnings() {
         List<WarningDTO> result = new ArrayList<>();
-        for (DrugDTO drug : basedataAppService.listAllDrugs()) {
-            List<InvInventoryBatch> batches = batchMapper.selectList(new LambdaQueryWrapper<InvInventoryBatch>()
-                    .eq(InvInventoryBatch::getDrugId, drug.getId())
-                    .eq(InvInventoryBatch::getStatus, 1)
-                    .orderByAsc(InvInventoryBatch::getExpiryDate));
+        List<DrugDTO> drugs = basedataAppService.listAllDrugs();
+        if (drugs.isEmpty()) {
+            return result;
+        }
+        Map<Long, List<InvInventoryBatch>> batchesByDrug = batchMapper.selectList(
+                        new LambdaQueryWrapper<InvInventoryBatch>()
+                                .eq(InvInventoryBatch::getStatus, 1)
+                                .orderByAsc(InvInventoryBatch::getExpiryDate))
+                .stream().collect(java.util.stream.Collectors.groupingBy(InvInventoryBatch::getDrugId));
+        for (DrugDTO drug : drugs) {
+            List<InvInventoryBatch> batches = batchesByDrug.getOrDefault(drug.getId(), List.of());
             BigDecimal total = batches.stream().map(InvInventoryBatch::getQuantity)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             if (total.compareTo(drug.getStockWarningQty()) <= 0) {
@@ -140,13 +147,19 @@ public class InventoryService {
         return result;
     }
 
-    /** 库存汇总（报表 T-05：全部启用药品的可用总量与预警标记） */
+    /** 库存汇总（报表 T-05）：同样两查询 + 内存分组（八十七轮资源审计 P2-2） */
     public List<WarningDTO> inventorySummary() {
         List<WarningDTO> result = new ArrayList<>();
-        for (DrugDTO drug : basedataAppService.listAllDrugs()) {
-            List<InvInventoryBatch> batches = batchMapper.selectList(new LambdaQueryWrapper<InvInventoryBatch>()
-                    .eq(InvInventoryBatch::getDrugId, drug.getId())
-                    .orderByAsc(InvInventoryBatch::getExpiryDate));
+        List<DrugDTO> drugs = basedataAppService.listAllDrugs();
+        if (drugs.isEmpty()) {
+            return result;
+        }
+        Map<Long, List<InvInventoryBatch>> allBatchesByDrug = batchMapper.selectList(
+                        new LambdaQueryWrapper<InvInventoryBatch>()
+                                .orderByAsc(InvInventoryBatch::getExpiryDate))
+                .stream().collect(java.util.stream.Collectors.groupingBy(InvInventoryBatch::getDrugId));
+        for (DrugDTO drug : drugs) {
+            List<InvInventoryBatch> batches = allBatchesByDrug.getOrDefault(drug.getId(), List.of());
             BigDecimal available = batches.stream()
                     .filter(b -> b.getStatus() == 1)
                     .map(InvInventoryBatch::getQuantity)

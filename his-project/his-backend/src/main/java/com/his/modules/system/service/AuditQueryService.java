@@ -48,7 +48,7 @@ public class AuditQueryService {
                 .eq(module != null && !module.isBlank(), SysOperationLog::getModule, module)
                 .eq(bizId != null && !bizId.isBlank(), SysOperationLog::getBizId, bizId)
                 .ge(startDate != null, SysOperationLog::getCreatedAt, startDate == null ? null : startDate.atStartOfDay())
-                .le(endDate != null, SysOperationLog::getCreatedAt, endDate == null ? null : endDate.atTime(23, 59, 59))
+                .lt(endDate != null, SysOperationLog::getCreatedAt, endDate == null ? null : endDate.plusDays(1).atStartOfDay())
                 .orderByDesc(SysOperationLog::getCreatedAt);
         return operationLogMapper.selectPage(query.toPage(), wrapper);
     }
@@ -59,7 +59,7 @@ public class AuditQueryService {
                 .likeRight(username != null && !username.isBlank(), SysLoginLog::getUsername, LikeEscapeUtil.escape(username))
                 .eq(success != null, SysLoginLog::getSuccess, success)
                 .ge(startDate != null, SysLoginLog::getCreatedAt, startDate == null ? null : startDate.atStartOfDay())
-                .le(endDate != null, SysLoginLog::getCreatedAt, endDate == null ? null : endDate.atTime(23, 59, 59))
+                .lt(endDate != null, SysLoginLog::getCreatedAt, endDate == null ? null : endDate.plusDays(1).atStartOfDay())
                 .orderByDesc(SysLoginLog::getCreatedAt);
         return loginLogMapper.selectPage(query.toPage(), wrapper);
     }

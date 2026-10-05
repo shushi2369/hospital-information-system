@@ -1,13 +1,13 @@
 # 医院信息系统（HIS）
 
-依据《医院信息系统技术指导文档》与 `设计文档/`（24 份）实现的医院信息系统，前后端分离的模块化单体。**18 个业务模块**覆盖门诊→住院→检验→危急值→手术→影像→急诊→输血→体检→CDSS→绩效→法定上报全闭环。
+依据《医院信息系统技术指导文档》与 `设计文档/`（24 份）实现的医院信息系统，前后端分离的模块化单体。**30 个模块包**（18 业务模块 + 平台/横切模块）覆盖门诊→住院→检验→危急值→手术→影像→急诊→输血→体检→CDSS→绩效→法定上报全闭环，并含**五期-lite 区域平台上报**（Mock 网关：触发→投递→受理/退避→重试→统计）。
 
 ## 为什么值得读（工程亮点）
 
-- **质量体系即资产**：九套 API e2e **321 项断言** + 90 项单测 + **57 段数据一致性巡检** + Playwright UI 链路（13 条业务链 41 断言）与 UI 冒烟（全菜单 404 猎手），CI 每次推送全量回归（fail-fast）。
+- **质量体系即资产**：十套 API e2e **298 项断言** + 93 项单测 + **75 段数据一致性巡检** + Playwright UI 链路（7 条业务链 44 断言）与 UI 冒烟（全菜单 404 猎手）+ 并发竞态套件（12 断言），CI 每次推送全量回归（fail-fast）。
 - **资金与库存全服务端硬门禁**：收费/退费行锁与快照、药房 FEFO 拆批扣减、输血三道安全门禁（不相容阻断/签收/双人双签）、物资原子扣减防超卖——前端只是入口。
 - **并发正确性有论证**：幂等组件（失败释放锁）、乐观锁断言、条件更新防丢失更新、患者行锁防双登记；66 轮查验沉淀 **20+ 条系统性 bug 模式**（[docs/lessons/bug-patterns.md](his-project/docs/lessons/bug-patterns.md)）。
-- **可运维性**：一键部署（含旧前端产物引用闭包回收）、健康检查、异盘备份 + 恢复演练（RTO<60s 含一致性验证）、57 段巡检、慢接口治理有前后数据（床位一览 -83%、病案列表 -78%）、**Redis 停机七探针演练**与发号器降级/恢复补偿。
+- **可运维性**：一键部署（优雅停机 + actuator 探活）、健康检查（actuator 零凭据探针）、异盘备份 + 恢复演练（RTO<60s 含一致性验证）、75 段巡检、慢接口治理有前后数据（床位一览 -83%、病案列表 -78%）、**Redis 停机七探针演练**与发号器降级/恢复补偿、AES 密钥轮换脚本（rotate_aes_key.py）。
 - **文档即课程**：[运维手册](his-project/docs/lessons/ops-runbook.md)、[演示剧本](his-project/docs/lessons/demo-script.md)、[bug 模式库](his-project/docs/lessons/bug-patterns.md)——每条模式带机理/真实案例/检查方法；[**系统设计白皮书**](his-project/docs/portfolio/系统设计白皮书.md)、[**ADR 13 条**](his-project/docs/portfolio/ADR.md)面向求职作品集；[**16 课时教案 + 实验手册**](his-project/docs/course/README.md)面向教学。
 
 
@@ -116,20 +116,20 @@ graph LR
 |---|---|
 | 前端 | Vue 3.4 + TypeScript + Element Plus（按需引入）+ Pinia + Axios + Vite 5 |
 | 后端 | Java 17 + Spring Boot 3.2 + Spring Security（JWT）+ MyBatis-Plus 3.5.5（乐观锁/分页） |
-| 存储 | MySQL 8.0（Flyway 迁移 V1~V36，104 张表）+ Redis（会话/幂等/限流） |
+| 存储 | MySQL 8.0（Flyway 迁移 V1~V50 共 43 个，104 张表）+ Redis（会话/幂等/限流） |
 | 横切 | 统一响应/错误码（A/B/C 三段 80+）、traceId、幂等切面（X-Idempotency-Key）、审计切面（异步落库+脱敏）、定时任务（过号/床位费/长期医嘱计划/批次效期） |
 
 ## 3. 工程结构
 
 ```
 ├── his-project/
-│   ├── his-backend/       Spring Boot 后端（18 个业务模块，271 个 REST 接口）
-│   │   ├── src/main/java/com/his/modules/  # 18 个业务模块 + infrastructure + common
+│   ├── his-backend/       Spring Boot 后端（30 个模块包，267 个 REST 接口）
+│   │   ├── src/main/java/com/his/modules/  # 18 业务模块 + platform/横切模块 + infrastructure + common
 │   │   └── src/main/resources/db/
-│   │       ├── migration/  # V1~V36 全环境迁移（104 张表、菜单权限、四期扩展）
+│   │       ├── migration/  # V1~V50 全环境迁移（104 张表、菜单权限、五期-lite）
 │   │       ├── demo/       # V3/V8/V15/V19/V24/V30 演示数据（仅 dev/test 加载）
 │   │       └── perf/       # 大数据量灌入脚本（5 万患者）
-│   │   └── src/test/       # 48 项单测（7 个测试类）
+│   │   └── src/test/       # 93 项单测（17 个测试类）
 │   ├── his-web/           # Vue 3 前端（40+ 页面 / 27 个 API 模块）
 │   ├── deploy/
 │   │   ├── deploy.sh       # 一键部署（停服→备份→替换→启动→健康检查）
@@ -171,17 +171,20 @@ cd his-project/his-web && npm install && npm run dev
 
 | 脚本 | 覆盖 | 结果 |
 |---|---|---|
-| `python deploy/e2e/e2e_acceptance.py` | 一期门诊闭环 40 项断言 | 40/40 |
-| `python deploy/e2e/e2e_phase2.py` | 二期住院闭环 42 项断言 | 42/42 |
+| `python deploy/e2e/e2e_acceptance.py` | 一期门诊闭环 43 项断言 | 43/43 |
+| `python deploy/e2e/e2e_phase2.py` | 二期住院闭环 45 项断言 | 45/45 |
 | `python deploy/e2e/e2e_phase3.py` | 三期一批 28 项断言 | 28/28 |
 | `python deploy/e2e/e2e_phase3b.py` | 三期二批 57 项断言 | 57/57 |
 | `python deploy/e2e/e2e_phase3c.py` | 三期三批 45 项断言 | 45/45 |
 | `python deploy/e2e/e2e_phase4.py` | 四期 43 项断言 | 43/43 |
+| `python deploy/e2e/e2e_phase4b.py` | 四期三模块（含会诊受邀医生守卫）27 项断言 | 27/27 |
+| `python deploy/e2e/e2e_phase5.py` | 五期-lite 区域上报（退避/重试耗尽/统计口径）9 项断言 | 9/9 |
 | `python deploy/e2e/fix_regression.py` | 修复回归复验 24 项断言 | 24/24 |
-| `python deploy/e2e/concurrency_test.py` | 并发安全 8 项断言 | 8/8 |
-| `mvn test` | 核心域单测 48 项（Bb 12 + Ors 5 + Mat 4 + Pub 8 + Ae 6 + Cnt 3 + Mask 5 + Crypto 5） | 48/48 |
+| `python deploy/e2e/concurrency_test.py` | 并发安全 12 项断言 | 12/12 |
+| `python deploy/e2e/ui_chain_smoke.py` | Playwright UI 业务链 44 项断言 | 44/44 |
+| `mvn test` | 核心域单测 93 项（17 个测试类，含 rpt 退避序列/EMR 归属/会诊门禁） | 93/93 |
 | `python deploy/perf/perf_test.py` | 100 并发压测（5 万患者数据量下） | PASS |
-| 一致性巡检 | 27 段孤儿引用扫描 + 5 段状态一致性 | 零孤儿 |
+| 一致性巡检 | 75 段孤儿引用/状态一致性/账本恒等/资源互斥 | 零违规 |
 | 恢复演练 | RTO=9s / RPO≤24h / 99 表一致 | PASS |
 | 渗透自查 | Mass Assignment / SQL 注入 / XSS / PHI 泄露 | 全过 |
 
@@ -208,7 +211,7 @@ cd his-project/his-web && npm install && npm run dev
 
 ## 9. 已知限制
 
-- 互联网医院 C 端、AI 辅助（阅片/病历质控）、信创迁移：需外部资源，五期评估
+- 互联网医院 C 端、AI 辅助（阅片/病历质控）、信创迁移：需外部资源，后续评估。**区域平台上报已按五期-lite 落地**（MOCK 网关：传染病卡/病案归档/出院结算触发 → 投递 → QY 受理 → 失败指数退避 → 重试耗尽告警 → 手动重报；V44/V45/V50 迁移 + 9 项 e2e 断言），真实网关（WS/T 标准）留接口位
 - 输血反应实验室联动、患者血型档案：四期二批评估
 - 医保为 Mock 通道（真实 SDK 按当地平台规范联调）
 - 门诊欠费挂账/催缴：未实现（住院结算完整）

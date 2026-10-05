@@ -136,6 +136,6 @@ public class PltController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
         return R.ok(pltAppService.listEvents(eventType, bizNo,
                 startDate == null ? null : startDate.atStartOfDay(),
-                endDate == null ? null : endDate.atTime(23, 59, 59)));
+                endDate == null ? null : endDate.plusDays(1).atStartOfDay()));
     }
 }

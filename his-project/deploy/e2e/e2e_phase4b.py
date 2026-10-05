@@ -112,6 +112,19 @@ def main():
     check("16. 终态 30 + 意见落显", cdone is not None and cdone.get("opinion"), cdone)
     st, r = call("POST", "/cnt/requests/%d/accept" % creq["id"], admin, idem="p4b-c4-" + uid)
     check("17. 守卫：已完成不可再接受", r["code"] != "OK", r)
+    # 八十九轮：会诊意见仅受邀医生可填（88轮 P1-3 固化）——非受邀非 admin 的 dr.li 完成被拒
+    st, r2c = call("POST", "/cnt/requests", admin, {"admissionId": adm["id"],
+                   "patientId": adm["patientId"], "deptId": 1, "consultDoctorId": 2,
+                   "urgent": 1, "reason": "p4b 会诊受邀校验"}, idem="p4b-c5-" + uid)
+    creq2 = None
+    st, cp3 = call("GET", "/cnt/requests?status=10&pageNum=1&pageSize=50", admin)
+    creq2 = next((x for x in cp3["data"]["list"] if x["reason"] == "p4b 会诊受邀校验"), None)
+    if creq2:
+        call("POST", "/cnt/requests/%d/accept" % creq2["id"], admin, idem="p4b-c6-" + uid)
+        dr_li = login("dr.li")
+        st, r3c = call("POST", "/cnt/requests/%d/complete?opinion=%s"
+                       % (creq2["id"], urllib.parse.quote("越权意见")), dr_li, idem="p4b-c7-" + uid)
+        check("17b. 守卫：非受邀医生填写会诊意见被拒(A0003)", r3c.get("code") == "A0003", r3c)
 
     # ================= C. 不良事件 =================
     st, r = call("POST", "/ae", admin, {"eventType": 9, "severity": 2, "departmentId": 1,

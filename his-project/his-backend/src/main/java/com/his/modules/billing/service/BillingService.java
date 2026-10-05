@@ -416,13 +416,14 @@ public class BillingService {
             throw new BizException(ErrorCode.B3006);
         }
         LocalDateTime start = req.getSettleDate().atStartOfDay();
-        LocalDateTime end = req.getSettleDate().atTime(23, 59, 59);
+        // 半开区间 [start, next)：末秒精度安全（八十七轮 SQL 审计 P2-1）
+        LocalDateTime end = req.getSettleDate().plusDays(1).atStartOfDay();
         List<BilChargeBill> bills = billMapper.selectList(new LambdaQueryWrapper<BilChargeBill>()
                 .eq(BilChargeBill::getCashierId, cashierId)
-                .ge(BilChargeBill::getPayTime, start).le(BilChargeBill::getPayTime, end));
+                .ge(BilChargeBill::getPayTime, start).lt(BilChargeBill::getPayTime, end));
         List<BilRefundBill> refunds = refundBillMapper.selectList(new LambdaQueryWrapper<BilRefundBill>()
                 .eq(BilRefundBill::getOperatorId, cashierId)
-                .ge(BilRefundBill::getRefundTime, start).le(BilRefundBill::getRefundTime, end));
+                .ge(BilRefundBill::getRefundTime, start).lt(BilRefundBill::getRefundTime, end));
         BigDecimal chargeTotal = bills.stream().map(BilChargeBill::getPayableAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal refundTotal = refunds.stream().map(BilRefundBill::getRefundAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -567,7 +568,7 @@ public class BillingService {
                         .eq(query.getAdmissionId() != null, BilChargeBill::getAdmissionId, query.getAdmissionId())
                         .eq(query.getCashierId() != null, BilChargeBill::getCashierId, query.getCashierId())
                         .ge(query.getStartDate() != null, BilChargeBill::getPayTime, query.getStartDate() == null ? null : query.getStartDate().atStartOfDay())
-                        .le(query.getEndDate() != null, BilChargeBill::getPayTime, query.getEndDate() == null ? null : query.getEndDate().atTime(23, 59, 59))
+                        .lt(query.getEndDate() != null, BilChargeBill::getPayTime, query.getEndDate() == null ? null : query.getEndDate().plusDays(1).atStartOfDay())
                         .orderByDesc(BilChargeBill::getId));
         Map<Long, String> cashierNames = systemAppService.getUsernameMap(
                 page.getRecords().stream().map(BilChargeBill::getCashierId).toList());
@@ -692,7 +693,7 @@ public class BillingService {
                         .eq(query.getBillId() != null, BilRefundBill::getBillId, query.getBillId())
                         .eq(query.getOperatorId() != null, BilRefundBill::getOperatorId, query.getOperatorId())
                         .ge(query.getStartDate() != null, BilRefundBill::getRefundTime, query.getStartDate() == null ? null : query.getStartDate().atStartOfDay())
-                        .le(query.getEndDate() != null, BilRefundBill::getRefundTime, query.getEndDate() == null ? null : query.getEndDate().atTime(23, 59, 59))
+                        .lt(query.getEndDate() != null, BilRefundBill::getRefundTime, query.getEndDate() == null ? null : query.getEndDate().plusDays(1).atStartOfDay())
                         .orderByDesc(BilRefundBill::getId));
         Map<Long, String> operatorNames = systemAppService.getUsernameMap(
                 page.getRecords().stream().map(BilRefundBill::getOperatorId).toList());

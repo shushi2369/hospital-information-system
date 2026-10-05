@@ -15,12 +15,12 @@ import java.util.Map;
 public interface ChargeStatMapper {
 
     @Select("SELECT DATE(pay_time) AS `date`, SUM(payable_amount) AS amount FROM bil_charge_bill "
-            + "WHERE pay_time BETWEEN #{s} AND #{e} GROUP BY DATE(pay_time)")
+            + "WHERE pay_time >= #{s} AND pay_time < #{e} GROUP BY DATE(pay_time)")
     List<Map<String, Object>> dailyCharge(LocalDateTime s, LocalDateTime e);
 
     @Select("SELECT fee_type AS feeType, SUM(amount) AS amount FROM bil_charge_detail d "
             + "JOIN bil_charge_bill b ON d.bill_id = b.id "
-            + "WHERE b.pay_time BETWEEN #{s} AND #{e} GROUP BY fee_type")
+            + "WHERE b.pay_time >= #{s} AND b.pay_time < #{e} GROUP BY fee_type")
     List<Map<String, Object>> feeTypeDistribution(LocalDateTime s, LocalDateTime e);
 
     /** 收入明细分页：UNION ALL 合并收费明细行与退费单行，SQL 侧 LIMIT/OFFSET 真分页
@@ -30,16 +30,16 @@ public interface ChargeStatMapper {
             + "SELECT b.pay_time AS payTime, b.bill_no AS billNo, b.patient_id AS patientId, "
             + "d.item_name AS itemName, d.fee_type AS feeType, d.quantity, d.unit_price AS unitPrice, d.amount, NULL AS reason, b.id AS tieKey "
             + "FROM bil_charge_detail d JOIN bil_charge_bill b ON d.bill_id = b.id "
-            + "WHERE b.pay_time BETWEEN #{s} AND #{e} "
+            + "WHERE b.pay_time >= #{s} AND b.pay_time < #{e} "
             + "UNION ALL "
             + "SELECT r.refund_time, r.refund_no, r.patient_id, CONCAT('退费：', r.reason), "
             + "NULL, NULL, NULL, r.refund_amount, r.reason, r.id AS tieKey "
-            + "FROM bil_refund_bill r WHERE r.refund_time BETWEEN #{s} AND #{e}"
+            + "FROM bil_refund_bill r WHERE r.refund_time >= #{s} AND r.refund_time < #{e}"
             + ") t ORDER BY t.payTime DESC, t.tieKey DESC LIMIT #{offset}, #{limit}")
     List<Map<String, Object>> detailRowsPage(LocalDateTime s, LocalDateTime e, long offset, long limit);
 
     @Select("SELECT (SELECT COUNT(*) FROM bil_charge_detail d JOIN bil_charge_bill b ON d.bill_id = b.id "
-            + "WHERE b.pay_time BETWEEN #{s} AND #{e}) "
-            + "+ (SELECT COUNT(*) FROM bil_refund_bill r WHERE r.refund_time BETWEEN #{s} AND #{e})")
+            + "WHERE b.pay_time >= #{s} AND b.pay_time < #{e}) "
+            + "+ (SELECT COUNT(*) FROM bil_refund_bill r WHERE r.refund_time >= #{s} AND r.refund_time < #{e})")
     long detailRowsCount(LocalDateTime s, LocalDateTime e);
 }
