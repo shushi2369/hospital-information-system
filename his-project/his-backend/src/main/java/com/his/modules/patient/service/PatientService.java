@@ -58,9 +58,10 @@ public class PatientService {
             // EMPI：建档即注册患者主索引（平台层）
             pltAppService.registerMpi(patient.getId());
         } catch (org.springframework.dao.DuplicateKeyException e) {
-            // 并发建档撞 id_card_hash 唯一索引：预检查窗口兜底
+            // 并发建档撞 id_card_hash 唯一索引：预检查窗口兜底（existing 必为 null，重新查取建档号）
+            PatPatient winner = patientMapper.selectByIdCardHash(hash);
             throw new BizException(ErrorCode.B1001,
-                    "该身份证已建档（建档号 " + existing.getPatientNo() + "，患者 " + existing.getName() + "）");
+                    "该身份证已建档（建档号 " + (winner != null ? winner.getPatientNo() : "未知") + "）");
         }
         return patient.getPatientNo();
     }

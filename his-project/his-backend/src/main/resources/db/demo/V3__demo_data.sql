@@ -28,9 +28,9 @@ INSERT INTO bas_department (id, org_id, dept_code, dept_name, dept_type, locatio
 
 -- ---------- 医生（绑定登录账号） ----------
 INSERT INTO bas_doctor (id, user_id, dept_id, doctor_code, doctor_name, title, is_expert, normal_fee, expert_fee, daily_quota, status) VALUES
-(1, 2, 1, 'D0001', '王志远', '主任医师', 1, 10.00, 20.00, 500, 1),
-(2, 3, 1, 'D0002', '李建国', '主治医师', 0, 10.00, 20.00, 500, 1),
-(3, 4, 3, 'D0003', '陈静',   '主治医师', 0, 10.00, 20.00, 500, 1);
+(1, 2, 1, 'D0001', '王志远', '主任医师', 1, 10.00, 20.00, 30, 1),
+(2, 3, 1, 'D0002', '李建国', '主治医师', 0, 10.00, 20.00, 40, 1),
+(3, 4, 3, 'D0003', '陈静',   '主治医师', 0, 10.00, 20.00, 40, 1);
 
 -- ---------- 药品（《05》演示脚本口径） ----------
 INSERT INTO bas_drug (id, drug_code, drug_name, generic_name, spec, dosage_form, category, manufacturer, unit, retail_price, stock_warning_qty, is_antibiotic, status) VALUES

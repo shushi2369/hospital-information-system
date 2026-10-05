@@ -52,9 +52,8 @@ sleep 35
 echo "[Step 5/6] 健康检查..."
 for i in $(seq 1 6); do
     HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-        -X POST "http://localhost:8080/api/v1/auth/login" \
-        -H "Content-Type: application/json" \
-        -d '{"username":"admin","password":"His@2026"}' 2>/dev/null || echo "000")
+        "http://localhost:8080/actuator/health" 2>/dev/null)
+    [ -z "$HTTP_CODE" ] && HTTP_CODE="000"
     if [ "$HTTP_CODE" = "200" ]; then
         echo "  API 正常 (200)"
         break

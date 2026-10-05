@@ -1,0 +1,19 @@
+<service>
+  <id>HIS-Backend</id>
+  <name>HIS Backend</name>
+  <description>医院信息系统后端（Spring Boot）</description>
+  <executable>C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot\bin\java.exe</executable>
+  <!-- stoptimeout 必须大于 spring.lifecycle.timeout-per-shutdown-phase（application.yml 中 20s）：
+       停服时 WinSW 先向 JVM 发 Ctrl+Break 触发优雅停机（Tomcat 等待在途请求），
+       超过 stoptimeout 才强杀。不配置时默认 15s，会把优雅窗口截断，
+       在 net.dll 关闭 socket 时可能触发 EXCEPTION_ACCESS_VIOLATION 崩溃（已实测复现）。 -->
+  <arguments>-Xms768m -Xmx1536m -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=C:\his-runtime\backend\logs -jar C:\his-runtime\backend\app.jar</arguments>
+  <stoptimeout>25000</stoptimeout>
+  <env name="DB_PASSWORD" value="root123"/>
+  <env name="JWT_SECRET" value="dev-only-jwt-secret-please-change-0123456789abcdef"/>
+  <env name="AES_KEY" value="QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUE="/>
+  <env name="FLYWAY_LOCATIONS" value="classpath:db/migration,classpath:db/demo"/>
+  <env name="TZ" value="Asia/Shanghai"/>
+  <onfailure action="restart"/>
+  <logpath>C:\his-runtime\backend\logs</logpath>
+</service>
