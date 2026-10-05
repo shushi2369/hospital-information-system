@@ -114,7 +114,9 @@ public class RptService {
         }
     }
 
-    /** 手动触发一批投递（管理端/e2e 用），返回本批成功数。limit 钳制防一次拖垮调度线程 */
+    /** 手动触发一批投递（管理端/e2e 用），返回本批成功数。limit 钳制防一次拖垮调度线程。
+     *  优先投"从未投过"的新行（next_retry_at IS NULL）：老失败行靠退避滞留 PENDING 时
+     *  不占用新上报的首投窗口（八十八轮实测：退避上线后队头阻塞反而恶化，此为正解） */
     public int deliverBatch(int limit) {
         if (!"MOCK".equals(gatewayMode) && (gatewayUrl == null || gatewayUrl.isBlank())) {
             return 0;
@@ -122,8 +124,22 @@ public class RptService {
         int capped = Math.min(Math.max(1, limit), 500);
         List<RptUpload> pending = uploadMapper.selectList(new LambdaQueryWrapper<RptUpload>()
                 .eq(RptUpload::getStatus, RptUpload.STATUS_PENDING)
+                .isNull(RptUpload::getNextRetryAt)
                 .orderByAsc(RptUpload::getId)
                 .last("LIMIT " + capped));
+        if (pending.size() < capped) {
+            java.util.Set<Long> taken = pending.stream().map(RptUpload::getId).collect(java.util.stream.Collectors.toSet());
+            List<RptUpload> retriable = uploadMapper.selectList(new LambdaQueryWrapper<RptUpload>()
+                    .eq(RptUpload::getStatus, RptUpload.STATUS_PENDING)
+                    .isNotNull(RptUpload::getNextRetryAt)
+                    .orderByAsc(RptUpload::getId)
+                    .last("LIMIT " + (capped - pending.size())));
+            for (RptUpload up : retriable) {
+                if (taken.add(up.getId())) {
+                    pending.add(up);
+                }
+            }
+        }
         int ok = 0;
         for (RptUpload up : pending) {
             if (deliverOne(up)) {

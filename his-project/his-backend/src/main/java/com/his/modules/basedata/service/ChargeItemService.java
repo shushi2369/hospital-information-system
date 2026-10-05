@@ -53,7 +53,7 @@ public class ChargeItemService {
         try {
             chargeItemMapper.insert(item);
         } catch (org.springframework.dao.DuplicateKeyException e) {
-            throw new BizException(ErrorCode.A0001, "收费项目编码已存在");
+            throw new BizException(ErrorCode.B5001);
         }
         return item;
     }

@@ -105,7 +105,7 @@ public class MatService {
         material.setSafeStock(req.getSafeStock());
         material.setStatus(req.getStatus() == null ? material.getStatus() : req.getStatus());
         if (materialMapper.updateById(material) != 1) {
-            throw new BizException(ErrorCode.A0001, "物资已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "物资已变化，请刷新后重试");
         }
     }
 
@@ -151,7 +151,7 @@ public class MatService {
         po.setApproverId(CurrentUser.id());
         po.setApprovedAt(LocalDateTime.now());
         if (purchaseMapper.updateById(po) != 1) {
-            throw new BizException(ErrorCode.A0001, "采购单状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "采购单状态已变化，请刷新后重试");
         }
         pltService.recordEvent("mat.purchase.approved", po.getPoNo(), "{}");
     }
@@ -168,7 +168,7 @@ public class MatService {
         }
         po.setStatus(30);
         if (purchaseMapper.updateById(po) != 1) {
-            throw new BizException(ErrorCode.A0001, "采购单状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "采购单状态已变化，请刷新后重试");
         }
         addStock(po.getMaterialId(), po.getQuantity());
         // 批次明细：未传批次号时以默认批次兼容（效期 +1 年）
@@ -208,7 +208,7 @@ public class MatService {
         }
         po.setStatus(40);
         if (purchaseMapper.updateById(po) != 1) {
-            throw new BizException(ErrorCode.A0001, "采购单状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "采购单状态已变化，请刷新后重试");
         }
     }
 

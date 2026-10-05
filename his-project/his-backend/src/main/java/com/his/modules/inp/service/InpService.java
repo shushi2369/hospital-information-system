@@ -161,7 +161,7 @@ public class InpService {
                 .ge(InpAdmission::getDepositTotal, req.getAmount())
                 .setSql("deposit_total = deposit_total - {0}", req.getAmount()));
         if (decreased != 1) {
-            throw new BizException(ErrorCode.A0001, "押金余额已变化，退押金失败，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "押金余额已变化，退押金失败，请刷新后重试");
         }
         return admission.getDepositTotal().subtract(req.getAmount());
     }

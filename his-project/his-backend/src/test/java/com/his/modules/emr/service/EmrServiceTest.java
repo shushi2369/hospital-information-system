@@ -73,7 +73,7 @@ class EmrServiceTest {
         when(mrcRecordMapper.selectOne(any())).thenReturn(mrc(10));
         when(recordMapper.updateById(any(EmrRecord.class))).thenReturn(0); // 乐观锁失败
 
-        assertEquals(ErrorCode.A0001, assertThrows(() -> service.update(1L, req())).getErrorCode());
+        assertEquals(ErrorCode.A0008, assertThrows(() -> service.update(1L, req())).getErrorCode());
     }
 
     @Test

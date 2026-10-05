@@ -115,7 +115,7 @@ public class UserService {
         try {
             userMapper.insert(user);
         } catch (org.springframework.dao.DuplicateKeyException e) {
-            throw new BizException(ErrorCode.A0001, "用户名已存在");
+            throw new BizException(ErrorCode.B5003);
         }
         bindRoles(user.getId(), req.getRoleIds());
         return user.getId();
@@ -127,7 +127,7 @@ public class UserService {
         user.setRealName(req.getRealName());
         user.setPhone(req.getPhone());
         if (userMapper.updateById(user) != 1) {
-            throw new BizException(ErrorCode.A0001, "账号已被他人修改，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "账号已被他人修改，请刷新后重试");
         }
         if (req.getRoleIds() != null) {
             userRoleMapper.delete(new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getUserId, id));

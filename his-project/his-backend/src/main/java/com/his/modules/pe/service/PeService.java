@@ -76,7 +76,7 @@ public class PeService {
         pkg.setPrice(req.getPrice());
         pkg.setItems(writeItems(req.getItems()));
         if (packageMapper.updateById(pkg) != 1) {
-            throw new BizException(ErrorCode.A0001, "套餐已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "套餐已变化，请刷新后重试");
         }
     }
 
@@ -146,7 +146,7 @@ public class PeService {
         }
         record.setStatus(20);
         if (recordMapper.updateById(record) != 1) {
-            throw new BizException(ErrorCode.A0001, "状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "状态已变化，请刷新后重试");
         }
     }
 
@@ -185,7 +185,7 @@ public class PeService {
                 resultMapper.insert(result);
             } catch (org.springframework.dao.DuplicateKeyException e) {
                 // 并发双录撞 uk_peresult：预检窗口兜底（bug 模式 13）
-                throw new BizException(ErrorCode.A0001, "该项目已录入，请刷新后重试");
+                throw new BizException(ErrorCode.A0008, "该项目已录入，请刷新后重试");
             }
         } else {
             resultMapper.updateById(result);
@@ -215,7 +215,7 @@ public class PeService {
         }
         record.setStatus(30);
         if (recordMapper.updateById(record) != 1) {
-            throw new BizException(ErrorCode.A0001, "状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "状态已变化，请刷新后重试");
         }
     }
 
@@ -248,7 +248,7 @@ public class PeService {
                 .eq(PeRecord::getStatus, 30)
                 .set(PeRecord::getStatus, 40));
         if (updated != 1) {
-            throw new BizException(ErrorCode.A0001, "体检记录状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "体检记录状态已变化，请刷新后重试");
         }
         pltService.recordEvent("pe.report.published", report.getReportNo(), "{}");
         return report.getReportNo();

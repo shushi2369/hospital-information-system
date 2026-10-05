@@ -50,7 +50,7 @@ public class DepartmentService {
         try {
             departmentMapper.insert(dept);
         } catch (org.springframework.dao.DuplicateKeyException e) {
-            throw new BizException(ErrorCode.A0001, "科室编码已存在");
+            throw new BizException(ErrorCode.B5001);
         }
         return dept;
     }

@@ -48,7 +48,7 @@ public class RoleService {
         try {
             roleMapper.insert(role);
         } catch (org.springframework.dao.DuplicateKeyException e) {
-            throw new BizException(ErrorCode.A0001, "角色编码已存在");
+            throw new BizException(ErrorCode.B5001);
         }
         return role.getId();
     }

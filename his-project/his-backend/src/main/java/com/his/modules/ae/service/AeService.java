@@ -63,7 +63,7 @@ public class AeService {
         event.setStatus(20);
         event.setQcId(CurrentUser.id());
         if (eventMapper.updateById(event) != 1) {
-            throw new BizException(ErrorCode.A0001, "事件状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "事件状态已变化，请刷新后重试");
         }
         pltService.recordEvent("ae.assigned", event.getEventNo(), "{}");
     }
@@ -79,7 +79,7 @@ public class AeService {
         event.setHandlerNote(handlerNote);
         event.setHandlerId(CurrentUser.id());
         if (eventMapper.updateById(event) != 1) {
-            throw new BizException(ErrorCode.A0001, "事件状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "事件状态已变化，请刷新后重试");
         }
     }
 
@@ -93,7 +93,7 @@ public class AeService {
         event.setStatus(40);
         event.setClosedTime(LocalDateTime.now());
         if (eventMapper.updateById(event) != 1) {
-            throw new BizException(ErrorCode.A0001, "事件状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "事件状态已变化，请刷新后重试");
         }
         pltService.recordEvent("ae.closed", event.getEventNo(), "{}");
     }

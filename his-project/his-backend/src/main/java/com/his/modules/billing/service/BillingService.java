@@ -383,7 +383,7 @@ public class BillingService {
             bill.setStatus(20);
         }
         if (billMapper.updateById(bill) != 1) {
-            throw new BizException(ErrorCode.C9001, "操作冲突，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "收费单状态已变化，请刷新后重试");
         }
 
         // R9 联动：整方费用全退 → 作废处方；挂号费全退且未就诊 → 挂号单置已退号

@@ -100,7 +100,7 @@ public class AlertService {
                 .set(AlertCritical::getNotifiedNurse, CurrentUser.id())
                 .set(AlertCritical::getNotifiedAt, LocalDateTime.now()));
         if (updated != 1) {
-            throw new BizException(ErrorCode.A0001, "危急值状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "危急值状态已变化，请刷新后重试");
         }
     }
 
@@ -119,7 +119,7 @@ public class AlertService {
                 .set(AlertCritical::getConfirmedDoctor, CurrentUser.id())
                 .set(AlertCritical::getConfirmedAt, LocalDateTime.now()));
         if (updated != 1) {
-            throw new BizException(ErrorCode.A0001, "危急值状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "危急值状态已变化，请刷新后重试");
         }
     }
 
@@ -137,7 +137,7 @@ public class AlertService {
                 .set(AlertCritical::getStatus, 40)
                 .set(AlertCritical::getHandleNote, handleNote));
         if (updated != 1) {
-            throw new BizException(ErrorCode.A0001, "危急值状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "危急值状态已变化，请刷新后重试");
         }
         pltService.recordEvent("alert.closed", alert.getAlertNo(), "{}");
     }

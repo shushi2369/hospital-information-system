@@ -63,10 +63,12 @@ public class CntService {
         if (req.getStatus() != 10) {
             throw new BizException(ErrorCode.A0001, "会诊不在待接受状态");
         }
+        // 接受者即受邀会诊医生（八十八轮 IDOR 审计 P1-3：完成时须同一医生或管理员）
+        req.setConsultDoctorId(CurrentUser.id());
         req.setStatus(20);
         req.setAcceptTime(LocalDateTime.now());
         if (requestMapper.updateById(req) != 1) {
-            throw new BizException(ErrorCode.A0001, "会诊状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "会诊状态已变化，请刷新后重试");
         }
     }
 
@@ -77,12 +79,17 @@ public class CntService {
         if (req.getStatus() != 20) {
             throw new BizException(ErrorCode.A0001, "会诊未接受，不能完成");
         }
+        // 会诊意见须由受邀医生（=接受者）填写（八十八轮 IDOR 审计 P1-3）
+        if (req.getConsultDoctorId() != null && !req.getConsultDoctorId().equals(CurrentUser.id())
+                && !com.his.infrastructure.security.CurrentUser.get().getRoleCodes().contains("ADMIN")) {
+            throw new BizException(ErrorCode.A0003, "会诊意见仅受邀医生可填写");
+        }
         req.setStatus(30);
         req.setOpinion(opinion);
         req.setOpinionTime(LocalDateTime.now());
         req.setConsultDoctorId(CurrentUser.id());
         if (requestMapper.updateById(req) != 1) {
-            throw new BizException(ErrorCode.A0001, "会诊状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "会诊状态已变化，请刷新后重试");
         }
         pltService.recordEvent("cnt.completed", req.getReqNo(), "{}");
     }

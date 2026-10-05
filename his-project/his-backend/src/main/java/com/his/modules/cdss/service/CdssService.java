@@ -90,7 +90,7 @@ public class CdssService {
         rule.setMessage(req.getMessage());
         rule.setStatus(req.getStatus() == null ? 1 : req.getStatus());
         if (ruleMapper.updateById(rule) != 1) {
-            throw new BizException(ErrorCode.A0001, "规则已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "规则已变化，请刷新后重试");
         }
     }
 

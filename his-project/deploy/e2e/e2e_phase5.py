@@ -81,7 +81,9 @@ def close_card(admin, card_id, suffix, receipt_no, uid):
 
 
 def deliver(admin, limit=100):
-    st, r = call("POST", "/rpt/uploads/deliver?limit=%d" % limit, admin)
+    # /deliver 已挂 @Idempotent（八十八轮审计 S2），调用须带唯一幂等头
+    st, r = call("POST", "/rpt/uploads/deliver?limit=%d" % limit, admin,
+                 idem="p5-del-" + str(time.time_ns()))
     return r.get("code") == "OK"
 
 
@@ -116,14 +118,16 @@ def main():
 
     # ---- 3. 手动重报：仍失败（确定性行为） ----
     if fail_row:
-        st, r = call("POST", "/rpt/uploads/%s/retry" % fail_row["id"], admin)
+        st, r = call("POST", "/rpt/uploads/%s/retry" % fail_row["id"], admin,
+                     idem="p5-rt1-" + str(time.time_ns()))
         # 语义：重报触发一次投递，失败标记仍在 → 状态不得变成 20（未误报成功）
         check("6. 手动重报执行（失败单未误报成功）",
               r.get("data", {}).get("status") != 20, r.get("data"))
 
     # ---- 4. 已成功单重报被拦 ----
     if mine:
-        st, r = call("POST", "/rpt/uploads/%s/retry" % mine["id"], admin)
+        st, r = call("POST", "/rpt/uploads/%s/retry" % mine["id"], admin,
+                     idem="p5-rt2-" + str(time.time_ns()))
         check("7. 已成功上报重报被拦", r.get("code") != "OK", r)
 
     # ---- 5. 出院结算触发（bizType=3） ----

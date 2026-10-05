@@ -33,6 +33,7 @@ public class EmcService {
     private final EmcNodeDictMapper nodeDictMapper;
     private final com.his.modules.patient.app.PatientAppService patientAppService;
     private final com.his.modules.inp.app.InpAppService inpAppService;
+    private final com.his.modules.clinic.mapper.CliVisitMapper clinicVisitMapper;
     private final PltService pltService;
     private final IdGenerator idGenerator;
 
@@ -191,10 +192,20 @@ public class EmcService {
             throw new BizException(ErrorCode.A0001, "病例已关档，关联信息不可修改");
         }
         if (req.getAdmissionId() != null) {
-            inpAppService.requireAdmission(req.getAdmissionId());
+            com.his.modules.inp.entity.InpAdmission admission = inpAppService.requireAdmission(req.getAdmissionId());
+            // 跨患者挂单校验（八十八轮 IDOR 审计 P1-2，对齐 Ors/Bb 口径）
+            if (admission.getPatientId() == null || visit.getPatientId() == null
+                    || !admission.getPatientId().equals(visit.getPatientId())) {
+                throw new BizException(ErrorCode.A0001, "患者与住院登记不匹配，禁止跨患者挂单");
+            }
             visit.setAdmissionId(req.getAdmissionId());
         }
         if (req.getVisitId() != null) {
+            com.his.modules.clinic.entity.CliVisit opVisit = visitMapperById(req.getVisitId());
+            if (opVisit == null || opVisit.getPatientId() == null || visit.getPatientId() == null
+                    || !opVisit.getPatientId().equals(visit.getPatientId())) {
+                throw new BizException(ErrorCode.A0001, "患者与门诊就诊不匹配，禁止跨患者挂单");
+            }
             visit.setVisitId(req.getVisitId());
         }
         visitMapper.updateById(visit);
@@ -211,7 +222,7 @@ public class EmcService {
         visit.setOutcome(req.getOutcome());
         visit.setOutcomeTime(LocalDateTime.now());
         if (visitMapper.updateById(visit) != 1) {
-            throw new BizException(ErrorCode.A0001, "病例状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "病例状态已变化，请刷新后重试");
         }
         pltService.recordEvent("emc.visit.closed", visit.getVisitNo(),
                 "{\"outcome\":" + req.getOutcome() + "}");
@@ -330,5 +341,9 @@ public class EmcService {
             case 5 -> "危重新生儿救治中心";
             default -> "未知中心";
         };
+    }
+
+    private com.his.modules.clinic.entity.CliVisit visitMapperById(Long visitId) {
+        return clinicVisitMapper.selectById(visitId);
     }
 }

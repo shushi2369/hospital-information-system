@@ -72,15 +72,18 @@ service.interceptors.request.use((config: InternalAxiosRequestConfig) => {
     config.headers.Authorization = `Bearer ${token}`
   }
   const method = (config.method || '').toLowerCase()
-  // 所有 POST/PUT 请求自动携带 X-Idempotency-Key（接口设计 §1.1 / A0004）
-  if (method === 'post' || method === 'put') {
-    const key = writeKey(method, config.url || '', config.data)
-    if (pendingWrites.has(key)) {
-      ElMessage.warning('请求处理中，请勿重复提交')
-      return Promise.reject({ code: 'DUP', message: '请求处理中，请勿重复提交' })
+  // 所有写请求（POST/PUT/DELETE）自动携带 X-Idempotency-Key（接口设计 §1.1 / A0004）。
+  // DELETE 也要：切面对挂 @Idempotent 的端点强制校验该头（八十八轮审计 S1：删除诊断 100% 失败根因）
+  if (method === 'post' || method === 'put' || method === 'delete') {
+    if (method !== 'delete') {
+      const key = writeKey(method, config.url || '', config.data)
+      if (pendingWrites.has(key)) {
+        ElMessage.warning('请求处理中，请勿重复提交')
+        return Promise.reject({ code: 'DUP', message: '请求处理中，请勿重复提交' })
+      }
+      pendingWrites.add(key)
+      config.headers['X-Inflight-Key'] = key
     }
-    pendingWrites.add(key)
-    config.headers['X-Inflight-Key'] = key
     config.headers['X-Idempotency-Key'] = genIdempotencyKey()
   }
   return config

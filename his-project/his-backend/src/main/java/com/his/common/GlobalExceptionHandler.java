@@ -81,6 +81,17 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(404).body(R.fail(ErrorCode.A0001, "资源不存在"));
     }
 
+    /** 405/415 落 DefaultHandlerExceptionResolver 时不经统一包装，前端会误报"网络异常"（八十八轮审计 S4） */
+    @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<R<Object>> handleMethodNotSupported(org.springframework.web.HttpRequestMethodNotSupportedException e) {
+        return ResponseEntity.status(405).body(R.fail(ErrorCode.A0001, "请求方法不支持"));
+    }
+
+    @ExceptionHandler(org.springframework.web.HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<R<Object>> handleMediaTypeNotSupported(org.springframework.web.HttpMediaTypeNotSupportedException e) {
+        return ResponseEntity.status(415).body(R.fail(ErrorCode.A0001, "请求内容类型不支持"));
+    }
+
     @ExceptionHandler(DataAccessException.class)
     public ResponseEntity<R<Object>> handleData(DataAccessException e) {
         log.error("数据访问异常", e);

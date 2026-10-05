@@ -65,7 +65,7 @@ public class DrugService {
         try {
             drugMapper.insert(drug);
         } catch (org.springframework.dao.DuplicateKeyException e) {
-            throw new BizException(ErrorCode.A0001, "药品编码已存在");
+            throw new BizException(ErrorCode.B5001);
         }
         return drug;
     }

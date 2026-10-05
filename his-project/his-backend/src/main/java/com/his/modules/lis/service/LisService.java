@@ -93,7 +93,7 @@ public class LisService {
                 specimenMapper.insert(specimen);
             } catch (org.springframework.dao.DuplicateKeyException e) {
                 // uk_specimen_req（V48）：并发采集同一申请只有一条标本
-                throw new BizException(ErrorCode.A0001, "该申请已采集标本，请刷新后重试");
+                throw new BizException(ErrorCode.A0008, "该申请已采集标本，请刷新后重试");
             }
         } else {
             specimenMapper.updateById(specimen);
@@ -103,7 +103,7 @@ public class LisService {
                 .eq(LisRequest::getStatus, 10)
                 .set(LisRequest::getStatus, 20));
         if (updated != 1) {
-            throw new BizException(ErrorCode.A0001, "检验申请状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "检验申请状态已变化，请刷新后重试");
         }
         pltService.recordEvent("lis.specimen.collected", request.getRequestNo(), "{}");
         return Map.of("requestNo", request.getRequestNo(), "specimenNo", specimen.getSpecimenNo());
@@ -127,7 +127,7 @@ public class LisService {
                 .eq(LisRequest::getStatus, 20)
                 .set(LisRequest::getStatus, 30));
         if (updated != 1) {
-            throw new BizException(ErrorCode.A0001, "检验申请状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "检验申请状态已变化，请刷新后重试");
         }
     }
 
@@ -245,7 +245,7 @@ public class LisService {
                 .eq(LisRequest::getStatus, 30)
                 .set(LisRequest::getStatus, 40));
         if (updated != 1) {
-            throw new BizException(ErrorCode.A0001, "检验申请状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "检验申请状态已变化，请刷新后重试");
         }
         pltService.recordEvent("lis.report.published", report.getReportNo(), "{}");
         return report.getReportNo();

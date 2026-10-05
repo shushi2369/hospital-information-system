@@ -162,12 +162,13 @@ public class MrcService {
         }
     }
 
+    /** 首页查询（GET 必须只读，八十八轮审计 S3）：费用汇总每次现算，不再懒物化回写
+     *  （原 GET 内 updateById 无锁无事务，并发 GET 互相覆盖，预取/重放即触发写） */
     public MrcHomepage homepage(Long admissionId) {
         MrcHomepage homepage = homepageMapper.selectOne(new LambdaQueryWrapper<MrcHomepage>()
                 .eq(MrcHomepage::getAdmissionId, admissionId).last("LIMIT 1"));
         if (homepage != null && homepage.getChargeSummary() == null) {
             homepage.setChargeSummary(toJson(chargeSummary(admissionId)));
-            homepageMapper.updateById(homepage);
         }
         return homepage;
     }
@@ -219,7 +220,7 @@ public class MrcService {
                 .set(MrcRecord::getQcBy, CurrentUser.id())
                 .set(MrcRecord::getQcTime, LocalDateTime.now()));
         if (updated != 1) {
-            throw new BizException(ErrorCode.A0001, "病案状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "病案状态已变化，请刷新后重试");
         }
     }
 
@@ -240,7 +241,7 @@ public class MrcService {
         record.setArchiveStatus(20);
         record.setArchiveTime(LocalDateTime.now());
         if (recordMapper.updateById(record) != 1) {
-            throw new BizException(ErrorCode.A0001, "病案状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "病案状态已变化，请刷新后重试");
         }
         pltService.recordEvent("mrc.archived", record.getMrcNo(), "{}");
         // 五期-lite：病案归档触发区域上报
@@ -304,7 +305,7 @@ public class MrcService {
                 .eq(MrcRecord::getArchiveStatus, 30)
                 .set(MrcRecord::getArchiveStatus, 20));
         if (back != 1) {
-            throw new BizException(ErrorCode.A0001, "病案状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "病案状态已变化，请刷新后重试");
         }
     }
 

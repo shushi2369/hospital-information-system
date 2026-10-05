@@ -306,6 +306,7 @@ public class DocOrderService {
     @Transactional
     public void stop(Long orderId, StopOrderRequest req) {
         DocOrder order = requireOrder(orderId);
+        requireAttendingDoctor(order);
         if (order.getOrderClass() != 1) {
             throw new BizException(ErrorCode.A0001, "仅长期医嘱可停止");
         }
@@ -326,6 +327,7 @@ public class DocOrderService {
     @Transactional
     public void resume(Long orderId) {
         DocOrder order = requireOrder(orderId);
+        requireAttendingDoctor(order);
         if (order.getStatus() != 50) {
             throw new BizException(ErrorCode.B6101, "医嘱不在停止状态");
         }
@@ -359,6 +361,7 @@ public class DocOrderService {
     @Transactional
     public void voidOrder(Long orderId, StopOrderRequest req) {
         DocOrder order = requireOrder(orderId);
+        requireAttendingDoctor(order);
         if (order.getStatus() == 30 || order.getStatus() == 40) {
             throw new BizException(ErrorCode.B6106, "已执行的医嘱不可作废");
         }
@@ -530,5 +533,22 @@ public class DocOrderService {
             throw new BizException(ErrorCode.A0001, "医嘱不存在");
         }
         return order;
+    }
+
+    /** 医嘱操作归属（八十八轮 IDOR 审计 P1-1）：管床医生或医嘱创建者方可停/恢复/作废（ADMIN 豁免）。
+     *  医嘱归属挂管床医生名下（audit 口径），但开嘱医生本人（created_by）同样有权停自己的嘱 */
+    private void requireAttendingDoctor(DocOrder order) {
+        if (com.his.infrastructure.security.CurrentUser.get().getRoleCodes().contains("ADMIN")) {
+            return;
+        }
+        Long user = com.his.infrastructure.security.CurrentUser.id();
+        if (order.getCreatedBy() != null && order.getCreatedBy().equals(user)) {
+            return;
+        }
+        var admission = inpAppService.getAdmission(order.getAdmissionId());
+        if (admission != null && admission.getDoctorId() != null
+                && !admission.getDoctorId().equals(user)) {
+            throw new BizException(ErrorCode.A0003, "仅管床医生或开嘱医生可操作该医嘱");
+        }
     }
 }

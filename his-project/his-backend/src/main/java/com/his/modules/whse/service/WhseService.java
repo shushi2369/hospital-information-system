@@ -53,7 +53,7 @@ public class WhseService {
         try {
             supplierMapper.insert(supplier);
         } catch (org.springframework.dao.DuplicateKeyException e) {
-            throw new BizException(ErrorCode.A0001, "供应商编码已存在");
+            throw new BizException(ErrorCode.B5001);
         }
         return supplier.getId();
     }
@@ -94,7 +94,7 @@ public class WhseService {
                 .set(WhsePurchaseOrder::getApproverId, CurrentUser.id())
                 .set(WhsePurchaseOrder::getApprovedAt, LocalDateTime.now()));
         if (updated != 1) {
-            throw new BizException(ErrorCode.A0001, "采购单状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "采购单状态已变化，请刷新后重试");
         }
         pltService.recordEvent("whse.po.approved", po.getPoNo(), "{}");
     }
@@ -121,7 +121,7 @@ public class WhseService {
                 .set(WhsePurchaseOrder::getStatus, 30)
                 .set(WhsePurchaseOrder::getInboundNo, inboundNo));
         if (updated != 1) {
-            throw new BizException(ErrorCode.A0001, "采购单已入库或已取消，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "采购单已入库或已取消，请刷新后重试");
         }
         pltService.recordEvent("whse.po.received", po.getPoNo(),
                 "{\"inboundNo\":\"" + inboundNo + "\"}");
@@ -144,7 +144,7 @@ public class WhseService {
                 .in(WhsePurchaseOrder::getStatus, 10, 20)
                 .set(WhsePurchaseOrder::getStatus, 40));
         if (updated != 1) {
-            throw new BizException(ErrorCode.A0001, "采购单状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "采购单状态已变化，请刷新后重试");
         }
     }
 

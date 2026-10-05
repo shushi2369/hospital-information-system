@@ -88,7 +88,7 @@ public class EmrService {
         }
         // 六十轮：@Version 乐观锁——并发保存后到者影响 0 行，必须显式失败（静默丢失=用户以为存上了）
         if (recordMapper.updateById(record) != 1) {
-            throw new BizException(ErrorCode.A0001, "病历已被他人修改，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "病历已被他人修改，请刷新后重试");
         }
     }
 
@@ -125,7 +125,7 @@ public class EmrService {
                 .set(EmrRecord::getRecordTime, record.getRecordTime())
                 .set(EmrRecord::getQcIssues, record.getQcIssues()));
         if (submitted != 1) {
-            throw new BizException(ErrorCode.A0001, "文书状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "文书状态已变化，请刷新后重试");
         }
     }
 
@@ -149,7 +149,7 @@ public class EmrService {
             record.setQcIssues("[]");
         }
         if (recordMapper.updateById(record) != 1) {
-            throw new BizException(ErrorCode.A0001, "病历状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "病历状态已变化，请刷新后重试");
         }
     }
 
@@ -224,6 +224,14 @@ public class EmrService {
             throw new BizException(ErrorCode.B6202);
         }
         requireNotArchived(record.getAdmissionId());
+        // 书写人归属（八十八轮 IDOR 审计 P0-1）：任何持 emr:record:update 的医生可篡改他人病历。
+        // authenticated() 为 false 仅存在于单元测试环境；生产链路经 JwtAuthFilter 必有登录态
+        if (com.his.infrastructure.security.CurrentUser.authenticated()) {
+            boolean admin = com.his.infrastructure.security.CurrentUser.get().getRoleCodes().contains("ADMIN");
+            if (!admin && !record.getDoctorId().equals(com.his.infrastructure.security.CurrentUser.id())) {
+                throw new BizException(ErrorCode.A0003, "仅文书书写医生可修改或提交");
+            }
+        }
         return record;
     }
 

@@ -75,7 +75,7 @@ public class HrService {
         HrStaff staff = requireStaff(id);
         applyUpsert(staff, req);
         if (staffMapper.updateById(staff) != 1) {
-            throw new BizException(ErrorCode.A0001, "档案已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "档案已变化，请刷新后重试");
         }
     }
 
@@ -89,7 +89,7 @@ public class HrService {
         staff.setStatus(0);
         staff.setExitDate(LocalDate.now());
         if (staffMapper.updateById(staff) != 1) {
-            throw new BizException(ErrorCode.A0001, "档案已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "档案已变化，请刷新后重试");
         }
         pltService.recordEvent("hr.staff.exited", staff.getStaffNo(), "{}");
     }
@@ -114,7 +114,7 @@ public class HrService {
         titleChangeMapper.insert(change);
         staff.setTitle(req.getNewTitle());
         if (staffMapper.updateById(staff) != 1) {
-            throw new BizException(ErrorCode.A0001, "档案已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "档案已变化，请刷新后重试");
         }
         pltService.recordEvent("hr.staff.titleChanged", staff.getStaffNo(),
                 "{\"from\":\"" + com.his.infrastructure.util.JsonEscapeUtil.escape(change.getOldTitle())

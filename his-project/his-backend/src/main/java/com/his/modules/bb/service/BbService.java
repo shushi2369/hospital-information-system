@@ -97,7 +97,7 @@ public class BbService {
         }
         bag.setStatus(3);
         if (bagMapper.updateById(bag) != 1) {
-            throw new BizException(ErrorCode.A0001, "血袋状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "血袋状态已变化，请刷新后重试");
         }
     }
 
@@ -163,7 +163,7 @@ public class BbService {
         request.setReviewerId(CurrentUser.id());
         request.setReviewNote(note);
         if (requestMapper.updateById(request) != 1) {
-            throw new BizException(ErrorCode.A0001, "申请状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "申请状态已变化，请刷新后重试");
         }
         pltService.recordEvent("bb.request.reviewed", request.getReqNo(),
                 "{\"approved\":" + approved + "}");
@@ -178,7 +178,7 @@ public class BbService {
         }
         request.setStatus(70);
         if (requestMapper.updateById(request) != 1) {
-            throw new BizException(ErrorCode.A0001, "申请状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "申请状态已变化，请刷新后重试");
         }
     }
 
@@ -215,7 +215,7 @@ public class BbService {
         if (req.getCrossResult() == 1) {
             request.setStatus(30);
             if (requestMapper.updateById(request) != 1) {
-                throw new BizException(ErrorCode.A0001, "申请状态已变化，请刷新后重试");
+                throw new BizException(ErrorCode.A0008, "申请状态已变化，请刷新后重试");
             }
         }
         pltService.recordEvent("bb.request.matched", request.getReqNo(),
@@ -277,11 +277,11 @@ public class BbService {
                 .eq(BbBloodBag::getStatus, 1)
                 .set(BbBloodBag::getStatus, 2));
         if (occupied != 1) {
-            throw new BizException(ErrorCode.A0001, "血袋已被并发发血，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "血袋已被并发发血，请刷新后重试");
         }
         request.setStatus(40);
         if (requestMapper.updateById(request) != 1) {
-            throw new BizException(ErrorCode.A0001, "申请状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "申请状态已变化，请刷新后重试");
         }
         pltService.recordEvent("bb.request.issued", request.getReqNo(),
                 "{\"bag\":\"" + com.his.infrastructure.util.JsonEscapeUtil.escape(bag.getBagNo()) + "\"}");
@@ -327,7 +327,7 @@ public class BbService {
         }
         request.setStatus(50);
         if (requestMapper.updateById(request) != 1) {
-            throw new BizException(ErrorCode.A0001, "申请状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "申请状态已变化，请刷新后重试");
         }
         pltService.recordEvent("bb.request.transfused", request.getReqNo(), "{}");
         return tf.getId();
@@ -350,7 +350,7 @@ public class BbService {
         }
         request.setStatus(60);
         if (requestMapper.updateById(request) != 1) {
-            throw new BizException(ErrorCode.A0001, "申请状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "申请状态已变化，请刷新后重试");
         }
         pltService.recordEvent("bb.request.completed", request.getReqNo(),
                 "{\"outcome\":" + req.getOutcome() + "}");

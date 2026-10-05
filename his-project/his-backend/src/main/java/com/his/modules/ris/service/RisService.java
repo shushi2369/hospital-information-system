@@ -184,7 +184,7 @@ public class RisService {
         }
         request.setStatus(20);
         if (requestMapper.updateById(request) != 1) {
-            throw new BizException(ErrorCode.A0001, "申请状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "申请状态已变化，请刷新后重试");
         }
         return appointment.getId();
     }
@@ -204,7 +204,7 @@ public class RisService {
         }
         request.setStatus(30);
         if (requestMapper.updateById(request) != 1) {
-            throw new BizException(ErrorCode.A0001, "申请状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "申请状态已变化，请刷新后重试");
         }
     }
 
@@ -297,7 +297,7 @@ public class RisService {
         if (report.getId() == null) {
             reportMapper.insert(report);
         } else if (reportMapper.updateById(report) != 1) {
-            throw new BizException(ErrorCode.A0001, "报告状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "报告状态已变化，请刷新后重试");
         }
         return report.getReportNo();
     }
@@ -327,7 +327,7 @@ public class RisService {
         report.setReviewerId(reviewer);
         report.setReviewTime(LocalDateTime.now());
         if (reportMapper.updateById(report) != 1) {
-            throw new BizException(ErrorCode.A0001, "报告状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "报告状态已变化，请刷新后重试");
         }
         RisRequest request = requireRequest(report.getRequestId());
         if (request.getStatus() == 30) {

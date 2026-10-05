@@ -93,7 +93,7 @@ public class PubService {
         card.setStatus(20);
         card.setReportTime(LocalDateTime.now());
         if (cardMapper.updateById(card) != 1) {
-            throw new BizException(ErrorCode.A0001, "报告卡状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "报告卡状态已变化，请刷新后重试");
         }
         pltService.recordEvent("pub.card.reported", card.getCardNo(), "{}");
     }
@@ -108,7 +108,7 @@ public class PubService {
         card.setStatus(30);
         card.setPublicDoctorId(CurrentUser.id());
         if (cardMapper.updateById(card) != 1) {
-            throw new BizException(ErrorCode.A0001, "报告卡状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "报告卡状态已变化，请刷新后重试");
         }
     }
 
@@ -123,7 +123,7 @@ public class PubService {
         card.setReceiptNo(req.getReceiptNo());
         card.setReceiptTime(LocalDateTime.now());
         if (cardMapper.updateById(card) != 1) {
-            throw new BizException(ErrorCode.A0001, "报告卡状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "报告卡状态已变化，请刷新后重试");
         }
         pltService.recordEvent("pub.card.receipted", card.getCardNo(),
                 "{\"receiptNo\":\"" + com.his.infrastructure.util.JsonEscapeUtil.escape(req.getReceiptNo()) + "\"}");
@@ -138,6 +138,8 @@ public class PubService {
     /** 院感病例上报（PUB-H01）：返回病例号 */
     @Transactional
     public String haiReport(PubHaiCase req) {
+        // 患者存在性校验（八十八轮 IDOR 审计 P2-2）：防对虚构 patientId 产生公卫记录
+        patientAppService.requireActive(req.getPatientId());
         req.setCaseNo(idGenerator.next("GR"));
         req.setStatus(10);
         req.setReporterId(CurrentUser.id());
@@ -165,7 +167,7 @@ public class PubService {
         c.setConfirmNote(note);
         c.setConfirmTime(LocalDateTime.now());
         if (haiMapper.updateById(c) != 1) {
-            throw new BizException(ErrorCode.A0001, "病例状态已变化，请刷新后重试");
+            throw new BizException(ErrorCode.A0008, "病例状态已变化，请刷新后重试");
         }
         pltService.recordEvent("pub.hai.confirmed", c.getCaseNo(),
                 "{\"status\":" + targetStatus + "}");
