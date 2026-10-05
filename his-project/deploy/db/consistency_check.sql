@@ -216,3 +216,14 @@ WHERE a.deposit_total <> d.s LIMIT 5;
 SELECT 'settled_deposit_below_bill' AS chk, a.id FROM inp_admission a
 JOIN bil_charge_bill b ON b.admission_id = a.id
 WHERE a.status = 30 AND a.deposit_total < b.total_amount LIMIT 5;
+
+-- ============================================================
+-- 22. 八十四轮：孤儿引用 + RPT 恒等
+-- ============================================================
+SELECT 'orphan_pe_result' AS chk, r.id FROM pe_result r
+LEFT JOIN pe_record pr ON r.record_id = pr.id WHERE pr.id IS NULL LIMIT 5;
+SELECT 'orphan_hr_dept' AS chk, h.id FROM hr_staff h
+LEFT JOIN bas_department d ON h.dept_id = d.id WHERE d.id IS NULL LIMIT 5;
+SELECT 'rpt_stats_invariant' AS chk, d.diff FROM
+(SELECT IFNULL(SUM(status=10),0)+IFNULL(SUM(status=20),0)+IFNULL(SUM(status=30),0)-COUNT(*) AS diff FROM rpt_upload) d
+WHERE d.diff <> 0 LIMIT 5;
