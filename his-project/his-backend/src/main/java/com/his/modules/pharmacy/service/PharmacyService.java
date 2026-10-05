@@ -3,6 +3,7 @@ package com.his.modules.pharmacy.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.his.common.BizException;
+import com.his.infrastructure.util.LikeEscapeUtil;
 import com.his.common.ErrorCode;
 import com.his.common.PageResult;
 import com.his.infrastructure.security.CurrentUser;
@@ -223,7 +224,7 @@ public class PharmacyService {
         Page<PhrDispenseOrder> page = dispenseOrderMapper.selectPage(query.toPage(),
                 new LambdaQueryWrapper<PhrDispenseOrder>()
                         .like(query.getDispenseNo() != null && !query.getDispenseNo().isBlank(),
-                                PhrDispenseOrder::getDispenseNo, query.getDispenseNo())
+                                PhrDispenseOrder::getDispenseNo, LikeEscapeUtil.escape(query.getDispenseNo()))
                         .ge(query.getStartDate() != null, PhrDispenseOrder::getDispenseTime,
                                 query.getStartDate() == null ? null : query.getStartDate().atStartOfDay())
                         .le(query.getEndDate() != null, PhrDispenseOrder::getDispenseTime,
@@ -257,7 +258,7 @@ public class PharmacyService {
         Page<PhrReturnOrder> page = returnOrderMapper.selectPage(query.toPage(),
                 new LambdaQueryWrapper<PhrReturnOrder>()
                         .like(query.getReturnNo() != null && !query.getReturnNo().isBlank(),
-                                PhrReturnOrder::getReturnNo, query.getReturnNo())
+                                PhrReturnOrder::getReturnNo, LikeEscapeUtil.escape(query.getReturnNo()))
                         .orderByDesc(PhrReturnOrder::getId));
         Map<Long, String> rxNoById = new HashMap<>();
         for (PhrReturnOrder order : page.getRecords()) {

@@ -3,6 +3,7 @@ package com.his.modules.billing.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.his.common.BizException;
+import com.his.infrastructure.util.LikeEscapeUtil;
 import com.his.common.ErrorCode;
 import com.his.common.PageResult;
 import com.his.infrastructure.security.CurrentUser;
@@ -381,6 +382,10 @@ public class BillingService {
     /** 日结（B-07）：按收费员+日期汇总并锁定，重复日结拒绝（B3006） */
     @Transactional
     public BilDailySettlement settle(SettlementRequest req) {
+        // 只允许日结"今天"：传未来日期会预生成空日结锁死次日收费，传历史日期产生对不上的垃圾日结
+        if (!java.time.LocalDate.now().equals(req.getSettleDate())) {
+            throw new BizException(ErrorCode.A0001, "日结日期只能选择今天");
+        }
         Long cashierId = CurrentUser.id();
         Long exists = settlementMapper.selectCount(new LambdaQueryWrapper<BilDailySettlement>()
                 .eq(BilDailySettlement::getSettleDate, req.getSettleDate())
@@ -535,7 +540,7 @@ public class BillingService {
         }
         Page<BilChargeBill> page = billMapper.selectPage(query.toPage(),
                 new LambdaQueryWrapper<BilChargeBill>()
-                        .like(query.getBillNo() != null && !query.getBillNo().isBlank(), BilChargeBill::getBillNo, query.getBillNo())
+                        .like(query.getBillNo() != null && !query.getBillNo().isBlank(), BilChargeBill::getBillNo, LikeEscapeUtil.escape(query.getBillNo()))
                         .eq(query.getPatientId() != null, BilChargeBill::getPatientId, query.getPatientId())
                         .eq(query.getAdmissionId() != null, BilChargeBill::getAdmissionId, query.getAdmissionId())
                         .eq(query.getCashierId() != null, BilChargeBill::getCashierId, query.getCashierId())
@@ -651,7 +656,7 @@ public class BillingService {
         }
         Page<BilRefundBill> page = refundBillMapper.selectPage(query.toPage(),
                 new LambdaQueryWrapper<BilRefundBill>()
-                        .like(query.getRefundNo() != null && !query.getRefundNo().isBlank(), BilRefundBill::getRefundNo, query.getRefundNo())
+                        .like(query.getRefundNo() != null && !query.getRefundNo().isBlank(), BilRefundBill::getRefundNo, LikeEscapeUtil.escape(query.getRefundNo()))
                         .eq(query.getBillId() != null, BilRefundBill::getBillId, query.getBillId())
                         .eq(query.getOperatorId() != null, BilRefundBill::getOperatorId, query.getOperatorId())
                         .ge(query.getStartDate() != null, BilRefundBill::getRefundTime, query.getStartDate() == null ? null : query.getStartDate().atStartOfDay())

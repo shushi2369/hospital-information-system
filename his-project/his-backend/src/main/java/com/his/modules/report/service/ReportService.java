@@ -46,8 +46,12 @@ public class ReportService {
         return billingAppService.feeTypeDistribution(start, end);
     }
 
-    public List<RevenueDetailRowDTO> revenueDetail(LocalDate start, LocalDate end) {
-        return billingAppService.revenueDetailRows(start, end);
+    public com.his.common.PageResult<RevenueDetailRowDTO> revenueDetailPage(LocalDate start, LocalDate end, long pageNum, long pageSize) {
+        return billingAppService.revenueDetailPage(start, end, pageNum, pageSize);
+    }
+
+    public List<RevenueDetailRowDTO> revenueDetailBatch(LocalDate start, LocalDate end, long offset, int limit) {
+        return billingAppService.revenueDetailBatch(start, end, offset, limit);
     }
 
     public List<WarningDTO> drugInventory() {

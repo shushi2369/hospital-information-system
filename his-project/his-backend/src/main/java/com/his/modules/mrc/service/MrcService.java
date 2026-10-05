@@ -3,6 +3,7 @@ package com.his.modules.mrc.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.his.common.BizException;
+import com.his.infrastructure.util.LikeEscapeUtil;
 import com.his.common.ErrorCode;
 import com.his.common.PageResult;
 import com.his.infrastructure.security.CurrentUser;
@@ -57,7 +58,7 @@ public class MrcService {
                 new LambdaQueryWrapper<MrcRecord>()
                         .eq(query.getArchiveStatus() != null, MrcRecord::getArchiveStatus, query.getArchiveStatus())
                         .eq(query.getQcStatus() != null, MrcRecord::getQcStatus, query.getQcStatus())
-                        .like(query.getMrcNo() != null && !query.getMrcNo().isBlank(), MrcRecord::getMrcNo, query.getMrcNo())
+                        .like(query.getMrcNo() != null && !query.getMrcNo().isBlank(), MrcRecord::getMrcNo, LikeEscapeUtil.escape(query.getMrcNo()))
                         .orderByDesc(MrcRecord::getId));
         Map<Long, PatientDTO> patients = patientAppService.listByIds(
                         page.getRecords().stream().map(MrcRecord::getPatientId).distinct().toList())
@@ -278,8 +279,8 @@ public class MrcService {
     public List<MrcIcd10> icd10(String keyword) {
         return icd10Mapper.selectList(new LambdaQueryWrapper<MrcIcd10>()
                 .and(keyword != null && !keyword.isBlank(), w -> w
-                        .like(MrcIcd10::getCode, keyword)
-                        .or().like(MrcIcd10::getName, keyword))
+                        .like(MrcIcd10::getCode, LikeEscapeUtil.escape(keyword))
+                        .or().like(MrcIcd10::getName, LikeEscapeUtil.escape(keyword)))
                 .last("LIMIT 50"));
     }
 }

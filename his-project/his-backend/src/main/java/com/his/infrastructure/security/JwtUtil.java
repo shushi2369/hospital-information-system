@@ -20,6 +20,13 @@ public class JwtUtil {
 
     public JwtUtil(@Value("${his.jwt.secret}") String secret,
                    @Value("${his.jwt.expire-minutes}") long expireMinutes) {
+        // 仓库公开的 dev 默认值原样进生产 = 任何人可离线伪造任意身份的合法令牌（八十六轮安全审计）
+        if ("dev-only-jwt-secret-please-change-0123456789abcdef".equals(secret)) {
+            System.err.println("==================================================================");
+            System.err.println("[SECURITY-WARN] JWT_SECRET 仍在使用仓库默认值：令牌可被任何拿到仓库的人伪造。");
+            System.err.println("  生产部署必须通过 JWT_SECRET 环境变量注入强随机值（>=32 字符）。");
+            System.err.println("==================================================================");
+        }
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.expireMinutes = expireMinutes;
     }

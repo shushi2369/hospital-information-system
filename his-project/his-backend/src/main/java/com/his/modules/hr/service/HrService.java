@@ -3,6 +3,7 @@ package com.his.modules.hr.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.his.common.BizException;
+import com.his.infrastructure.util.LikeEscapeUtil;
 import com.his.common.ErrorCode;
 import com.his.common.PageResult;
 import com.his.infrastructure.security.CurrentUser;
@@ -40,7 +41,7 @@ public class HrService {
                         .eq(query.getDeptId() != null, HrStaff::getDeptId, query.getDeptId())
                         .eq(query.getStatus() != null, HrStaff::getStatus, query.getStatus())
                         .like(query.getName() != null && !query.getName().isBlank(),
-                                HrStaff::getName, query.getName())
+                                HrStaff::getName, LikeEscapeUtil.escape(query.getName()))
                         .orderByDesc(HrStaff::getId));
         return PageResult.of(page);
     }

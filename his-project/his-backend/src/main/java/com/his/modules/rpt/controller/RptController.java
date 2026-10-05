@@ -1,5 +1,6 @@
 package com.his.modules.rpt.controller;
 
+import com.his.common.AuditLog;
 import com.his.common.PageResult;
 import com.his.common.R;
 import com.his.modules.rpt.entity.RptUpload;
@@ -41,9 +42,10 @@ public class RptController {
         return R.ok(rptService.detail(id));
     }
 
-    /** 手动重报：失败单回队并立即投递一次 */
+    /** 手动重报：失败单回队并立即投递一次（PHI 出域动作，必须留痕） */
     @PostMapping("/{id}/retry")
     @PreAuthorize("@ss.hasPerm('rpt:upload:retry')")
+    @AuditLog(module = "rpt", action = "手动重报上报单")
     public R<RptUpload> retry(@PathVariable Long id) {
         return R.ok(rptService.retryNow(id));
     }
@@ -51,6 +53,7 @@ public class RptController {
     /** 手动触发一批投递（管理端/e2e 用） */
     @PostMapping("/deliver")
     @PreAuthorize("@ss.hasPerm('rpt:upload:retry')")
+    @AuditLog(module = "rpt", action = "手动批量投递上报队列")
     public R<Integer> deliver(@RequestParam(defaultValue = "50") int limit) {
         return R.ok(rptService.deliverBatch(limit));
     }

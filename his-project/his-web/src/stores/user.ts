@@ -114,6 +114,9 @@ export const useUserStore = defineStore('user', {
       this.menus = []
       this.routesLoaded = false
       localStorage.removeItem(TOKEN_KEY)
+      // 业务 sessionStorage 一并清理：共用工作站的下一个账号不能继承上一班的接诊状态
+      // （his_started_visits 是挂号Id→visitId 的跨页映射，八十六轮审计）
+      sessionStorage.removeItem('his_started_visits')
     },
 
     changePassword(oldPassword: string, newPassword: string) {

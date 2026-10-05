@@ -13,7 +13,12 @@ mkdir -p "${BACKUP_DIR}"
 STAMP=$(date +%Y%m%d_%H%M%S)
 TARGET="${BACKUP_DIR}/${DB_NAME}_${STAMP}.sql.gz"
 
-docker exec "${CONTAINER}" sh -c "exec mysqldump --single-transaction --routines --triggers -uroot -p\"\${MYSQL_ROOT_PASSWORD}\" ${DB_NAME}" | gzip > "${TARGET}"
+# pipefail：dump 中途失败时不留截断产物（截断 .sql.gz 会被"新鲜度检查"误判为最新备份正常）
+if ! docker exec "${CONTAINER}" sh -c "exec mysqldump --single-transaction --routines --triggers -uroot -p\"\${MYSQL_ROOT_PASSWORD}\" ${DB_NAME}" | gzip > "${TARGET}"; then
+    rm -f "${TARGET}"
+    echo "[$(date '+%F %T')] 备份失败，已删除截断产物" >&2
+    exit 1
+fi
 echo "[$(date '+%F %T')] 备份完成: ${TARGET} ($(du -h "${TARGET}" | cut -f1))"
 
 # 保留最近 N 天

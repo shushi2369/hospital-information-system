@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.his.common.BizException;
+import com.his.infrastructure.util.LikeEscapeUtil;
 import com.his.common.ErrorCode;
 import com.his.common.PageResult;
 import com.his.infrastructure.security.CurrentUser;
@@ -328,7 +329,7 @@ public class InpService {
                         .eq(query.getWardId() != null, InpAdmission::getWardId, query.getWardId())
                         .eq(query.getStatus() != null, InpAdmission::getStatus, query.getStatus())
                         .like(query.getAdmissionNo() != null && !query.getAdmissionNo().isBlank(),
-                                InpAdmission::getAdmissionNo, query.getAdmissionNo())
+                                InpAdmission::getAdmissionNo, LikeEscapeUtil.escape(query.getAdmissionNo()))
                         .orderByDesc(InpAdmission::getId));
         Map<Long, AdmissionResponse> assembled = toResponses(page.getRecords());
         PageResult<AdmissionResponse> result = new PageResult<>();

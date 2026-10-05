@@ -23,6 +23,7 @@ public class InboundRequest {
     @NotNull(message = "入库数量不能为空")
     @DecimalMin(value = "0.01", message = "入库数量必须大于 0")
     private BigDecimal quantity;
+    @DecimalMin(value = "0", message = "入库单价不能为负")
     private BigDecimal unitPrice;
     @Size(max = 64, message = "供应商最长 64 字")
     private String supplier;

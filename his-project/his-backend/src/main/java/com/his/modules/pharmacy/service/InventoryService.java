@@ -3,6 +3,7 @@ package com.his.modules.pharmacy.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.his.common.BizException;
+import com.his.infrastructure.util.LikeEscapeUtil;
 import com.his.common.ErrorCode;
 import com.his.common.PageResult;
 import com.his.infrastructure.security.CurrentUser;
@@ -103,7 +104,7 @@ public class InventoryService {
                 new LambdaQueryWrapper<InvInventoryBatch>()
                         .eq(query.getDrugId() != null, InvInventoryBatch::getDrugId, query.getDrugId())
                         .like(query.getBatchNo() != null && !query.getBatchNo().isBlank(),
-                                InvInventoryBatch::getBatchNo, query.getBatchNo())
+                                InvInventoryBatch::getBatchNo, LikeEscapeUtil.escape(query.getBatchNo()))
                         .eq(query.getStatus() != null, InvInventoryBatch::getStatus, query.getStatus())
                         .orderByAsc(InvInventoryBatch::getExpiryDate));
         Map<Long, String> drugNames = drugNameMap(
@@ -194,7 +195,7 @@ public class InventoryService {
                 new LambdaQueryWrapper<InvStockMovement>()
                         .eq(query.getDrugId() != null, InvStockMovement::getDrugId, query.getDrugId())
                         .like(query.getRefNo() != null && !query.getRefNo().isBlank(),
-                                InvStockMovement::getRefNo, query.getRefNo())
+                                InvStockMovement::getRefNo, LikeEscapeUtil.escape(query.getRefNo()))
                         .orderByDesc(InvStockMovement::getId));
         Map<Long, String> drugNames = drugNameMap(
                 page.getRecords().stream().map(InvStockMovement::getDrugId).distinct().toList());

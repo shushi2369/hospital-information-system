@@ -54,9 +54,11 @@ public class KpiController {
                        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
                        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) throws IOException {
         StringBuilder sb = new StringBuilder("指标,数值\n");
-        csv(sb, "门诊人次", kpiService.workload(from, to).get("outpatientVisits"));
-        csv(sb, "住院人次", kpiService.workload(from, to).get("inpatientAdmissions"));
-        csv(sb, "完成手术台次", kpiService.workload(from, to).get("surgeriesCompleted"));
+        // workload 聚合一次复用（原三连调 = 6 个聚合 ×3，其中 12 个纯重复）
+        Map<String, Object> workload = kpiService.workload(from, to);
+        csv(sb, "门诊人次", workload.get("outpatientVisits"));
+        csv(sb, "住院人次", workload.get("inpatientAdmissions"));
+        csv(sb, "完成手术台次", workload.get("surgeriesCompleted"));
         Map<String, Object> eff = kpiService.efficiency(from, to);
         csv(sb, "平均住院日", eff.get("avgStayDays"));
         csv(sb, "床位使用率%", eff.get("bedUsageRate"));

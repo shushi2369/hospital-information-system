@@ -22,8 +22,10 @@ public class PrescriptionItemRequest {
     @Size(max = 32, message = "单次剂量最长 32 字")
     private String dosage;
     @NotBlank(message = "用药频次不能为空")
+    @Size(max = 16, message = "用药频次最长 16 字")
     private String frequency;
     @NotBlank(message = "用法不能为空")
+    @Size(max = 16, message = "用法最长 16 字")
     private String usageRoute;
     @NotNull(message = "用药天数不能为空")
     @Min(value = 1, message = "用药天数至少 1 天")

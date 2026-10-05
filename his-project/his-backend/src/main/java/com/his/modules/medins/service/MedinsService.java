@@ -3,6 +3,7 @@ package com.his.modules.medins.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.his.common.BizException;
+import com.his.infrastructure.util.LikeEscapeUtil;
 import com.his.common.ErrorCode;
 import com.his.common.PageResult;
 import com.his.infrastructure.security.CurrentUser;
@@ -116,7 +117,7 @@ public class MedinsService {
         Page<MedinsSettle> page = settleMapper.selectPage(query.toPage(),
                 new LambdaQueryWrapper<MedinsSettle>()
                         .like(query.getSettleNo() != null && !query.getSettleNo().isBlank(),
-                                MedinsSettle::getSettleNo, query.getSettleNo())
+                                MedinsSettle::getSettleNo, LikeEscapeUtil.escape(query.getSettleNo()))
                         .eq(query.getStatus() != null, MedinsSettle::getStatus, query.getStatus())
                         .orderByDesc(MedinsSettle::getId));
         return PageResult.of(page);

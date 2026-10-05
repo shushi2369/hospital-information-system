@@ -22,14 +22,18 @@ alert() {
     echo "$line" >> "$ALERT_LOG"
 }
 
+# 告警日志轮转：超过 5MB 保留最近 2000 行（探活每 30 分钟一写，无限增长会吃磁盘）
+if [ -f "$ALERT_LOG" ] && [ "$(stat -c %s "$ALERT_LOG" 2>/dev/null || echo 0)" -gt 5242880 ]; then
+    tail -2000 "$ALERT_LOG" > "$ALERT_LOG.tmp" && mv "$ALERT_LOG.tmp" "$ALERT_LOG"
+fi
+
 NOW_EPOCH=$(date +%s)
 HAS_ALERT=0
 
-# ---- 1. 后端存活 ----
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-    "http://localhost:8080/api/v1/auth/login" \
-    -H "Content-Type: application/json" \
-    -d '{"username":"admin","password":"His@2026"}' 2>/dev/null || echo "000")
+# ---- 1. 后端存活（actuator 零凭据探活：真实登录会污染登录审计/撞限流，八十六轮审计）----
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -m 10 \
+    "http://localhost:8080/actuator/health" 2>/dev/null)
+[ -z "$HTTP_CODE" ] && HTTP_CODE="000"
 if [ "$HTTP_CODE" != "200" ]; then
     alert "CRITICAL" "后端服务不可达 (HTTP $HTTP_CODE)"
     HAS_ALERT=1

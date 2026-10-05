@@ -23,13 +23,14 @@ public class RegistrationExpireTask {
 
     @Scheduled(cron = "0 55 23 * * ?")
     public void expireToday() {
+        // le 而非 eq：停机错过 23:55 或跨零点新挂的号，次日/启动后仍会被扫到（自愈，幂等：仅 10→40）
         int updated = registrationMapper.update(null, new LambdaUpdateWrapper<RegRegistration>()
-                .eq(RegRegistration::getRegDate, LocalDate.now())
+                .le(RegRegistration::getRegDate, LocalDate.now())
                 .eq(RegRegistration::getStatus, 10)
                 .set(RegRegistration::getStatus, 40)
                 .set(RegRegistration::getUpdatedAt, LocalDateTime.now()));
         if (updated > 0) {
-            log.info("过号任务完成: 当日 {} 条挂号单置为已过号", updated);
+            log.info("过号任务完成: {} 条历史挂号单置为已过号（含错期补扫）", updated);
         }
     }
 }

@@ -10,8 +10,12 @@
   <arguments>-Xms768m -Xmx1536m -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=C:\his-runtime\backend\logs -jar C:\his-runtime\backend\app.jar</arguments>
   <stoptimeout>25000</stoptimeout>
   <env name="DB_PASSWORD" value="root123"/>
+  <!-- 下两个密钥此处是仓库 dev 默认值（应用启动时会打 SECURITY-WARN）。
+       生产/演示实例必须注入与仓库不同的强随机值（密钥本体不入仓库）；
+       AES 轮换存量密文的流程见 deploy/db/rotate_aes_key.py（2026-10-05 已在本机执行过一次）。 -->
   <env name="JWT_SECRET" value="dev-only-jwt-secret-please-change-0123456789abcdef"/>
   <env name="AES_KEY" value="QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUE="/>
+  <env name="SWAGGER_ENABLED" value="false"/>
   <env name="FLYWAY_LOCATIONS" value="classpath:db/migration,classpath:db/demo"/>
   <env name="TZ" value="Asia/Shanghai"/>
   <onfailure action="restart"/>

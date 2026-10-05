@@ -3,6 +3,7 @@ package com.his.modules.patient.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.his.common.BizException;
+import com.his.infrastructure.util.LikeEscapeUtil;
 import com.his.common.ErrorCode;
 import com.his.common.PageResult;
 import com.his.common.util.MaskUtil;
@@ -70,10 +71,10 @@ public class PatientService {
         LambdaQueryWrapper<PatPatient> wrapper = new LambdaQueryWrapper<PatPatient>()
                 // 默认仅有效患者：合并/离职停用后源患者不可再被选用（防合并后数据继续分裂）
                 .eq(!(Boolean.TRUE.equals(query.getIncludeDisabled())), PatPatient::getStatus, 1)
-                .like(query.getName() != null && !query.getName().isBlank(), PatPatient::getName, query.getName())
+                .like(query.getName() != null && !query.getName().isBlank(), PatPatient::getName, LikeEscapeUtil.escape(query.getName()))
                 // 五十三轮：电话改前缀检索（likeRight 走 idx_patient_phone；全模糊前置通配符索引无效）
-                .likeRight(query.getPhone() != null && !query.getPhone().isBlank(), PatPatient::getPhone, query.getPhone())
-                .like(query.getPatientNo() != null && !query.getPatientNo().isBlank(), PatPatient::getPatientNo, query.getPatientNo())
+                .likeRight(query.getPhone() != null && !query.getPhone().isBlank(), PatPatient::getPhone, LikeEscapeUtil.escape(query.getPhone()))
+                .like(query.getPatientNo() != null && !query.getPatientNo().isBlank(), PatPatient::getPatientNo, LikeEscapeUtil.escape(query.getPatientNo()))
                 .orderByDesc(PatPatient::getId);
         String idCardNo = query.getIdCardNo();
         if (idCardNo != null && !idCardNo.isBlank()) {

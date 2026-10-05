@@ -65,8 +65,17 @@ public class CdssService {
         return rule.getRuleCode();
     }
 
-    /** 规则更新（C-01） */
+    /** 规则更新（C-01）：枚举字段与服务端白名单校验（裸收 status=99 会让规则被 eq(status,1) 静默排除） */
     public void updateRule(Long id, CdssRule req) {
+        if (req.getRuleType() != null && (req.getRuleType() < 1 || req.getRuleType() > 4)) {
+            throw new BizException(ErrorCode.A0001, "规则类型取值 1~4");
+        }
+        if (req.getStatus() != null && (req.getStatus() < 0 || req.getStatus() > 1)) {
+            throw new BizException(ErrorCode.A0001, "状态取值 0 停用 / 1 启用");
+        }
+        if (req.getLevel() != null && req.getLevel() < 1) {
+            throw new BizException(ErrorCode.A0001, "提示级别须为正整数（当前口径 1=提示）");
+        }
         CdssRule rule = ruleMapper.selectById(id);
         if (rule == null) {
             throw new BizException(ErrorCode.A0001, "规则不存在");

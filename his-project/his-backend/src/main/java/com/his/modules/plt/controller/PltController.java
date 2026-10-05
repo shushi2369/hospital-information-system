@@ -3,6 +3,7 @@ package com.his.modules.plt.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.his.common.AuditLog;
+import com.his.infrastructure.util.LikeEscapeUtil;
 import com.his.common.Idempotent;
 import com.his.common.PageResult;
 import com.his.common.R;
@@ -48,7 +49,7 @@ public class PltController {
     @PreAuthorize("@ss.hasPerm('plt:index:query')")
     public R<PageResult<Map<String, Object>>> search(IndexSearchQuery query) {
         LambdaQueryWrapper<PltMasterIndex> wrapper = new LambdaQueryWrapper<PltMasterIndex>()
-                .like(query.getMpiNo() != null && !query.getMpiNo().isBlank(), PltMasterIndex::getMpiNo, query.getMpiNo())
+                .like(query.getMpiNo() != null && !query.getMpiNo().isBlank(), PltMasterIndex::getMpiNo, LikeEscapeUtil.escape(query.getMpiNo()))
                 .orderByDesc(PltMasterIndex::getId);
         Page<PltMasterIndex> page = new Page<>(Math.max(query.getPageNum(), 1),
                 Math.min(Math.max(query.getPageSize(), 1), 200));
@@ -103,7 +104,17 @@ public class PltController {
         data.put("mpiNo", mpi.getMpiNo());
         data.put("mergeFlag", mpi.getMergeFlag());
         data.put("mergedInto", mpi.getMergedInto());
-        data.put("patient", p);
+        // 与患者中心同口径：手机号/证件脱敏出站（主索引是跨域视图，不能成为明文旁路）
+        if (p != null) {
+            Map<String, Object> pm = new HashMap<>();
+            pm.put("id", p.getId());
+            pm.put("patientNo", p.getPatientNo());
+            pm.put("name", p.getName());
+            pm.put("gender", p.getGender());
+            pm.put("birthDate", p.getBirthDate());
+            pm.put("phone", com.his.common.util.MaskUtil.maskPhone(p.getPhone()));
+            data.put("patient", pm);
+        }
         return R.ok(data);
     }
 

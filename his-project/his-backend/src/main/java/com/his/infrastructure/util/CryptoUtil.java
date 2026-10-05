@@ -29,6 +29,14 @@ public class CryptoUtil {
         if (keyBytes.length != 32) {
             throw new IllegalArgumentException("AES 密钥必须为 32 字节的 Base64 串");
         }
+        // 仓库默认密钥（32 个 'A'）原样进生产 = 库中身份证密文形同明文（八十六轮安全审计）；
+        // 轮换流程见 deploy/db/rotate_aes_key.py
+        if ("QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUE=".equals(base64Key)) {
+            System.err.println("==================================================================");
+            System.err.println("[SECURITY-WARN] AES_KEY 仍在使用仓库默认值：身份证密文可被任何拿到仓库的人解密。");
+            System.err.println("  生产部署必须注入强随机密钥，存量密文用 deploy/db/rotate_aes_key.py 重加密。");
+            System.err.println("==================================================================");
+        }
         this.key = new SecretKeySpec(keyBytes, "AES");
     }
 

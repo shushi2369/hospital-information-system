@@ -2,6 +2,7 @@ package com.his.modules.patient.app;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.his.common.BizException;
+import com.his.infrastructure.util.LikeEscapeUtil;
 import com.his.common.ErrorCode;
 import com.his.modules.patient.entity.PatMedicalCard;
 import com.his.modules.patient.entity.PatPatient;
@@ -78,7 +79,7 @@ public class PatientAppService {
     /** 按姓名模糊查询患者 ID 集合（EMPI 检索用） */
     public List<Long> searchIdsByName(String name) {
         return patientMapper.selectList(new LambdaQueryWrapper<PatPatient>()
-                        .like(PatPatient::getName, name))
+                        .like(PatPatient::getName, LikeEscapeUtil.escape(name)))
                 .stream().map(PatPatient::getId).toList();
     }
 

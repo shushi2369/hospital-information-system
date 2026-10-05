@@ -3,6 +3,7 @@ package com.his.modules.basedata.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.his.common.BizException;
+import com.his.infrastructure.util.LikeEscapeUtil;
 import com.his.common.ErrorCode;
 import com.his.common.PageResult;
 import com.his.modules.basedata.dto.DrugCreateRequest;
@@ -32,8 +33,8 @@ public class DrugService {
      */
     public PageResult<Drug> page(DrugQueryRequest query) {
         LambdaQueryWrapper<Drug> wrapper = new LambdaQueryWrapper<Drug>()
-                .like(StringUtils.hasText(query.getDrugName()), Drug::getDrugName, query.getDrugName())
-                .like(StringUtils.hasText(query.getDrugCode()), Drug::getDrugCode, query.getDrugCode())
+                .like(StringUtils.hasText(query.getDrugName()), Drug::getDrugName, LikeEscapeUtil.escape(query.getDrugName()))
+                .like(StringUtils.hasText(query.getDrugCode()), Drug::getDrugCode, LikeEscapeUtil.escape(query.getDrugCode()))
                 .eq(query.getCategory() != null, Drug::getCategory, query.getCategory())
                 .eq(query.getStatus() != null, Drug::getStatus, query.getStatus())
                 .orderByAsc(Drug::getId);

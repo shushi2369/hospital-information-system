@@ -5,6 +5,12 @@ server:
 spring:
   lifecycle:
     timeout-per-shutdown-phase: 20s
+  task:
+    scheduling:
+      # 5 个定时任务（rpt 30s 投递 + 4 个日切 cron）共用调度器，默认 pool=1 串行阻塞：
+      # 投递一旦变慢/挂起，日切任务全部顺延
+      pool:
+        size: 4
   application:
     name: his-backend
   datasource:

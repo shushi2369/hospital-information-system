@@ -1,5 +1,6 @@
 package com.his.modules.billing.app;
 
+import com.his.common.PageResult;
 import com.his.modules.billing.mapper.ChargeStatMapper;
 import com.his.modules.billing.mapper.RefundStatMapper;
 import com.his.modules.patient.app.PatientAppService;
@@ -62,17 +63,40 @@ public class BillingAppService {
         return list;
     }
 
-    /** 收入明细下钻（T-04：收费明细行 + 退费单行，与收费明细同源供交叉核对） */
-    public List<RevenueDetailRowDTO> revenueDetailRows(LocalDate start, LocalDate end) {
+    /** 收入明细下钻（T-04）：SQL 侧真分页，患者名仅对当前页批量解析 */
+    public PageResult<RevenueDetailRowDTO> revenueDetailPage(LocalDate start, LocalDate end, long pageNum, long pageSize) {
+        long ps = Math.min(Math.max(1, pageSize), 200);
+        long pn = Math.max(1, pageNum);
         LocalDateTime s = start.atStartOfDay();
         LocalDateTime e = end.atTime(23, 59, 59);
+        long total = chargeStatMapper.detailRowsCount(s, e);
+        List<RevenueDetailRowDTO> rows =
+                mapDetailRows(chargeStatMapper.detailRowsPage(s, e, (pn - 1) * ps, ps));
+        fillPatientNames(rows);
+        PageResult<RevenueDetailRowDTO> page = new PageResult<>();
+        page.setTotal(total);
+        page.setList(rows);
+        return page;
+    }
+
+    /** 导出分批拉取：每次固定行数，调用方循环到空批为止（流式写响应，不积压堆内存） */
+    public List<RevenueDetailRowDTO> revenueDetailBatch(LocalDate start, LocalDate end, long offset, int limit) {
+        int capped = Math.min(Math.max(1, limit), 1000);
+        LocalDateTime s = start.atStartOfDay();
+        LocalDateTime e = end.atTime(23, 59, 59);
+        List<RevenueDetailRowDTO> rows =
+                mapDetailRows(chargeStatMapper.detailRowsPage(s, e, Math.max(0, offset), capped));
+        fillPatientNames(rows);
+        return rows;
+    }
+
+    private List<RevenueDetailRowDTO> mapDetailRows(List<Map<String, Object>> raw) {
         List<RevenueDetailRowDTO> rows = new ArrayList<>();
-        java.util.LinkedHashSet<Long> patientIds = new java.util.LinkedHashSet<>();
-        for (Map<String, Object> row : chargeStatMapper.detailRows(s, e)) {
+        for (Map<String, Object> row : raw) {
             RevenueDetailRowDTO dto = new RevenueDetailRowDTO();
             dto.setTime(toLocalDateTime(row.get("payTime")));
             dto.setDocNo((String) row.get("billNo"));
-            dto.setType(1);
+            dto.setType(row.get("feeType") != null ? 1 : 2);
             Long pid = toLong(row.get("patientId"));
             dto.setPatientId(pid);
             dto.setItemName((String) row.get("itemName"));
@@ -82,37 +106,28 @@ public class BillingAppService {
             dto.setUnitPrice(toDecimal(row.get("unitPrice")));
             dto.setAmount(toDecimal(row.get("amount")));
             rows.add(dto);
-            if (pid != null) {
-                patientIds.add(pid);
+        }
+        return rows;
+    }
+
+    private void fillPatientNames(List<RevenueDetailRowDTO> rows) {
+        java.util.LinkedHashSet<Long> patientIds = new java.util.LinkedHashSet<>();
+        for (RevenueDetailRowDTO row : rows) {
+            if (row.getPatientId() != null) {
+                patientIds.add(row.getPatientId());
             }
         }
-        for (Map<String, Object> row : refundStatMapper.refundRows(s, e)) {
-            RevenueDetailRowDTO dto = new RevenueDetailRowDTO();
-            dto.setTime(toLocalDateTime(row.get("refundTime")));
-            dto.setDocNo((String) row.get("refundNo"));
-            dto.setType(2);
-            Long pid = toLong(row.get("patientId"));
-            dto.setPatientId(pid);
-            dto.setItemName("退费：" + row.get("reason"));
-            dto.setAmount(toDecimal(row.get("refundAmount")));
-            rows.add(dto);
-            if (pid != null) {
-                patientIds.add(pid);
-            }
+        if (patientIds.isEmpty()) {
+            return;
         }
-        // 患者名批量解析（一次 IN 查询）
         Map<Long, PatientDTO> patients = new HashMap<>();
-        if (!patientIds.isEmpty()) {
-            for (PatientDTO p : patientAppService.listByIds(new ArrayList<>(patientIds))) {
-                patients.put(p.getId(), p);
-            }
+        for (PatientDTO p : patientAppService.listByIds(new ArrayList<>(patientIds))) {
+            patients.put(p.getId(), p);
         }
         for (RevenueDetailRowDTO row : rows) {
             PatientDTO p = patients.get(row.getPatientId());
             row.setPatientName(p == null ? null : p.getName());
         }
-        rows.sort((a, b) -> b.getTime().compareTo(a.getTime()));
-        return rows;
     }
 
     private DailyRevenueDTO empty(LocalDate date) {

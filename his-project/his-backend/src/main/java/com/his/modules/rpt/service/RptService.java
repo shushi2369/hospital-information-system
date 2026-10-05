@@ -2,8 +2,6 @@ package com.his.modules.rpt.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.his.infrastructure.util.JsonEscapeUtil;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.his.common.BizException;
 import com.his.common.ErrorCode;
@@ -68,7 +66,8 @@ public class RptService {
 
     private static final String[] BIZ_TYPE_NAMES = {"", "传染病报告卡", "病案归档", "出院结算"};
 
-    /** 入队（幂等）：biz_type+biz_id 唯一，重复触发静默返回已存在记录 */
+    /** 入队（幂等）：biz_type+biz_id 唯一，重复触发静默返回已存在记录；
+     *  并发撞唯一索引时捕获后回读（不能让 DuplicateKey 回滚宿主业务事务，如出院结算） */
     public RptUpload enqueue(EnqueueCmd cmd) {
         RptUpload exists = uploadMapper.selectOne(new LambdaQueryWrapper<RptUpload>()
                 .eq(RptUpload::getBizType, cmd.getBizType())
@@ -85,7 +84,14 @@ public class RptService {
         up.setPayload(buildPayload(up.getUploadNo(), cmd));
         up.setStatus(RptUpload.STATUS_PENDING);
         up.setRetryCount(0);
-        uploadMapper.insert(up);
+        try {
+            uploadMapper.insert(up);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            return uploadMapper.selectOne(new LambdaQueryWrapper<RptUpload>()
+                    .eq(RptUpload::getBizType, cmd.getBizType())
+                    .eq(RptUpload::getBizId, cmd.getBizId())
+                    .last("LIMIT 1"));
+        }
         pltService.recordEvent("rpt.upload.enqueued", up.getUploadNo(),
                 "{\"bizType\":" + cmd.getBizType() + ",\"bizNo\":\"" + JsonEscapeUtil.escape(cmd.getBizNo()) + "\"}");
         return up;
@@ -97,15 +103,16 @@ public class RptService {
         deliverBatch(50);
     }
 
-    /** 手动触发一批投递（管理端/e2e 用），返回本批成功数 */
+    /** 手动触发一批投递（管理端/e2e 用），返回本批成功数。limit 钳制防一次拖垮调度线程 */
     public int deliverBatch(int limit) {
         if (!"MOCK".equals(gatewayMode) && (gatewayUrl == null || gatewayUrl.isBlank())) {
             return 0;
         }
+        int capped = Math.min(Math.max(1, limit), 500);
         List<RptUpload> pending = uploadMapper.selectList(new LambdaQueryWrapper<RptUpload>()
                 .eq(RptUpload::getStatus, RptUpload.STATUS_PENDING)
                 .orderByAsc(RptUpload::getId)
-                .last("LIMIT " + Math.max(1, limit)));
+                .last("LIMIT " + capped));
         int ok = 0;
         for (RptUpload up : pending) {
             if (deliverOne(up)) {
@@ -177,10 +184,12 @@ public class RptService {
         }
     }
 
-    /** 分页查询（管理端） */
+    /** 分页查询（管理端）。pageSize 钳制 ≤200：防 pageSize=10^7 一次拖全表 */
     public PageResult<RptUpload> page(Integer bizType, Integer status, long pageNum, long pageSize) {
+        long pn = Math.max(1, pageNum);
+        long ps = Math.min(Math.max(1, pageSize), 200);
         com.baomidou.mybatisplus.extension.plugins.pagination.Page<RptUpload> page =
-                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(pageNum, pageSize);
+                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(pn, ps);
         com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<RptUpload> qw =
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<RptUpload>()
                         .eq(bizType != null, RptUpload::getBizType, bizType)

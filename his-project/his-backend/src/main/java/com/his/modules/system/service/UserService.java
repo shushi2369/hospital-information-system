@@ -3,6 +3,7 @@ package com.his.modules.system.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.his.common.BizException;
+import com.his.infrastructure.util.LikeEscapeUtil;
 import com.his.common.ErrorCode;
 import com.his.common.PageResult;
 import com.his.infrastructure.security.SessionService;
@@ -43,8 +44,8 @@ public class UserService {
 
     public PageResult<UserResponse> page(UserPageQuery query) {
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>()
-                .like(query.getUsername() != null && !query.getUsername().isBlank(), SysUser::getUsername, query.getUsername())
-                .like(query.getRealName() != null && !query.getRealName().isBlank(), SysUser::getRealName, query.getRealName())
+                .like(query.getUsername() != null && !query.getUsername().isBlank(), SysUser::getUsername, LikeEscapeUtil.escape(query.getUsername()))
+                .like(query.getRealName() != null && !query.getRealName().isBlank(), SysUser::getRealName, LikeEscapeUtil.escape(query.getRealName()))
                 // 七十九轮：状态筛选（验收测试账号卫生）
                 .eq(query.getStatus() != null, SysUser::getStatus, query.getStatus())
                 .orderByDesc(SysUser::getId);

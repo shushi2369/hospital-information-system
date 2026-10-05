@@ -38,6 +38,8 @@ if [ -f "$RUNTIME_DIR/app.jar" ]; then
     cp "$RUNTIME_DIR/app.jar" "$BACKUP_DIR/app_${TIMESTAMP}.jar"
     echo "  已备份到 $BACKUP_DIR/app_${TIMESTAMP}.jar"
 fi
+# 部署备份保留最近 10 份（几十 MB/次，无限累积会吃盘）
+ls -t "$BACKUP_DIR"/app_*.jar 2>/dev/null | tail -n +11 | xargs -r rm -f
 
 # ---- Step 3: 替换 jar ----
 echo "[Step 3/6] 替换 jar..."
