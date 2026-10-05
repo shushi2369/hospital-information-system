@@ -76,6 +76,7 @@ public class BillingService {
     private final BasedataAppService basedataAppService;
     private final IdGenerator idGenerator;
     private final com.his.modules.inp.app.InpAppService inpAppService;
+    private final com.his.modules.rpt.service.RptService rptService;
 
     /** 未收费就诊列表（B-02 收费窗口工作队列） */
     public List<Map<String, Object>> unpaidVisits() {
@@ -514,6 +515,13 @@ public class BillingService {
         java.math.BigDecimal depositTotal = inpAppService.getDepositTotal(admissionId);
         resp.setDepositTotal(depositTotal);
         resp.setRefundAmount(depositTotal.subtract(bill.getTotalAmount()));
+        // 五期-lite：出院结算触发区域上报
+        var rptPt = patientAppService.getById(bill.getPatientId());
+        rptService.enqueue(new com.his.modules.rpt.service.RptService.EnqueueCmd(
+                com.his.modules.rpt.entity.RptUpload.TYPE_INP_SETTLE, bill.getId(), bill.getBillNo(),
+                bill.getPatientId(), rptPt == null ? "" : rptPt.getName(), "INP_SETTLED", bill.getPayTime(),
+                java.util.Map.of("total", String.valueOf(bill.getTotalAmount()),
+                        "admissionId", String.valueOf(admissionId))));
         return resp;
     }
 

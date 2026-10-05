@@ -27,10 +27,12 @@ class PubServiceTest extends UnitTestBase {
     private final PubDiseaseDictMapper dictMapper = mock(PubDiseaseDictMapper.class);
     private final PubHaiCaseMapper haiMapper = mock(PubHaiCaseMapper.class);
     private final PltService pltService = mock(PltService.class);
+    private final com.his.modules.rpt.service.RptService rptService = mock(com.his.modules.rpt.service.RptService.class);
+    private final com.his.modules.patient.app.PatientAppService patientAppService = mock(com.his.modules.patient.app.PatientAppService.class);
     private final IdGenerator idGen = mock(IdGenerator.class);
 
     private PubService svc() {
-        return new PubService(cardMapper, dictMapper, haiMapper, pltService, idGen);
+        return new PubService(cardMapper, dictMapper, haiMapper, pltService, idGen, rptService, patientAppService);
     }
 
     private PubDiseaseDict disease(String name, String cat) {

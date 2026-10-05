@@ -48,6 +48,7 @@ public class MrcService {
     private final InpAppService inpAppService;
     private final PatientAppService patientAppService;
     private final com.his.modules.plt.service.PltService pltService;
+    private final com.his.modules.rpt.service.RptService rptService;
 
     /** 病案分页（M-01）：惰性补建出院未结/已结算住院的待归档病案 */
     public PageResult<MrcRecordVO> page(MrcQuery query) {
@@ -224,6 +225,12 @@ public class MrcService {
             throw new BizException(ErrorCode.A0001, "病案状态已变化，请刷新后重试");
         }
         pltService.recordEvent("mrc.archived", record.getMrcNo(), "{}");
+        // 五期-lite：病案归档触发区域上报
+        com.his.modules.patient.app.PatientDTO mrcPt = patientAppService.getById(record.getPatientId());
+        rptService.enqueue(new com.his.modules.rpt.service.RptService.EnqueueCmd(
+                com.his.modules.rpt.entity.RptUpload.TYPE_ARCHIVE, record.getId(), record.getMrcNo(),
+                record.getPatientId(), mrcPt == null ? "" : mrcPt.getName(), "MRC_ARCHIVED", record.getArchiveTime(),
+                java.util.Map.of("admissionId", record.getAdmissionId())));
     }
 
     /** 借阅（M-06）：仅已归档病案可借 */

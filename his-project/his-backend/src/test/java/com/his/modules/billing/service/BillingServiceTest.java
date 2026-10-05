@@ -56,12 +56,13 @@ class BillingServiceTest extends UnitTestBase {
     private final BasedataAppService basedataAppService = mock(BasedataAppService.class);
     private final IdGenerator idGenerator = mock(IdGenerator.class);
     private final InpAppService inpAppService = mock(InpAppService.class);
+    private final com.his.modules.rpt.service.RptService rptService = mock(com.his.modules.rpt.service.RptService.class);
 
     private final BillingService service = new BillingService(
             billMapper, chargeDetailMapper, paymentRecordMapper, refundBillMapper,
             refundDetailMapper, settlementMapper, clinicAppService, registrationAppService,
             patientAppService, systemAppService, pltService, risAppService,
-            basedataAppService, idGenerator, inpAppService);
+            basedataAppService, idGenerator, inpAppService, rptService);
 
     private BillingVisitDTO visit() {
         BillingVisitDTO v = new BillingVisitDTO();

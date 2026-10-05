@@ -611,6 +611,20 @@ def main():
         bed = page.locator(".kpi-card", has_text="床位使用率").locator(".kpi-value").inner_text().strip()
         check("KPI·床位使用率可算", bed not in ("-", ""), bed)
 
+        # ---------------- ⑭ 上报管理 UI 链：统计头 + 队列表 + 报文抽屉 ----------------
+        page.evaluate("(t) => localStorage.setItem('his_token', t)", admin)
+        page.goto(BASE + "/pub/uploads")
+        page.wait_for_timeout(2500)
+        cards_rpt = page.locator(".kpi-card")
+        check("上报·统计卡渲染（4 张）", cards_rpt.count() == 4, cards_rpt.count())
+        rows_rpt = page.locator(".el-table__body-wrapper tr")
+        check("上报·队列非空", rows_rpt.count() > 0, rows_rpt.count())
+        # 报文抽屉：点第一行"报文"
+        page.locator(".el-table__body-wrapper tr").first.get_by_role("button", name="报文").click()
+        page.wait_for_timeout(1200)
+        drawer_txt = page.locator(".el-drawer .el-textarea__inner").first.input_value()
+        check("上报·报文预览（JSON 含 uploadNo）", "uploadNo" in drawer_txt)
+
         browser.close()
 
         browser.close()

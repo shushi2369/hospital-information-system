@@ -37,6 +37,8 @@ public class PubService {
     private final PubHaiCaseMapper haiMapper;
     private final PltService pltService;
     private final IdGenerator idGenerator;
+    private final com.his.modules.rpt.service.RptService rptService;
+    private final com.his.modules.patient.app.PatientAppService patientAppService;
 
     /** 传染病报告卡分页（PUB-01） */
     public PageResult<PubInfectiousCard> cardPage(com.his.common.PageQuery query, Integer status) {
@@ -125,6 +127,12 @@ public class PubService {
         }
         pltService.recordEvent("pub.card.receipted", card.getCardNo(),
                 "{\"receiptNo\":\"" + com.his.infrastructure.util.JsonEscapeUtil.escape(req.getReceiptNo()) + "\"}");
+        // 五期-lite：报告卡闭环（40）触发区域平台上报
+        com.his.modules.patient.app.PatientDTO rptPt = patientAppService.getById(card.getPatientId());
+        rptService.enqueue(new com.his.modules.rpt.service.RptService.EnqueueCmd(
+                com.his.modules.rpt.entity.RptUpload.TYPE_INFECTIOUS, card.getId(), card.getCardNo(),
+                card.getPatientId(), rptPt == null ? "" : rptPt.getName(), "INF_CARD_CLOSED", card.getReceiptTime(),
+                java.util.Map.of("receiptNo", req.getReceiptNo() == null ? "" : req.getReceiptNo())));
     }
 
     /** 院感病例上报（PUB-H01）：返回病例号 */
