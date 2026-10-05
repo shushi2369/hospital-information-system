@@ -50,7 +50,11 @@ public class ChargeItemService {
         item.setPrice(request.getPrice());
         item.setUnit(request.getUnit() != null && !request.getUnit().isBlank() ? request.getUnit() : DEFAULT_UNIT);
         item.setStatus(request.getStatus() != null ? request.getStatus() : 1);
-        chargeItemMapper.insert(item);
+        try {
+            chargeItemMapper.insert(item);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            throw new BizException(ErrorCode.A0001, "收费项目编码已存在");
+        }
         return item;
     }
 

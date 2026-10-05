@@ -176,7 +176,12 @@ public class RisService {
         appointment.setDeviceId(req.getDeviceId());
         appointment.setApptTime(req.getApptTime());
         appointment.setStatus(1);
-        appointmentMapper.insert(appointment);
+        try {
+            appointmentMapper.insert(appointment);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            // uk_ris_appt_req：同一检查申请只能预约一次（并发双击兜底）
+            throw new BizException(ErrorCode.A0001, "该检查已预约，请勿重复预约");
+        }
         request.setStatus(20);
         if (requestMapper.updateById(request) != 1) {
             throw new BizException(ErrorCode.A0001, "申请状态已变化，请刷新后重试");

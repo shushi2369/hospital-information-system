@@ -184,7 +184,11 @@ public class MatService {
             batch.setExpireDate(exp);
             batch.setQuantity(po.getQuantity());
             batch.setStatus(1);
-            batchMapper.insert(batch);
+            try {
+                batchMapper.insert(batch);
+            } catch (org.springframework.dao.DuplicateKeyException e) {
+                throw new BizException(ErrorCode.A0001, "该物资同批号批次已存在");
+            }
         } else {
             batchMapper.update(null, new LambdaUpdateWrapper<MatBatch>()
                     .eq(MatBatch::getId, exist.getId())

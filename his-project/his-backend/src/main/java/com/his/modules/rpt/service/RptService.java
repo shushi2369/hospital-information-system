@@ -97,10 +97,21 @@ public class RptService {
         return up;
     }
 
-    /** 定时投递：每 30 秒扫一批待上报（每批 50 条，单条独立 try 防互相拖垮） */
+    /** 定时投递：每 30 秒扫一批待上报（每批 50 条，单条独立 try 防互相拖垮）。
+     *  调度通道尊重失败退避（next_retry_at）：坏数据让位，新上报首投不被队头阻塞（V50） */
     @Scheduled(fixedDelay = 30_000)
     public void deliverPendingScheduled() {
-        deliverBatch(50);
+        if (!"MOCK".equals(gatewayMode) && (gatewayUrl == null || gatewayUrl.isBlank())) {
+            return;
+        }
+        List<RptUpload> pending = uploadMapper.selectList(new LambdaQueryWrapper<RptUpload>()
+                .eq(RptUpload::getStatus, RptUpload.STATUS_PENDING)
+                .and(w -> w.isNull(RptUpload::getNextRetryAt).le(RptUpload::getNextRetryAt, LocalDateTime.now()))
+                .orderByAsc(RptUpload::getId)
+                .last("LIMIT 50"));
+        for (RptUpload up : pending) {
+            deliverOne(up);
+        }
     }
 
     /** 手动触发一批投递（管理端/e2e 用），返回本批成功数。limit 钳制防一次拖垮调度线程 */
@@ -169,6 +180,8 @@ public class RptService {
                 .eq(RptUpload::getId, up.getId())
                 .eq(RptUpload::getStatus, RptUpload.STATUS_PENDING)
                 .setSql("retry_count = retry_count + 1")
+                .set(RptUpload::getNextRetryAt, LocalDateTime.now().plusSeconds(backoffSeconds(
+                        (up.getRetryCount() == null ? 0 : up.getRetryCount()) + 1)))
                 .set(RptUpload::getLastError, truncate(error)));
         if (retried != 1) {
             return;
@@ -266,6 +279,15 @@ public class RptService {
 
     private String bizTypeName(int bizType) {
         return bizType > 0 && bizType < BIZ_TYPE_NAMES.length ? BIZ_TYPE_NAMES[bizType] : "未知";
+    }
+
+    /** 失败退避秒数：60s 起指数翻倍，封顶 10 分钟（第 5 次失败即转 FAILED，退避只影响 1~4 次） */
+    private long backoffSeconds(int retryCountAfterIncrement) {
+        long seconds = 60L;
+        for (int i = 1; i < retryCountAfterIncrement && seconds < 600; i++) {
+            seconds *= 2;
+        }
+        return Math.min(seconds, 600);
     }
 
     private String truncate(String s) {

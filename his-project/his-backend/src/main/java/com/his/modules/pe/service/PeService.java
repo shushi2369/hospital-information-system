@@ -238,7 +238,11 @@ public class PeService {
         report.setDoctorId(CurrentUser.id());
         report.setReportTime(LocalDateTime.now());
         report.setStatus(20);
-        reportMapper.insert(report);
+        try {
+            reportMapper.insert(report);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            throw new BizException(ErrorCode.A0001, "该体检已发布报告");
+        }
         int updated = recordMapper.update(null, new LambdaUpdateWrapper<PeRecord>()
                 .eq(PeRecord::getId, id)
                 .eq(PeRecord::getStatus, 30)

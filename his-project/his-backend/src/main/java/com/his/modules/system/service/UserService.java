@@ -112,7 +112,11 @@ public class UserService {
         user.setRealName(req.getRealName());
         user.setPhone(req.getPhone());
         user.setStatus(1);
-        userMapper.insert(user);
+        try {
+            userMapper.insert(user);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            throw new BizException(ErrorCode.A0001, "用户名已存在");
+        }
         bindRoles(user.getId(), req.getRoleIds());
         return user.getId();
     }

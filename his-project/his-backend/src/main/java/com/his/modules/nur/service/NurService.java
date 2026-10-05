@@ -48,7 +48,11 @@ public class NurService {
         schedule.setShiftDate(req.getShiftDate());
         schedule.setShiftType(req.getShiftType());
         schedule.setStatus(1);
-        scheduleMapper.insert(schedule);
+        try {
+            scheduleMapper.insert(schedule);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            throw new BizException(ErrorCode.A0001, "该护士当日已有排班");
+        }
         return schedule.getId();
     }
 

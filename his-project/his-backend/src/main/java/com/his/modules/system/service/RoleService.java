@@ -45,7 +45,11 @@ public class RoleService {
         role.setRoleName(req.getRoleName());
         role.setDescription(req.getDescription());
         role.setStatus(1);
-        roleMapper.insert(role);
+        try {
+            roleMapper.insert(role);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            throw new BizException(ErrorCode.A0001, "角色编码已存在");
+        }
         return role.getId();
     }
 

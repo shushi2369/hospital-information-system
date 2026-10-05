@@ -66,7 +66,11 @@ public class DoctorService {
         doctor.setExpertFee(request.getExpertFee());
         doctor.setDailyQuota(request.getDailyQuota());
         doctor.setStatus(1);
-        doctorMapper.insert(doctor);
+        try {
+            doctorMapper.insert(doctor);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            throw new BizException(ErrorCode.A0001, "该登录账号已绑定医生档案");
+        }
         return doctor;
     }
 

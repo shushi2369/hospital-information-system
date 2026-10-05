@@ -81,7 +81,11 @@ public class MedinsService {
         settle.setOperatorId(CurrentUser.id());
         settle.setStatus(10);
         if (settle.getId() == null) {
-            settleMapper.insert(settle);
+            try {
+                settleMapper.insert(settle);
+            } catch (org.springframework.dao.DuplicateKeyException e) {
+                throw new BizException(ErrorCode.B6401);
+            }
         } else {
             settleMapper.updateById(settle);
         }

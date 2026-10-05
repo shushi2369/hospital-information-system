@@ -62,7 +62,11 @@ public class DrugService {
         drug.setStockWarningQty(request.getStockWarningQty() != null ? request.getStockWarningQty() : BigDecimal.ZERO);
         drug.setIsAntibiotic(request.getIsAntibiotic() != null ? request.getIsAntibiotic() : 0);
         drug.setStatus(request.getStatus() != null ? request.getStatus() : 1);
-        drugMapper.insert(drug);
+        try {
+            drugMapper.insert(drug);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            throw new BizException(ErrorCode.A0001, "药品编码已存在");
+        }
         return drug;
     }
 

@@ -50,7 +50,11 @@ public class WhseService {
         supplier.setContact(req.getContact());
         supplier.setPhone(req.getPhone());
         supplier.setStatus(1);
-        supplierMapper.insert(supplier);
+        try {
+            supplierMapper.insert(supplier);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            throw new BizException(ErrorCode.A0001, "供应商编码已存在");
+        }
         return supplier.getId();
     }
 

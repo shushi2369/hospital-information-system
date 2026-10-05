@@ -47,7 +47,11 @@ public class DepartmentService {
         dept.setDeptType(request.getDeptType());
         dept.setLocation(request.getLocation());
         dept.setStatus(request.getStatus() != null ? request.getStatus() : 1);
-        departmentMapper.insert(dept);
+        try {
+            departmentMapper.insert(dept);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            throw new BizException(ErrorCode.A0001, "科室编码已存在");
+        }
         return dept;
     }
 

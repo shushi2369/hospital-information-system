@@ -267,7 +267,11 @@ public class OrsService {
         record.setEventNote(req.getEventNote());
         record.setVitalSample(req.getVitalSample());
         if (record.getId() == null) {
-            anesthesiaMapper.insert(record);
+            try {
+                anesthesiaMapper.insert(record);
+            } catch (org.springframework.dao.DuplicateKeyException e) {
+                throw new BizException(ErrorCode.A0001, "该手术已存在麻醉记录");
+            }
         } else {
             anesthesiaMapper.updateById(record);
         }

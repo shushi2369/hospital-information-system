@@ -235,7 +235,11 @@ public class LisService {
         report.setStatus(20);
         report.setMutualFlag(mutualFlag == null ? 0 : mutualFlag);
         report.setMutualNote(mutualNote);
-        reportMapper.insert(report);
+        try {
+            reportMapper.insert(report);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            throw new BizException(ErrorCode.A0001, "该申请已发布报告");
+        }
         int updated = requestMapper.update(null, new LambdaUpdateWrapper<LisRequest>()
                 .eq(LisRequest::getId, requestId)
                 .eq(LisRequest::getStatus, 30)

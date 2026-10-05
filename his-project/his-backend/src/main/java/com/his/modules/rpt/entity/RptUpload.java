@@ -33,6 +33,8 @@ public class RptUpload extends BaseEntity {
     private String receiptNo;
     private Integer retryCount;
     private String lastError;
+    /** 失败退避：下次可重试时刻（NULL=立即可投）。只约束调度通道，手动投递不看（V50） */
+    private LocalDateTime nextRetryAt;
     private LocalDateTime uploadedAt;
 
     @Version

@@ -69,7 +69,11 @@ public class InventoryService {
             batch.setQuantity(req.getQuantity());
             batch.setInitialQuantity(req.getQuantity());
             batch.setStatus(1);
-            batchMapper.insert(batch);
+            try {
+                batchMapper.insert(batch);
+            } catch (org.springframework.dao.DuplicateKeyException e) {
+                throw new BizException(ErrorCode.A0001, "该药品同批号批次已存在（同批号应合并入库数量）");
+            }
             before = BigDecimal.ZERO;
             after = req.getQuantity();
         } else {
