@@ -270,7 +270,8 @@ def main():
     codes6 = [r["code"] for _, r in out]
     ok6 = codes6.count("OK")
     check("C14. 并发摆药×3：恰1成功", ok6 == 1, codes6)
-    check("C15. 失败侧全部 B6102（状态已变化）", codes6.count("B6102") == 2, codes6)
+    check("C15. 失败侧全部为合法拒绝码（B4003 前置门禁 或 B6102 条件更新，时序决定）",
+      all(c in ("B4003", "B6102") for c in codes6 if c != "OK"), codes6)
     st, o6 = call("GET", "/doc/orders?admissionId=%s&status=30" % adm6, pharmacist)
     check("C16. 医嘱终态 30 已摆药", any(o["id"] == rx6 for o in o6["data"]["list"]), o6["data"]["total"])
 
@@ -296,6 +297,56 @@ def main():
     else:
         check("C18. 并发退押×2：恰1成功", True)  # 应退为 0（费用≥押金）跳过
         check("C19. 押金余额不为负", True)
+
+    # ================= ⑧ EMPI 并发建档（同证件双击） =================
+    # 同一身份证并发建档 ×2（不同幂等键=模拟两个窗口同时点击）：预检查窗口竞态由
+    # uk_id_card_hash 唯一索引兜底 → 恰 1 成功 + 1 B1001（五十轮 DuplicateKey 语义化固化）
+    import urllib.parse as _up8
+    same_card = "34010519980101" + uid[-4:]
+    calls = [(lambda i=i: call("POST", "/patients", admin,
+              {"name": "并发同证" + uid + "-" + str(i), "gender": 1, "birthDate": "1998-01-01",
+               "idCardNo": same_card, "phone": "133" + uid[:7] + str(i)},
+              idem="cc-emp-%s-%d" % (uid, i))) for i in range(2)]
+    out = parallel(calls)
+    codes8 = [r["code"] for _, r in out]
+    check("C20. 同证件并发建档×2：恰1成功1拒绝", codes8.count("OK") == 1 and codes8.count("B1001") == 1, codes8)
+    st, pl8 = call("GET", "/patients?idCardNo=" + same_card, admin)
+    check("C21. 该证件患者恰 1 条", isinstance(pl8["data"], dict) and pl8["data"]["total"] == 1, pl8["data"].get("total"))
+
+    # ================= ⑨ 并发日结（同收费员同日） =================
+    # 新建一次性收费员 → 有当日费用 → 并发日结 ×2：恰 1 成功 + 1 B3006（uk_settle_date_cashier）
+    ce9 = "cc9" + uid[-6:]
+    st, rl_r = call("GET", "/system/roles", admin)
+    roles_r = rl_r["data"] if isinstance(rl_r["data"], list) else (rl_r["data"].get("list") or [])
+    cashier_role = next((x["id"] for x in roles_r if "收费" in str(x.get("roleName", "")) or "CASHIER" in str(x.get("roleCode", ""))), None)
+    call("POST", "/system/users", admin, {"username": ce9, "password": PASSWORD, "realName": "并发日结员",
+         "phone": "13900" + uid[-4:], "roleIds": [cashier_role]}, idem="cc-u9-" + uid)
+    st, r = call("POST", "/auth/login", body={"username": ce9, "password": PASSWORD})
+    ce9_tok = r["data"]["token"]
+    # 挂号+收费制造一笔当日费用
+    call("POST", "/patients", admin, {"name": "并发日结患者" + uid, "gender": 1,
+         "birthDate": "1992-06-15", "idCardNo": "34010519980102" + uid[-4:], "phone": "132" + uid[:8]},
+         idem="cc-pt9-" + uid)
+    st, pl9 = call("GET", "/patients?name=" + _up8.quote("并发日结患者" + uid), admin)
+    pt9 = pl9["data"]["list"][0]["id"]
+    call("POST", "/registrations", ce9_tok, {"patientId": pt9, "doctorId": 2,
+         "regDate": today, "period": 1, "regType": 1}, idem="cc-reg9-" + uid)
+    st, rl9 = call("GET", "/registrations?patientId=%s&regDate=%s" % (pt9, today), ce9_tok)
+    reg9 = rl9["data"]["list"][0]["id"]
+    dr9 = login("dr.li")
+    st, r = call("POST", "/clinic/visits/%d/start" % reg9, dr9, idem="cc-v9-" + uid)
+    v9_data = r.get("data")
+    st, bl9 = call("POST", "/billing/bills", ce9_tok, {"visitId": None, "payMethod": 1},
+                   idem="cc-bl9-" + uid) if False else (0, {"code": "SKIP"})
+    # 直接对挂号单收费：找出该挂号产生的待收就诊
+    visit9 = v9_data if not isinstance(v9_data, dict) else (v9_data.get("visitId") or v9_data.get("id"))
+    st, r = call("POST", "/billing/bills", ce9_tok, {"visitId": visit9, "payMethod": 1}, idem="cc-bl9-" + uid)
+    check("C22. 前置：并发日结员的当日收费", r.get("code") == "OK", r)
+    calls = [(lambda i=i: call("POST", "/billing/settlements", ce9_tok,
+              {"settleDate": today}, idem="cc-set-%s-%d" % (uid, i))) for i in range(2)]
+    out = parallel(calls)
+    codes9 = [r["code"] for _, r in out]
+    check("C23. 并发日结×2：恰1成功1B3006", codes9.count("OK") == 1 and codes9.count("B3006") == 1, codes9)
 
     failed = [n for n, ok, _ in results if not ok]
     print("\n===== 并发安全专项结果: %d/%d 通过 =====" % (len(results) - len(failed), len(results)))

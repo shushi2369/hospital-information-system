@@ -10,6 +10,8 @@ import com.his.modules.doc.mapper.DocOrderMapper;
 import com.his.modules.inp.app.InpAppService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -41,7 +43,17 @@ public class LongOrderPlanTask {
 
     @Scheduled(cron = "0 30 0 * * ?")
     public void generateTodayPlan() {
-        LocalDate today = LocalDate.now();
+        generatePlanFor(LocalDate.now());
+    }
+
+    /** 启动补偿（九十轮资源审计 P1-3）：00:30 停机窗口错过后，启动即补生成当日执行单
+     *  （护士当日待办不缺失）。幂等：执行单唯一索引 + 先查后插，重复调用安全 */
+    @EventListener(ApplicationReadyEvent.class)
+    public void catchUpOnStartup() {
+        generatePlanFor(LocalDate.now());
+    }
+
+    public void generatePlanFor(LocalDate today) {
         List<DocOrder> orders = orderMapper.selectList(new LambdaQueryWrapper<DocOrder>()
                 .eq(DocOrder::getOrderClass, 1)
                 .in(DocOrder::getStatus, 20, 30));

@@ -11,6 +11,8 @@ import com.his.modules.inp.mapper.InpBedMapper;
 import com.his.modules.inp.mapper.InpDailyFeeMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -35,7 +37,17 @@ public class AdmissionFeeTask {
 
     @Scheduled(cron = "0 20 0 * * ?")
     public void recordBedFees() {
-        LocalDate feeDate = LocalDate.now().minusDays(1);
+        recordBedFeesFor(LocalDate.now().minusDays(1));
+    }
+
+    /** 启动补偿（九十轮资源审计 P1-3）：00:20 停机窗口错过日结时，启动即补记昨日床位费。
+     *  幂等（admission+feeDate+sourceType exists 检查），重复调用安全 */
+    @EventListener(ApplicationReadyEvent.class)
+    public void catchUpOnStartup() {
+        recordBedFeesFor(LocalDate.now().minusDays(1));
+    }
+
+    public void recordBedFeesFor(LocalDate feeDate) {
         LocalDateTime dayEnd = feeDate.plusDays(1).atStartOfDay(); // 半开区间上界（八十七轮审计 P2-1）
         List<InpAdmission> admissions = admissionMapper.selectList(
                 new LambdaQueryWrapper<InpAdmission>().eq(InpAdmission::getStatus, 10));
