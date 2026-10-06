@@ -37,12 +37,15 @@ Windows 服务：HIS-MySQL / HIS-Redis / HIS-Backend(WinSW) / HIS-Nginx(schtasks
 
 - 本地备份：`C:\his-runtime\backup\his_YYYYMMDD_HHMM.sql`（--single-transaction，保留 7 天）。
 - 异地同步：bat 内 `robocopy` 同步到 `D:\his-backup`（同盘备份 = 假容灾，必须异盘）。
-- **恢复演练标准流程**（六十九轮实测：备份 3s + 恢复 24s + 巡检 0 行，RTO ≈ 27s）：
-  1. `mysql -e "CREATE DATABASE his_restore"`；
-  2. `mysql --default-character-set=binary --binary-mode --force his_restore < D:\his-backup\his_latest.sql`（恢复 <30s）；
-     **两个 flag 缺一不可**：事件留痕 payload 含 `\'`/`\"` 转义，Windows 客户端批处理会把它当"未知客户端命令"整语句失败（实测 7842 错）——V41 已把 payload 列 JSON→LONGTEXT，恢复必须 `--binary-mode` + binary 字符集才能无损往返；
-  3. 起一个 8081 实例指向 his_restore（改 SPRING_DATASOURCE_URL/SERVER_PORT）；
-  4. 跑一致性巡检（57 段 0 行）+ 登录冒烟 → 数据完整即通过。
+- **恢复演练标准流程**（九十三轮实测：42.9MB dump 恢复 37s，105 表 53,749 患者完整，
+  PHI 抽样 200/200 用运行时 AES 密钥解密往返闭环，账本恒等式抽查 0 违规——RPO=备份时点实测成立）：
+  1. `mysql -e "CREATE DATABASE his_restore_test"`；
+  2. `mysql --default-character-set=binary --binary-mode --force his_restore_test < <dump 文件>`（恢复 <40s）；
+     **两个 flag 缺一不可**：事件留痕 payload 含转义引号，Windows 客户端批处理会把它当"未知客户端命令"整语句失败（实测 7842 错）——V41 已把 payload 列 JSON→LONGTEXT，恢复必须 `--binary-mode` + binary 字符集才能无损往返；
+  3. 核对：表数 105（104 迁移 + flyway_schema_history）、flyway success 全 1、
+     PHI 抽样解密（用 deploy/db/rotate_aes_key.py 的 decrypt 函数 + 运行时密钥）、
+     账本恒等式抽查（退费账/押金台账）；
+  4. 验完 `DROP DATABASE his_restore_test`（演练库用完即弃，勿留 PHI 副本）。
 - 注意：备份与数据同盘是单点；异地副本才是真容灾。
 
 ## 4. 常见故障速查

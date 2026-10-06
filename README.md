@@ -185,7 +185,7 @@ cd his-project/his-web && npm install && npm run dev
 | `mvn test` | 核心域单测 93 项（17 个测试类，含 rpt 退避序列/EMR 归属/会诊门禁） | 93/93 |
 | `python deploy/perf/perf_test.py` | 100 并发压测（5 万患者数据量下） | PASS |
 | 一致性巡检 | 75 段孤儿引用/状态一致性/账本恒等/资源互斥 | 零违规 |
-| 恢复演练 | RTO=9s / RPO≤24h / 99 表一致 | PASS |
+| 恢复演练 | RTO=37s / RPO=备份时点实测 / PHI 解密闭环 200 样本 / 105 表一致 | PASS |
 | 渗透自查 | Mass Assignment / SQL 注入 / XSS / PHI 泄露 | 全过 |
 
 质量门禁：GitHub Actions CI 流水线（push 自动触发后端测试 + 前端构建）；提交说明按"变更目标/影响模块/数据库变更/测试结果/已知限制"模板。
