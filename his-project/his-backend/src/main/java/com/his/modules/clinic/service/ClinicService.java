@@ -251,7 +251,7 @@ public class ClinicService {
             row.setStatus(1);
             prescriptionItemMapper.insert(row);
         }
-        return new PrescriptionCreateResult(prescription.getRxNo(), total);
+        return new PrescriptionCreateResult(prescription.getId(), prescription.getRxNo(), total);
     }
 
     /** 作废处方（C-08，《05》R16：仅未审核或审核通过未收费未发药可作废） */

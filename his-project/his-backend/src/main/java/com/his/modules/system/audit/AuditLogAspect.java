@@ -79,8 +79,19 @@ public class AuditLogAspect {
             }
             entity.setCostMs((int) costMs);
             // INSERT 异步化（九十轮生命周期审计）：实体在请求线程构建（traceId/用户上下文/UA 均需请求态），
-            // 落库提交到 auditExecutor——150 个 @AuditLog 端点每次省一次同步写
-            auditExecutor.execute(() -> auditQueryService.saveOperationLog(entity));
+            // 落库提交到 auditExecutor——150 个 @AuditLog 端点每次省一次同步写。
+            // MDC 快照随任务传递：executor 线程没有请求上下文，不传则异步失败日志丢 traceId 无法关联请求
+            java.util.Map<String, String> mdc = org.slf4j.MDC.getCopyOfContextMap();
+            auditExecutor.execute(() -> {
+                if (mdc != null) {
+                    org.slf4j.MDC.setContextMap(mdc);
+                }
+                try {
+                    auditQueryService.saveOperationLog(entity);
+                } finally {
+                    org.slf4j.MDC.clear();
+                }
+            });
         } catch (Exception e) {
             log.error("审计日志写入失败", e);
         }

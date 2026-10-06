@@ -11,10 +11,13 @@ import java.math.BigDecimal;
 @Getter
 @Setter
 public class PrescriptionCreateResult {
+    /** 处方数字 id：手册/学生后续 review/dispense 都要用它（建号响应原来只有 rxNo，取 id 得再查列表） */
+    private Long prescriptionId;
     private String rxNo;
     private BigDecimal totalAmount;
 
-    public PrescriptionCreateResult(String rxNo, BigDecimal totalAmount) {
+    public PrescriptionCreateResult(Long prescriptionId, String rxNo, BigDecimal totalAmount) {
+        this.prescriptionId = prescriptionId;
         this.rxNo = rxNo;
         this.totalAmount = totalAmount;
     }
