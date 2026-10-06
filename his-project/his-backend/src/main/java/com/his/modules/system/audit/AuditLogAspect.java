@@ -29,6 +29,9 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 public class AuditLogAspect {
     private final AuditQueryService auditQueryService;
     private final ObjectMapper objectMapper;
+    /** 审计落库专用线程池（有界队列+CallerRuns：满载自动退化同步写，审计不丢） */
+    @org.springframework.beans.factory.annotation.Qualifier("auditExecutor")
+    private final java.util.concurrent.Executor auditExecutor;
 
     @Around("@annotation(auditLog)")
     public Object around(ProceedingJoinPoint pjp, AuditLog auditLog) throws Throwable {
@@ -75,7 +78,9 @@ public class AuditLogAspect {
                 entity.setUserAgent(ua != null && ua.length() > 256 ? ua.substring(0, 256) : ua);
             }
             entity.setCostMs((int) costMs);
-            auditQueryService.saveOperationLog(entity);
+            // INSERT 异步化（九十轮生命周期审计）：实体在请求线程构建（traceId/用户上下文/UA 均需请求态），
+            // 落库提交到 auditExecutor——150 个 @AuditLog 端点每次省一次同步写
+            auditExecutor.execute(() -> auditQueryService.saveOperationLog(entity));
         } catch (Exception e) {
             log.error("审计日志写入失败", e);
         }

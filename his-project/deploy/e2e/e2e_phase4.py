@@ -61,6 +61,24 @@ def main():
     check("1. 角色登录（含血库人员）", all([admin, doctor, doctor2, bb_tech, nurse]))
 
     # ================= 输血闭环（三道门禁） =================
+    # 九十一轮数据清理：动态建患者+住院（原硬编码 admissionId=75/patientId=415 已删）
+    import urllib.parse as _up4
+    st, r = call("POST", "/patients", admin, {"name": "四期输血" + uid, "gender": 1,
+                 "birthDate": "1992-06-15", "idCardNo": "34010419900104" + uid[-4:],
+                 "phone": "136" + uid}, idem="p4-pt-" + uid)
+    st, pl4 = call("GET", "/patients?name=" + _up4.quote("四期输血" + uid), admin)
+    pid4 = pl4["data"]["list"][0]["id"]
+    adm4 = None
+    st, wards4 = call("GET", "/inp/wards", admin)
+    for w in wards4["data"]:
+        st, beds4 = call("GET", "/inp/beds?wardId=%s&bedStatus=1" % w["id"], admin)
+        if beds4["data"]:
+            st, r = call("POST", "/inp/admissions", admin, {"patientId": pid4,
+                         "deptId": w["deptId"], "wardId": w["id"], "bedId": beds4["data"][0]["id"],
+                         "doctorId": 2, "admissionType": 1, "plannedDiagnosis": "输血闭环演练",
+                         "depositAmount": 100, "payMethod": 1}, idem="p4-adm0-" + uid)
+            adm4 = r["data"]["id"] if isinstance(r.get("data"), dict) else r.get("data")
+            break
     st, r = call("POST", "/bb/bags", bb_tech, {
         "bagNo": "XDJ-FX-" + uid, "bloodType": 4, "rh": 1, "component": 1,
         "volumeMl": 200, "expireDate": tomorrow}, idem="p4-b1-" + uid)
@@ -71,14 +89,14 @@ def main():
     check("3. 过期血袋入库拦截", r["code"] != "OK", r)
 
     st, r = call("POST", "/bb/requests", doctor, {
-        "admissionId": 75, "patientId": 999999999, "bloodType": 4, "rh": 1,
+        "admissionId": adm4, "patientId": 999999999, "bloodType": 4, "rh": 1,
         "component": 1, "volumeMl": 200, "usePurpose": "跨患者"}, idem="p4-r0-" + uid)
     check("4a. [二十五#1] 跨患者用血申请拦截", r["code"] != "OK", r)
     st, r = call("POST", "/bb/requests", doctor, {
-        "admissionId": 75, "patientId": 415, "bloodType": 4, "rh": 1,
+        "admissionId": adm4, "patientId": pid4, "bloodType": 4, "rh": 1,
         "component": 1, "volumeMl": 200, "usePurpose": "四期验收"}, idem="p4-r1-" + uid)
     check("4. 用血申请(XY)", r["code"] == "OK" and str(r.get("data", "")).startswith("XY"), r)
-    st, rl = call("GET", "/bb/requests?admissionId=75&status=10", bb_tech)
+    st, rl = call("GET", "/bb/requests?admissionId=%s&status=10" % adm4, bb_tech)
     req = [x for x in rl["data"]["list"] if x["reqNo"].endswith(uid) or "四期" in str(x.get("usePurpose"))][0]
     req_id = req["id"]
     st, r = call("POST", "/bb/requests/%d/review?approved=true" % req_id, bb_tech, idem="p4-r2-" + uid)
@@ -88,15 +106,21 @@ def main():
     bags = [b for b in av["data"] if b["bagNo"] == "XDJ-FX-" + uid]
     check("6. 可用血袋查询(含新袋)", len(bags) == 1, [b["bagNo"] for b in av["data"]])
     new_bag_id = bags[0]["id"]
-    st, all_bags = call("GET", "/bb/bags?pageNum=1&pageSize=100", bb_tech)
+    # 九十一轮：袋表 175+ 且按效期升序——bagNo 精确定位（对齐五十一轮模式）；
+    # V30 演示袋效期已过，"可用池"不含它 → 供门禁①演练的对照袋走下方兜底补建逻辑
+    st, all_bags = call("GET", "/bb/bags?pageNum=1&pageSize=20&bagNo=XDJ20260001", bb_tech)
     demo_bag = next((b for b in all_bags["data"]["list"] if b["bagNo"] == "XDJ20260001"), None)
     check("7. V30 演示血袋存在(在库或已被历轮正常消耗)", demo_bag is not None,
           [b["bagNo"] for b in all_bags["data"]["list"][:5]])
+    demo_bag = None  # 已过期，门禁①演练改用补建的新鲜对照袋
 
     # 门禁①：不相容配血 → 发血硬阻断
     if demo_bag is None or demo_bag.get("status") != 1:
         st, av2 = call("GET", "/bb/bags/available?bloodType=4&component=1", bb_tech)
-        demo_bag = next((b for b in av2["data"] if b["id"] != new_bag_id), None)
+        # 九十一轮：V30 演示袋 XDJ20260001 效期(10-05)已过——兜底必须过滤过期袋，
+        # 否则会选中 XDJ20260001/历史 XDJ-EXP-* 被门禁以"已过期"拒绝（时炸弹型失败）
+        demo_bag = next((b for b in av2["data"]
+                         if b["id"] != new_bag_id and str(b.get("expireDate", "")) > today), None)
         if demo_bag is None:  # 池耗尽：补建演练专用袋，确保与相容袋不是同一只（防门禁自锁）
             call("POST", "/bb/bags", bb_tech, {
                 "bagNo": "XDJ-DEMO-" + uid, "bloodType": 4, "rh": 1, "component": 1,
@@ -226,6 +250,8 @@ def main():
         "patientId": alg_pid, "deptId": 1, "wardId": bed["wardId"], "bedId": bed["id"],
         "doctorId": 2, "admissionType": 1, "plannedDiagnosis": "四期验收",
         "depositAmount": 1000, "payMethod": 1}, idem="p4-adm-" + uid)
+    if r.get("data") is None:
+        print("  [adm-fail]", r.get("code"), r.get("message"))
     alg_adm = r["data"]["id"]
     st, r = call("POST", "/doc/orders", doctor, {
         "admissionId": alg_adm, "orderClass": 2, "category": 1, "frequency": "qd",

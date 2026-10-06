@@ -107,8 +107,26 @@ def main():
 
     # ================= ② 同一血袋并发发血仅一次 =================
     # 建申请→审核→配血（相容）→ 并发发血 ×3（同血袋同申请）
+    # 九十一轮数据清理：动态建患者+住院（原硬编码 75/415 已删）
+    st, r = call("POST", "/patients", admin, {"name": "并发输血" + uid, "gender": 1,
+                 "birthDate": "1992-06-15", "idCardNo": "34010419900105" + uid[-4:],
+                 "phone": "134" + uid}, idem="cc-pt3-" + uid)
+    import urllib.parse as _upc
+    st, plc = call("GET", "/patients?name=" + _upc.quote("并发输血" + uid), admin)
+    bb_patient = plc["data"]["list"][0]["id"]
+    bb_adm = None
+    st, wardsB = call("GET", "/inp/wards", admin)
+    for w in wardsB["data"]:
+        st, bedsC = call("GET", "/inp/beds?wardId=%s&bedStatus=1" % w["id"], admin)
+        if bedsC["data"]:
+            st, r = call("POST", "/inp/admissions", admin, {"patientId": bb_patient,
+                         "deptId": w["deptId"], "wardId": w["id"], "bedId": bedsC["data"][0]["id"],
+                         "doctorId": 2, "admissionType": 1, "plannedDiagnosis": "并发输血复验",
+                         "depositAmount": 100, "payMethod": 1}, idem="cc-amB-" + uid)
+            bb_adm = r["data"]["id"] if isinstance(r.get("data"), dict) else r.get("data")
+            break
     st, r = call("POST", "/bb/requests", doctor := login("dr.li"), {
-        "admissionId": 75, "patientId": 415, "bloodType": 4, "rh": 1,
+        "admissionId": bb_adm, "patientId": bb_patient, "bloodType": 4, "rh": 1,
         "component": 1, "volumeMl": 200, "usePurpose": "并发复验"}, idem="cc-b1-" + uid)
     st, rl = call("GET", "/bb/requests?status=10", bb_tech)
     req_id = [x["id"] for x in rl["data"]["list"] if x["usePurpose"] == "并发复验"][0]
@@ -142,7 +160,7 @@ def main():
 
     # ================= ③ 并发取消与配血竞态 =================
     call("POST", "/bb/requests", doctor, {
-        "admissionId": 75, "patientId": 415, "bloodType": 4, "rh": 1,
+        "admissionId": bb_adm, "patientId": bb_patient, "bloodType": 4, "rh": 1,
         "component": 1, "volumeMl": 100, "usePurpose": "竞态复验"}, idem="cc-b4-" + uid)
     st, rl = call("GET", "/bb/requests?status=10", bb_tech)
     req2 = [x["id"] for x in rl["data"]["list"] if x["usePurpose"] == "竞态复验"][0]
