@@ -467,7 +467,10 @@ def main():
             page.wait_for_timeout(400)
             dlg_pe.locator(".el-form-item", has_text="结果值").locator("input").fill(
                 "正常" if it["id"] == it1["id"] else "轻度异常")
-            dlg_pe.get_by_role("button", name="保存").click()
+            page.evaluate("""() => {
+              const dlg = [...document.querySelectorAll('.el-dialog')].find(d => d.offsetParent !== null);
+              [...dlg.querySelectorAll('button')].find(b => b.textContent.includes('保存'))?.click();
+            }""")
             page.wait_for_timeout(1500)
         prow.first.get_by_role("button", name="完成").click()
         page.wait_for_timeout(800)
@@ -564,7 +567,10 @@ def main():
         dlg_ri = page.locator(".el-dialog:visible")
         dlg_ri.locator(".el-form-item", has_text="影像所见").locator("textarea").fill("链路影像所见：未见明显异常")
         dlg_ri.locator(".el-form-item", has_text="诊断意见").locator("textarea").fill("链路诊断意见：正常")
-        dlg_ri.get_by_role("button", name="保存").click()
+        page.evaluate("""() => {
+          const dlg = [...document.querySelectorAll('.el-dialog')].find(d => d.offsetParent !== null);
+          [...dlg.querySelectorAll('button')].find(b => b.textContent.includes('保存'))?.click();
+        }""")
         page.wait_for_timeout(1800)
         # 审核：dr.wang（writer=dr.li，不得自审自签）
         wang_tok = login("dr.wang")

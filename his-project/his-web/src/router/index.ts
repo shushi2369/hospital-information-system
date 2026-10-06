@@ -38,6 +38,20 @@ const router = createRouter({
   routes: constantRoutes,
 })
 
+// 懒加载 chunk 失败兜底（九十五轮浏览器走查实锤：经营统计/区域上报首次导航白屏）：
+// 动态 import 网络抖动/发版后旧 hash 404 时整页白屏无提示。首次失败自动整页跳转目标路由
+// （绕过内存中的坏模块缓存），仅重试一次防循环。
+let chunkReloaded = false
+router.onError((error, to) => {
+  const msg = String(error?.message || '')
+  const isChunkLoad = msg.includes('Failed to fetch dynamically imported module') ||
+    msg.includes('Importing a module script failed')
+  if (isChunkLoad && !chunkReloaded) {
+    chunkReloaded = true
+    window.location.href = to.fullPath
+  }
+})
+
 /** 按菜单 component 字符串解析视图组件，解析失败回落到 NotFound */
 function resolveViewComponent(component?: string | null) {
   if (!component) return undefined
