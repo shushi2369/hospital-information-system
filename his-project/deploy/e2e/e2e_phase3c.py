@@ -198,9 +198,29 @@ def main():
         "refAId": drug_a["id"], "refBId": drug_b["id"],
         "message": "配伍禁忌演练：" + name_a + " 与 " + name_b}, idem="p3c-c1-" + uid)
     check("33. 规则创建", r["code"] == "OK", r)
+    # 九十一轮数据清理：测试住院(75)已删——动态建院替代硬编码 id
+    import urllib.parse as _up
+    st, r = call("POST", "/patients", admin, {"name": "三期C患者" + uid, "gender": 1,
+                 "birthDate": "1992-06-15", "idCardNo": "34010419900103" + uid[-4:],
+                 "phone": "137" + uid}, idem="p3c-pt2-" + uid)
+    print("  [pt-create]", st, r.get("code"), r.get("message"))
+    st, pl = call("GET", "/patients?name=" + _up.quote("三期C患者" + uid), admin)
+    print("  [pt-search]", pl.get("code"), (pl.get("data") or {}).get("total") if isinstance(pl.get("data"), dict) else pl.get("data"))
+    pt3c = pl["data"]["list"][0]["id"]
+    adm3c = None
+    st, wards3c = call("GET", "/inp/wards", admin)
+    for w in wards3c["data"]:
+        st, beds3c = call("GET", "/inp/beds?wardId=%s&bedStatus=1" % w["id"], admin)
+        if beds3c["data"]:
+            st, r = call("POST", "/inp/admissions", admin, {"patientId": pt3c,
+                         "deptId": w["deptId"], "wardId": w["id"], "bedId": beds3c["data"][0]["id"],
+                         "doctorId": 2, "admissionType": 1, "plannedDiagnosis": "CDSS演练",
+                         "depositAmount": 100, "payMethod": 1}, idem="p3c-adm-" + uid)
+            adm3c = r["data"]["id"] if isinstance(r.get("data"), dict) else r.get("data")
+            break
     # 开配伍禁忌医嘱（两药同单）——应成功不阻断
     st, r = call("POST", "/doc/orders", doctor, {
-        "admissionId": 75, "orderClass": 2, "category": 1,
+        "admissionId": adm3c, "orderClass": 2, "category": 1,
         "frequency": "qd",
         "items": [{"drugId": drug_a["id"], "quantity": 1},
                   {"drugId": drug_b["id"], "quantity": 1}]}, idem="p3c-c2-" + uid)

@@ -37,7 +37,9 @@ echo %date% %time% backup OK: his_%TS%.sql !SIZE! bytes >> "%LOG_FILE%"
 
 forfiles /p "%BACKUP_DIR%" /m "his_*.sql" /d -7 /c "cmd /c del @path" 2>nul
 robocopy "%BACKUP_DIR%" "%OFFSITE_DIR%" "his_*.sql" /mov /minage:1 >nul 2>&1
-robocopy "%BACKUP_DIR%" "%OFFSITE_DIR%" /e >nul 2>&1
+rem 九十轮生命周期审计：/e 镜像会连 deployments jar 一起无限同步（D 盘只增不减）——
+rem 异盘只保留 dump；且 D 盘必须自轮转（本地 /mov 后仅存当日，轮转责任全在异盘侧）
+robocopy "%OFFSITE_DIR%" "%OFFSITE_DIR%" /mov /minage:30 >nul 2>&1
 
 echo %date% %time% backup complete >> "%LOG_FILE%"
 endlocal

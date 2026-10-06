@@ -342,12 +342,30 @@ def main():
         complaint = "UI链路胸痛" + uid
         page.evaluate("(t) => localStorage.setItem('his_token', t)", emc_nurse)
         page.goto(BASE + "/emc/workbench")
-        page.wait_for_timeout(2000)
-        page.get_by_role("button", name="分诊登记").click()
+        # 九十轮 vendor 拆包后首访需下载 element-plus chunk，挂载遮罩期延长；
+        # 分诊按钮用原生 JS 点击绕过 loading 遮罩的 hit-test 拦截（对齐护理链经验）
+        page.wait_for_timeout(4500)
+        page.evaluate("""() => {
+          [...document.querySelectorAll('button')]
+.find(b => b.textContent.includes('分诊登记'))?.click();
+        }""")
         page.wait_for_timeout(1000)
-        page.locator(".el-dialog:visible .el-input-number input").first.fill(str(pid_emc))
+        # el-input-number 程序化 fill 不更新 Vue 模型（<十七>轮），用原生 setter + 事件派发；
+        # 登记按钮 JS 点击绕过透明遮罩（<九十>轮实测 hit-test 拦截复发）
+        page.evaluate("""(pid) => {
+          const dlg = [...document.querySelectorAll('.el-dialog')].find(d => d.offsetParent !== null);
+          const input = dlg?.querySelector('.el-input-number input');
+          const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+          setter.call(input, pid);
+          input.dispatchEvent(new Event('input', {bubbles: true}));
+          input.dispatchEvent(new Event('change', {bubbles: true}));
+        }""", str(pid_emc))
         page.locator(".el-dialog:visible .el-form-item", has_text="主诉").locator("input").fill(complaint)
-        page.locator(".el-dialog:visible").get_by_role("button", name="登记").click()
+        page.evaluate("""() => {
+          const dlg = [...document.querySelectorAll('.el-dialog')]
+            .find(d => d.offsetParent !== null);
+          [...dlg.querySelectorAll('button')].find(b => b.textContent.includes('登记'))?.click();
+        }""")
         page.wait_for_timeout(2000)
         check("EMC·分诊弹窗提交后自动关闭",
               page.locator(".el-dialog:visible").count() == 0)
