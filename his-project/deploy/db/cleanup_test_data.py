@@ -127,15 +127,21 @@ def main():
                             % (name, TEMP_SQL[name]))
             total = 0
             for table, key, src in STEPS:
-                cur.execute("DELETE FROM %s WHERE %s IN (SELECT id FROM tmp_%s)" % (table, key, src))
-                n = cur.rowcount
-                conn.commit()
-                total += n
-                if n or apply_mode:
-                    print("  %-22s -%-7d %s" % (table, n, "" if apply_mode else "(dry-run)"))
-            print("合计删除 %d 行 %s" % (total, "" if apply_mode else "（dry-run 未提交）"))
-            if not apply_mode:
-                conn.rollback()
+                if apply_mode:
+                    cur.execute("DELETE FROM %s WHERE %s IN (SELECT id FROM tmp_%s)" % (table, key, src))
+                    n = cur.rowcount
+                    conn.commit()
+                    total += n
+                    print("  %-22s -%-7d" % (table, n))
+                else:
+                    # dry-run 只读估算：COUNT 而非 DELETE（自查审计 P0——原实现 commit 无条件执行，
+                    # "dry-run" 实际删库且 rollback 无效）
+                    cur.execute("SELECT COUNT(*) FROM %s WHERE %s IN (SELECT id FROM tmp_%s)" % (table, key, src))
+                    n = cur.fetchone()[0]
+                    total += n
+                    if n:
+                        print("  %-22s ~%-7d (dry-run)" % (table, n))
+            print("合计 %d 行 %s" % (total, "已删除" if apply_mode else "（dry-run 未执行任何删除）"))
     finally:
         conn.close()
 

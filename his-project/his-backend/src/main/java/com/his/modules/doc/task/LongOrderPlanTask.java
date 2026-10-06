@@ -50,7 +50,12 @@ public class LongOrderPlanTask {
      *  （护士当日待办不缺失）。幂等：执行单唯一索引 + 先查后插，重复调用安全 */
     @EventListener(ApplicationReadyEvent.class)
     public void catchUpOnStartup() {
-        generatePlanFor(LocalDate.now());
+        try {
+            generatePlanFor(LocalDate.now());
+        } catch (Exception e) {
+            // 补偿失败降级为"待补"，不得阻断启动
+            log.error("长嘱执行计划启动补偿失败（待下次 cron/重启补生成）", e);
+        }
     }
 
     public void generatePlanFor(LocalDate today) {

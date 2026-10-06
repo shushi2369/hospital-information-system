@@ -230,4 +230,12 @@ if aid:
 else:
     check("E9 前置：存在待处理危急值", False, "当前无 status=10 危急值（手册依赖前序 LIS 实验）")
 
+# teardown：停用本轮自建收费员（账号卫生三件套；保留行供审计）
+try:
+    st, r = call("PUT", "/system/users/%d/status" % ce_user_id, "admin", {"status": 0},
+                 idem="ce-disable-" + uid)
+    if r.get("code") == "OK":
+        print("teardown: 实测收费员已停用")
+except Exception as _e:
+    print("teardown 跳过:", _e)
 print("\n完成。")

@@ -106,7 +106,8 @@ public class RptService {
         }
         List<RptUpload> pending = uploadMapper.selectList(new LambdaQueryWrapper<RptUpload>()
                 .eq(RptUpload::getStatus, RptUpload.STATUS_PENDING)
-                .and(w -> w.isNull(RptUpload::getNextRetryAt).le(RptUpload::getNextRetryAt, LocalDateTime.now()))
+                // and() 内两条件默认 AND 连接：NULL <= ? 恒 UNKNOWN → 调度器永远零投递（自查审计 P1-2）
+                .and(w -> w.isNull(RptUpload::getNextRetryAt).or().le(RptUpload::getNextRetryAt, LocalDateTime.now()))
                 .orderByAsc(RptUpload::getId)
                 .last("LIMIT 50"));
         for (RptUpload up : pending) {

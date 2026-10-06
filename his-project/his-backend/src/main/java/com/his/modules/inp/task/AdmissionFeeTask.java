@@ -44,7 +44,12 @@ public class AdmissionFeeTask {
      *  幂等（admission+feeDate+sourceType exists 检查），重复调用安全 */
     @EventListener(ApplicationReadyEvent.class)
     public void catchUpOnStartup() {
-        recordBedFeesFor(LocalDate.now().minusDays(1));
+        try {
+            recordBedFeesFor(LocalDate.now().minusDays(1));
+        } catch (Exception e) {
+            // 补偿失败降级为"待补"，不得阻断启动（启动失败 = 全院不可用 + crash-loop）
+            log.error("床位费启动补偿失败（待下次 cron/重启补记）", e);
+        }
     }
 
     public void recordBedFeesFor(LocalDate feeDate) {
@@ -83,7 +88,12 @@ public class AdmissionFeeTask {
             fee.setAmount(item.getPrice().setScale(2, RoundingMode.HALF_UP));
             fee.setChargeStatus(0);
             fee.setStatus(1);
-            dailyFeeMapper.insert(fee);
+            try {
+                dailyFeeMapper.insert(fee);
+            } catch (org.springframework.dao.DuplicateKeyException e) {
+                // uk_df_source（V52）：启动补偿与 cron 竞态窗口的唯一索引兜底
+                continue;
+            }
             count++;
         }
         if (count > 0) {
