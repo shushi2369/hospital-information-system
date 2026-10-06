@@ -25,4 +25,23 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // vendor 拆包（九十轮性能审计）：入口单包 453kB，任一依赖更新即整包缓存失效；
+        // element-plus/vue 系/axios 分属三个长期稳定的 chunk，业务代码改动可保留约 80% 缓存命中
+        manualChunks(id) {
+          if (id.includes('node_modules/element-plus') || id.includes('node_modules/@element-plus')) {
+            return 'vendor-element-plus'
+          }
+          if (id.includes('node_modules/vue') || id.includes('node_modules/@vue') || id.includes('node_modules/pinia') || id.includes('node_modules/vue-router')) {
+            return 'vendor-vue'
+          }
+          if (id.includes('node_modules/axios')) {
+            return 'vendor-axios'
+          }
+        },
+      },
+    },
+  },
 })

@@ -40,12 +40,14 @@ if [ "$HTTP_CODE" != "200" ]; then
 fi
 
 # ---- 1b. nginx 存活（Windows worker 崩溃后不会自愈，自动拉起）----
-FE_CODE=$(curl -s -o /dev/null -w "%{http_code}" -m 5 "http://localhost/" 2>/dev/null || echo "000")
+FE_CODE=$(curl -s -o /dev/null -w "%{http_code}" -m 5 "http://localhost/" 2>/dev/null)
+[ -z "$FE_CODE" ] && FE_CODE="000"
 if [ "$FE_CODE" != "200" ]; then
     alert "CRITICAL" "nginx 不可达 (HTTP $FE_CODE)，尝试自动拉起"
     cd /c/his-runtime/nginx && start nginx 2>/dev/null
     sleep 3
-    FE_CODE2=$(curl -s -o /dev/null -w "%{http_code}" -m 5 "http://localhost/" 2>/dev/null || echo "000")
+    FE_CODE2=$(curl -s -o /dev/null -w "%{http_code}" -m 5 "http://localhost/" 2>/dev/null)
+    [ -z "$FE_CODE2" ] && FE_CODE2="000"
     if [ "$FE_CODE2" != "200" ]; then
         alert "CRITICAL" "nginx 自动拉起失败（HTTP $FE_CODE2），需人工介入"
         HAS_ALERT=1

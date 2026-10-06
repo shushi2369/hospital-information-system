@@ -739,7 +739,10 @@ async function fetchDrugs() {
 function openRxDialog() {
   rxRows.value = [emptyRow()]
   rxDialogVisible.value = true
-  fetchDrugs()
+  // 已加载过不再重拉 200 行药品（九十轮性能审计，对齐 InpOrders 守卫模式）
+  if (drugOptions.value.length === 0) {
+    fetchDrugs()
+  }
 }
 
 function isRowTouched(r: RxRow): boolean {

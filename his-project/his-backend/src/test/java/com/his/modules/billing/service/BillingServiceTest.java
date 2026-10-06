@@ -149,6 +149,40 @@ class BillingServiceTest extends UnitTestBase {
     }
 
     @Test
+    void refund_rejectsExecutedExamFee() {
+        // 八十八轮 P0-1 门禁固化：sourceType=3 检查/检验申请费在 exam 已执行(30)后不可退
+        stubRefundCommon(bill());
+        BilChargeDetail d = detail(11L, 3, new BigDecimal("1"), "80.00");
+        d.setSourceType(3);
+        d.setSourceDetailId(333L); // cli_exam_application.id
+        when(chargeDetailMapper.selectList(any())).thenReturn(List.of(d));
+        when(clinicAppService.examStatusByIds(anyList())).thenReturn(Map.of(333L, 30));
+
+        BizException e = assertThrows(BizException.class,
+                () -> service.refund(refundReq(line(11L, "1"))));
+        assertTrue(e.getMessage().contains("已执行"));
+        verify(refundBillMapper, never()).insert(any(BilRefundBill.class));
+    }
+
+    @Test
+    void refund_examNotExecutedStillRejectedByNothingUntilGate() {
+        // 对照组：未执行的检查费（exam=20 已收费）可正常进入退费主流程（不在此断言完整成功，
+        // 只断言门禁不放行错误——真正放行由 e2e 门诊链覆盖）
+        stubRefundCommon(bill());
+        BilChargeDetail d = detail(12L, 3, new BigDecimal("1"), "80.00");
+        d.setSourceType(3);
+        d.setSourceDetailId(334L);
+        when(chargeDetailMapper.selectList(any())).thenReturn(List.of(d));
+        when(clinicAppService.examStatusByIds(anyList())).thenReturn(Map.of(334L, 20));
+        when(refundBillMapper.insert(any(BilRefundBill.class))).thenReturn(1);
+
+        // 走过门禁后因其他未桩路径失败也可——关键是不能抛"已执行"门禁错
+        BizException e = assertThrows(BizException.class,
+                () -> service.refund(refundReq(line(12L, "1"))));
+        assertTrue(!e.getMessage().contains("已执行"));
+    }
+
+    @Test
     void refund_dispensedRxMustReturnDrugFirst() {
         stubRefundCommon(bill());
         BilChargeDetail d = detail(11L, 7, new BigDecimal("2"), "10.00"); // sourceDetailId 111

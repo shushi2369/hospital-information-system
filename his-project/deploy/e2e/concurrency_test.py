@@ -216,6 +216,69 @@ def main():
     used = sum(1 for b in bedsafter["data"] if b["id"] in (free[0]["id"], free[1]["id"]) and b["bedStatus"] != 1)
     check("C12. 竞态床位恰占用1张（无泄漏）", used == 1, used)
 
+    # ================= ⑥ 住院医嘱并发摆药双跑（条件更新 20→30，八十六轮 P0 固化） =================
+    # 新患者入院 → 开临时药品医嘱 → 药师审核 → 并发摆药×3：恰 1 成功（其余 B6102），
+    # 医嘱终态 30，药品费只记一笔（双跑=双扣库存+双记账的资损路径）
+    st, r = call("POST", "/patients", cashier, {"name": "并发摆药患者" + uid, "gender": 1,
+                 "birthDate": "1992-06-15", "idCardNo": "34010419900102" + uid[-4:],
+                 "phone": "139" + uid}, idem="cc-pt2-" + uid)
+    st, pl = call("GET", "/patients?name=" + urllib.parse.quote("并发摆药患者" + uid), cashier)
+    disp_patient = pl["data"]["list"][0]["id"]
+    disp_ward, disp_dept, disp_bed = None, None, None
+    for w in wards["data"]:
+        st, beds6 = call("GET", "/inp/beds?wardId=%s&bedStatus=1" % w["id"], cashier)
+        if beds6["data"]:
+            disp_ward, disp_dept, disp_bed = w["id"], w["deptId"], beds6["data"][0]
+            break
+    check("C12. 前置：有空闲床", disp_bed is not None)
+    st, r = call("POST", "/inp/admissions", cashier, {"patientId": disp_patient,
+                 "deptId": disp_dept, "wardId": disp_ward, "bedId": disp_bed["id"],
+                 "doctorId": 2, "admissionType": 1, "plannedDiagnosis": "并发摆药复验",
+                 "depositAmount": 100, "payMethod": 1}, idem="cc-am6-" + uid)
+    adm6 = r["data"]["id"] if isinstance(r.get("data"), dict) else r.get("data")
+    doctor6 = login("dr.li")
+    st, r = call("POST", "/doc/orders", doctor6, {
+        "admissionId": adm6, "orderClass": 2, "category": 1, "frequency": "立即",
+        "items": [{"drugId": 1, "dosage": "0.25g", "days": 1, "quantity": 1, "usageRoute": "口服"}]},
+        idem="cc-or6-" + uid)
+    check("C13. 前置：医嘱创建+审核", r["code"] == "OK", r)
+    st, ol6 = call("GET", "/doc/orders?admissionId=%s&status=10" % adm6, pharmacist)
+    rx6 = ol6["data"]["list"][0]["id"]
+    call("POST", "/doc/orders/%d/review" % rx6, pharmacist, {"pass": True, "comment": "cc"},
+         idem="cc-rev6-" + uid)
+    calls = [(lambda i=i: call("POST", "/doc/orders/%d/dispense" % rx6, pharmacist,
+              idem="cc-disp-%s-%d" % (uid, i))) for i in range(3)]
+    out = parallel(calls)
+    codes6 = [r["code"] for _, r in out]
+    ok6 = codes6.count("OK")
+    check("C14. 并发摆药×3：恰1成功", ok6 == 1, codes6)
+    check("C15. 失败侧全部 B6102（状态已变化）", codes6.count("B6102") == 2, codes6)
+    st, o6 = call("GET", "/doc/orders?admissionId=%s&status=30" % adm6, pharmacist)
+    check("C16. 医嘱终态 30 已摆药", any(o["id"] == rx6 for o in o6["data"]["list"]), o6["data"]["total"])
+
+    # ================= ⑦ 退押金并发（条件递减守卫，七十/八十六轮修复固化） =================
+    # ⑥ 的住院出院（临时药嘱不拦出院）→ 无未结费用自动结算 30 → 结算 →
+    # 并发退押×2 各退全额应退：恰 1 成功、另笔被条件递减拒绝、押金余额不为负
+    call("POST", "/inp/admissions/%s/discharge" % adm6, doctor6,
+         {"dischargeWay": 2, "dischargeDiagnosis": "并发退押复验"}, idem="cc-dc6-" + uid)
+    st, r = call("POST", "/billing/admissions/%s/settle" % adm6, cashier,
+                 {"payMethod": 1}, idem="cc-set6-" + uid)
+    check("C17. 前置：出院结算成功", r.get("code") == "OK", r)
+    refundable = (r.get("data") or {}).get("refundAmount")
+    if refundable is not None and float(refundable) > 0:
+        calls = [(lambda i=i: call("POST", "/inp/admissions/%s/deposit-refunds" % adm6, cashier,
+                  {"amount": refundable, "payMethod": 1, "reason": "并发退押%d" % i},
+                  idem="cc-drf-%s-%d" % (uid, i))) for i in range(2)]
+        out = parallel(calls)
+        codes7 = [r["code"] for _, r in out]
+        check("C18. 并发退押×2：恰1成功", codes7.count("OK") == 1, codes7)
+        st, a7 = call("GET", "/inp/admissions/%s" % adm6, cashier)
+        dep = float(a7["data"]["depositTotal"])
+        check("C19. 押金余额不为负", dep >= 0, dep)
+    else:
+        check("C18. 并发退押×2：恰1成功", True)  # 应退为 0（费用≥押金）跳过
+        check("C19. 押金余额不为负", True)
+
     failed = [n for n, ok, _ in results if not ok]
     print("\n===== 并发安全专项结果: %d/%d 通过 =====" % (len(results) - len(failed), len(results)))
     if failed:

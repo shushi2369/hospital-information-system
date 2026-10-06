@@ -3,10 +3,10 @@
 AES 密钥轮换：把 pat_patient.id_card_no 的 v1: 密文从旧密钥重加密到新密钥。
 
 用法（在轮换 WinSW XML 的 AES_KEY 之前执行；id_card_hash 是明文摘要，无需变更）：
-    python rotate_aes_key.py <old_key_b64> <new_key_b64>
+    python rotate_aes_key.py <old_key_b64> <new_key_b64> [--dry-run]
 
-格式对应 CryptoUtil.java：v1:{Base64(12字节IV || AES-256-GCM密文+16字节tag)}。
-轮换窗口内旧密钥服务无法解密新密文——脚本跑完立即改 XML 并重启后端。
+--dry-run 自验模式：抽 5 行做 解密→重加密→再解密 往返断言并校验明文一致，不写库——
+在真实轮换前锁定本脚本与 CryptoUtil 的 v1 格式兼容性（九十轮测试覆盖审计缺口 9）。
 """
 import base64
 import sys
@@ -38,11 +38,25 @@ def encrypt(plain: str, new: AESGCM) -> str:
 
 
 def main():
-    old_b64, new_b64 = sys.argv[1], sys.argv[2]
+    args = [a for a in sys.argv[1:] if a != "--dry-run"]
+    dry_run = "--dry-run" in sys.argv[1:]
+    old_b64, new_b64 = args
     old, new = crypter(old_b64), crypter(new_b64)
     conn = pymysql.connect(**DB)
     try:
         with conn.cursor() as cur:
+            cur.execute("SELECT id, id_card_no FROM pat_patient WHERE id_card_no LIKE 'v1:%%' LIMIT 5")
+            samples = cur.fetchall()
+            # 格式自验（不写库）：解密→用新钥重加密→再解密，明文往返必须一致——
+            # 锁定本脚本与 CryptoUtil v1:{Base64(IV||GCM密文+tag)} 的兼容性，防格式漂移静默全库不可解
+            for sid, cipher_text in samples:
+                plain = decrypt(cipher_text, old)
+                re_plain = decrypt(encrypt(plain, new), new)
+                assert re_plain == plain, "格式自验失败 id=%s（脚本与 CryptoUtil 的 v1 格式漂移）" % sid
+            print("格式自验通过：%d 行样本 往返解密一致" % len(samples))
+            if dry_run:
+                print("--dry-run：未写库")
+                return
             cur.execute("SELECT id, id_card_no FROM pat_patient WHERE id_card_no LIKE 'v1:%%'")
             rows = cur.fetchall()
             print("待重加密 %d 行" % len(rows))

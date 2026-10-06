@@ -4,12 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>医院信息系统</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap"
-      rel="stylesheet"
-    />
+    <!-- 九十轮性能审计：摘除 Google Fonts 同步样式表——部署目标是院内网，
+         googleapis 不可达时该渲染阻塞请求挂起到 TCP 超时（白屏数十秒）；
+         字体栈回落系统字体（styles.css 的 PingFang/微软雅黑 fallback） -->
     <script>
       // 主题初始化：防闪烁（必须在 CSS 加载前设置 class）
       (function () {
