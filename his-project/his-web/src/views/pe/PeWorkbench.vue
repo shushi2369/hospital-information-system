@@ -143,7 +143,7 @@ import {
   peStatusLabel, peStatusTagType, publishPeReport, registerPe, savePeResult, startPe,
   type PePackage, type PeRecord,
 } from '@/api/pe'
-import { getChargeItemList, type ChargeItem } from '@/api/basedata'
+import { getChargeItemListCached, type ChargeItem } from '@/api/basedata'
 
 const loading = ref(false)
 const list = ref<PeRecord[]>([])
@@ -276,7 +276,7 @@ function onPkgItemChange(index: number, id: number) {
 
 async function fetchChargeItems() {
   try {
-    chargeItems.value = await getChargeItemList({ status: 1 })
+    chargeItems.value = await getChargeItemListCached({ status: 1 })
   } catch {
     chargeItems.value = []
   }

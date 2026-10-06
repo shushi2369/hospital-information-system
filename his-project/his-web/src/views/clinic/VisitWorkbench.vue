@@ -437,7 +437,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Refresh } from '@element-plus/icons-vue'
-import { getChargeItemList, getDrugPage, type ChargeItem, type Drug } from '@/api/basedata'
+import { getChargeItemListCached, getDrugPage, type ChargeItem, type Drug } from '@/api/basedata'
 import {
   addDiagnosis,
   chargeStatusLabel,
@@ -836,8 +836,8 @@ async function openExamDialog() {
   examLoading.value = true
   try {
     const [examItems, labItems] = await Promise.all([
-      getChargeItemList({ category: 3, status: 1 }),
-      getChargeItemList({ category: 4, status: 1 }),
+      getChargeItemListCached({ category: 3, status: 1 }),
+      getChargeItemListCached({ category: 4, status: 1 }),
     ])
     examGroups.value = [
       { label: '检查项目', options: toList<ChargeItem>(examItems) },

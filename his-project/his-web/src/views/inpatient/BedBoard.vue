@@ -97,7 +97,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { getChargeItemList, type ChargeItem } from '@/api/basedata'
+import { getChargeItemListCached, type ChargeItem } from '@/api/basedata'
 import { fmtMoney } from '@/api/registration'
 import {
   bedStatusLabel,
@@ -195,7 +195,7 @@ async function openCreateDialog() {
   if (chargeItems.value.length === 0) {
     itemLoading.value = true
     try {
-      chargeItems.value = (await getChargeItemList({ status: 1 })) ?? []
+      chargeItems.value = (await getChargeItemListCached({ status: 1 })) ?? []
     } catch {
       chargeItems.value = []
     } finally {

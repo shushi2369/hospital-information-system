@@ -205,6 +205,28 @@ export const updateDrug = (id: number, data: DrugPayload & { status?: number }) 
 export const getChargeItemList = (params: { category?: number; status?: number } = {}) =>
   get<ChargeItem[]>('/basedata/charge-items', params)
 
+// ---------------- 字典缓存（九十轮性能审计）----------------
+// 业务视图的只读字典（科室/医生/收费项目）10 分钟 TTL——同一班次内重复挂载视图不再重拉；
+// basedata 管理页（增删改后要新鲜数据）必须用上方原函数。
+const dictCache = new Map<string, { at: number; rows: unknown[] }>()
+const DICT_TTL = 10 * 60 * 1000
+async function cachedDict(key: string, loader: () => Promise<unknown[]>): Promise<unknown[]> {
+  const hit = dictCache.get(key)
+  if (hit && Date.now() - hit.at < DICT_TTL) return hit.rows
+  const rows = await loader()
+  dictCache.set(key, { at: Date.now(), rows })
+  return rows
+}
+export const getChargeItemListCached = (params: { category?: number; status?: number } = {}) =>
+  cachedDict(`ci:${params.category ?? '*'}:${params.status ?? '*'}`,
+    () => getChargeItemList(params)) as Promise<ChargeItem[]>
+export const getDepartmentListCached = (params: { deptType?: number; status?: number } = {}) =>
+  cachedDict(`dept:${params.deptType ?? '*'}:${params.status ?? '*'}`,
+    () => getDepartmentList(params)) as Promise<Department[]>
+export const getDoctorListCached = (params: { deptId?: number; isExpert?: number; status?: number } = {}) =>
+  cachedDict(`doc:${params.deptId ?? '*'}:${params.isExpert ?? '*'}:${params.status ?? '*'}`,
+    () => getDoctorList(params)) as Promise<Doctor[]>
+
 export const createChargeItem = (data: {
   itemCode: string
   itemName: string

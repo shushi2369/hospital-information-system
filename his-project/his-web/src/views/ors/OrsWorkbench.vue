@@ -217,7 +217,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
-import { getChargeItemList, type ChargeItem } from '@/api/basedata'
+import { getChargeItemListCached, type ChargeItem } from '@/api/basedata'
 import { toList } from '@/api/request'
 import {
   anesthesiaMethodLabel,
@@ -298,8 +298,8 @@ const anesthesiaItems = ref<ChargeItem[]>([])
 async function loadChargeItems() {
   try {
     const [op, an] = await Promise.all([
-      getChargeItemList({ category: 9, status: 1 }),
-      getChargeItemList({ category: 10, status: 1 }),
+      getChargeItemListCached({ category: 9, status: 1 }),
+      getChargeItemListCached({ category: 10, status: 1 }),
     ])
     surgeryItems.value = toList(op)
     anesthesiaItems.value = toList(an)

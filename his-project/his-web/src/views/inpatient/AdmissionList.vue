@@ -400,7 +400,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Refresh, Search } from '@element-plus/icons-vue'
-import { getDepartmentList, getDoctorList, type Department, type Doctor } from '@/api/basedata'
+import { getDepartmentListCached, getDoctorListCached, type Department, type Doctor } from '@/api/basedata'
 import { getPatientPage, type Patient } from '@/api/patient'
 import { PAY_METHOD_OPTIONS } from '@/api/billing'
 import { feeTypeLabel } from '@/api/billing'
@@ -556,7 +556,7 @@ async function fetchWards() {
 async function fetchDepts() {
   if (deptOptions.value.length > 0) return
   try {
-    deptOptions.value = (await getDepartmentList({ deptType: 1 })) ?? []
+    deptOptions.value = (await getDepartmentListCached({ deptType: 1 })) ?? []
   } catch {
     deptOptions.value = []
   }
@@ -571,7 +571,7 @@ async function handleDeptChange() {
   if (!admForm.deptId) return
   doctorLoading.value = true
   try {
-    doctorOptions.value = (await getDoctorList({ deptId: admForm.deptId })) ?? []
+    doctorOptions.value = (await getDoctorListCached({ deptId: admForm.deptId })) ?? []
   } catch {
     doctorOptions.value = []
   } finally {

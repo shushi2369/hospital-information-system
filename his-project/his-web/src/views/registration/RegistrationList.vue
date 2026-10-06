@@ -231,7 +231,7 @@ import { computed, h, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Promotion, Refresh, Search } from '@element-plus/icons-vue'
 import { genderLabel, getPatientPage, type Patient } from '@/api/patient'
-import { getDepartmentList, getDoctorList, type Department, type Doctor } from '@/api/basedata'
+import { getDepartmentListCached, getDoctorListCached, type Department, type Doctor } from '@/api/basedata'
 import {
   cancelRegistration,
   chargeStatusLabel,
@@ -314,7 +314,7 @@ async function searchPatients(keyword: string) {
 
 async function fetchDeptOptions() {
   try {
-    deptOptions.value = toList<Department>(await getDepartmentList({ deptType: 1, status: 1 }))
+    deptOptions.value = toList<Department>(await getDepartmentListCached({ deptType: 1, status: 1 }))
   } catch {
     deptOptions.value = []
   }
@@ -323,7 +323,7 @@ async function fetchDeptOptions() {
 /** 记录筛选用的全量医生下拉 */
 async function fetchAllDoctors() {
   try {
-    allDoctors.value = toList<Doctor>(await getDoctorList({ status: 1 }))
+    allDoctors.value = toList<Doctor>(await getDoctorListCached({ status: 1 }))
   } catch {
     allDoctors.value = []
   }
@@ -335,7 +335,7 @@ async function handleDeptChange(deptId?: number) {
   deptDoctors.value = []
   if (!deptId) return
   try {
-    deptDoctors.value = toList<Doctor>(await getDoctorList({ deptId, status: 1 }))
+    deptDoctors.value = toList<Doctor>(await getDoctorListCached({ deptId, status: 1 }))
   } catch {
     // 拦截器已提示
   }

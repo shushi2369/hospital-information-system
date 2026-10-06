@@ -466,7 +466,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, Search } from '@element-plus/icons-vue'
-import { getChargeItemList, getDrugPage, type ChargeItem, type Drug } from '@/api/basedata'
+import { getChargeItemListCached, getDrugPage, type ChargeItem, type Drug } from '@/api/basedata'
 import { USAGE_ROUTE_OPTIONS } from '@/api/clinic'
 import { fmtMoney } from '@/api/registration'
 import {
@@ -645,7 +645,7 @@ async function fetchItems(docCategory: number) {
   itemLoading.value = true
   try {
     itemOptions.value =
-      (await getChargeItemList({ category: chargeCategoryOf(docCategory), status: 1 })) ?? []
+      (await getChargeItemListCached({ category: chargeCategoryOf(docCategory), status: 1 })) ?? []
   } catch {
     itemOptions.value = []
   } finally {
