@@ -267,7 +267,7 @@ public class MrcService {
         borrow.setBorrowerId(req.getBorrowerId() == null ? CurrentUser.id() : req.getBorrowerId());
         borrow.setBorrowTime(LocalDateTime.now());
         borrow.setExpectReturnTime(req.getExpectReturnDays() == null ? null
-                : LocalDateTime.now().plusDays(req.getExpectReturnDays()));
+                : java.time.LocalDate.now().plusDays(req.getExpectReturnDays()));
         borrow.setStatus(1);
         borrowMapper.insert(borrow);
         // 条件更新断言借出前态：0 行（并发归还/归档）时不能让借阅单悬挂在"已借出"之外

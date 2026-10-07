@@ -19,6 +19,9 @@ public class InvStockMovement {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long drugId;
+    /** 操作员归属（一百零三轮漂移审计：表列存在实体缺失，691 行全为 0 审计链失效） */
+    @com.baomidou.mybatisplus.annotation.TableField(value = "created_by", fill = com.baomidou.mybatisplus.annotation.FieldFill.INSERT)
+    private Long createdBy;
     private Long batchId;
     private Integer movementType;
     private BigDecimal quantity;

@@ -10,6 +10,8 @@ import json, time, urllib.request, urllib.error, urllib.parse
 
 BASE = "http://localhost:8080/api/v1"
 PW = "His@2026"
+import sys
+results = []
 uid = str(int(time.time() * 1000))[-8:]
 today = time.strftime("%Y-%m-%d")
 tok = {}
@@ -30,6 +32,7 @@ def call(method, path, who=None, body=None, idem=None):
 
 
 def check(name, cond, detail=""):
+    results.append((name, bool(cond)))
     print(("PASS " if cond else "FAIL ") + name + (("  | " + str(detail)[:150]) if detail and not cond else ""))
 
 
@@ -51,12 +54,12 @@ tok["ce"] = r["data"]["token"]
 print("===== E1 建档与脱敏 =====")
 name1 = "张三实验" + uid
 st, r = call("POST", "/patients", "ce", {"name": name1, "gender": 1,
-    "birthDate": "1990-01-01", "idCardNo": "34010419900101" + uid[-4:],
+    "birthDate": "1990-01-01", "idCardNo": "34010419900101" + "1" + uid[-3:],
     "phone": "138" + uid}, idem="ce1-" + uid)
 check("E1.1 建档 200 建档号P", r["code"] == "OK" and str(r.get("data", "")).startswith("P"), r)
 check("E1.2 重复建档 B1001", call("POST", "/patients", "ce",
     {"name": name1, "gender": 1, "birthDate": "1990-01-01",
-     "idCardNo": "34010419900101" + uid[-4:], "phone": "138" + uid},
+     "idCardNo": "34010419900101" + "1" + uid[-3:], "phone": "138" + uid},
     idem="ce1b-" + uid)[1].get("code") == "B1001")
 st, pl = call("GET", "/patients?name=" + urllib.parse.quote(name1), "ce")
 row = pl["data"]["list"][0]
@@ -85,7 +88,7 @@ check("E2.4b 暂存病历", r["code"] == "OK", r)
 st, r = call("POST", "/clinic/visits/%d/diagnoses" % vid, "dr.li",
     {"diagnosisName": "实验诊断", "diagnosisType": 1}, idem="ce2dg-" + uid)
 check("E2.4c 录诊断", r["code"] == "OK", r)
-check("E2.4d 就诊停留 20（E3/E4 需要就诊中）", True)
+check("E2.4d 就诊停留 20（E3/E4 需要就诊中）", True)  # 占位断言：真实验证在 E4.6
 
 print("===== E3 处方-审核-发药 =====")
 st, r = call("POST", "/clinic/visits/%d/prescriptions" % vid, "dr.li",
@@ -187,7 +190,7 @@ st, r = call("POST", "/inp/admissions", "admin", {"patientId": pid, "deptId": 1,
     "depositAmount": 1000, "payMethod": 1}, idem="ce7-adm-" + uid)
 adm = r["data"]["id"] if isinstance(r["data"], dict) else r["data"]
 st, r = call("POST", "/ors/requests", "dr.li", {"admissionId": adm, "patientId": pid,
-    "surgeryName": "实验术式" + uid, "diagnosis": "实验", "plannedDate": today,
+    "surgeryName": "实验术式" + uid, "diagnosis": "实验", "plannedDate": time.strftime("%Y-%m-%d", time.localtime(time.time() + 3*86400)),
     "anesthesiaMethod": 1, "surgeryItemId": items9["data"][0]["id"],
     "anesthesiaItemId": items10["data"][0]["id"]}, idem="ce7-" + uid)
 check("E7.1 手术申请", r["code"] == "OK", r)
@@ -198,7 +201,7 @@ st, r = call("POST", "/ors/requests/%s/review" % or_id, "dr.li", {"approved": Tr
 r = None
 for seq in range(1, 11):  # seq 上限 10（@Max），占用则 +1 重试
     st, r = call("POST", "/ors/requests/%s/schedule" % or_id, "or.nurse",
-        {"roomId": 1, "surgeryDate": today, "seqNo": seq, "surgeonId": 2}, idem="ce7c-%s-%d" % (uid, seq))
+        {"roomId": 3, "surgeryDate": (time.strftime("%Y-%m-%d", time.localtime(time.time() + 3*86400))), "seqNo": seq, "surgeonId": 2}, idem="ce7c-%s-%d" % (uid, seq))
     if r.get("code") == "OK":
         break
 check("E7.3 首次排台（seq 重试）", r.get("code") == "OK", r)
@@ -254,4 +257,12 @@ try:
         print("teardown: 实测收费员已停用")
 except Exception as _e:
     print("teardown 跳过:", _e)
-print("\n完成。")
+print("\n完成。")# 退出码：纳入回归轮换的前提（一百零三轮 e2e 质量审计 #1）
+fails = [n for n, ok in results if not ok] if results else []
+if fails:
+    print("失败项: %d" % len(fails))
+    for n in fails:
+        print("  - " + n)
+    sys.exit(1)
+
+

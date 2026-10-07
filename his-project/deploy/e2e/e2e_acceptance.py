@@ -50,7 +50,7 @@ def login(username):
 
 def main():
     uid = str(int(time.time() * 1000))[-8:]      # 毫秒后8位，保证跨运行唯一
-    id_card = "34010419900101" + uid[-4:]        # 18位：6位地区+8位生日+4位序号
+    id_card = "34010419900101" + "3" + uid[-3:]        # 18位：6位地区+8位生日+4位序号
     phone = "138" + uid
     today = time.strftime("%Y-%m-%d")
 

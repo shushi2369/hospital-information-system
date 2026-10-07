@@ -199,7 +199,7 @@ def main():
     import urllib.parse
     cashier = login("cashier.li")
     st, r = call("POST", "/patients", cashier, {"name": "并发入院患者" + uid, "gender": 1,
-                 "birthDate": "1992-06-15", "idCardNo": "34010419900101" + uid[-4:],
+                 "birthDate": "1992-06-15", "idCardNo": "34010419900101" + "4" + uid[-3:],
                  "phone": "138" + uid}, idem="cc-pt-" + uid)
     check("C9. 前置：建档成功", r["code"] == "OK", r)
     st, pl = call("GET", "/patients?name=" + urllib.parse.quote("并发入院患者" + uid), cashier)

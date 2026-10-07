@@ -19,6 +19,8 @@ public class PhrReviewRecord extends BaseEntity {
     private Long reviewerId;
     private Integer reviewAction;
     private String comment;
+    /** 1 有效（一百零三轮漂移审计：作废/失效审核记录无法在实体层过滤） */
+    private Integer status;
 
     @Version
     private Integer version;

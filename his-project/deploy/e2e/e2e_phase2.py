@@ -48,7 +48,7 @@ def login(username):
 
 def main():
     uid = str(int(time.time() * 1000))[-8:]
-    id_card = "34010419900101" + uid[-4:]
+    id_card = "34010419900101" + "2" + uid[-3:]
     phone = "139" + uid
     today = time.strftime("%Y-%m-%d")
 
@@ -159,7 +159,7 @@ def main():
     st, todo = call("GET", "/doc/executions/todo?execDate=%s" % today, nurse)
     treat_exec = None
     for e in todo["data"]:
-        if e["orderId"] not in (rx_id, rx2_id) or True:
+        if e["orderId"] not in (rx_id, rx2_id):
             pass
     # 找最新治疗医嘱
     st, op = call("GET", "/doc/orders?admissionId=%d&category=4" % admission_id, doctor)
@@ -175,7 +175,8 @@ def main():
     fees = r["data"]
     total_fee = sum(float(g["totalAmount"]) for g in fees)
     names = [i["itemName"] for g in fees for i in g["items"]]
-    check("21. 一日清含床位费/药费/治疗费", any("床位" in n for n in names) or True, names)  # 床位费为次日任务，当日以药费/治疗费为准
+    # 床位费由次日 00:20 任务记（AdmissionFeeTask），当日入院无床位费——有药费/治疗费即通过
+    check("21. 一日清含药费/治疗费（床位费为次日任务）", len(names) >= 2, names)
     check("22. 一日清金额>0（药费+治疗费记账）", float(total_fee) >= 83.60 - 0.01, total_fee)  # 31.20 药费 + 20x3 治疗费
 
     # ---- 出院 ----

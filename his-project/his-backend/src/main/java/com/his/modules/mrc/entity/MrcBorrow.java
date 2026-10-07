@@ -16,7 +16,8 @@ public class MrcBorrow extends BaseEntity {
     private Long mrcId;
     private Long borrowerId;
     private LocalDateTime borrowTime;
-    private LocalDateTime expectReturnTime;
+    /** 列类型 DATE（V6），LocalDateTime 写入静默截断（一百零三轮漂移审计） */
+    private java.time.LocalDate expectReturnTime;
     private LocalDateTime returnTime;
     private Integer status;
 

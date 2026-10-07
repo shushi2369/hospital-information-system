@@ -13,6 +13,8 @@ import lombok.Setter;
 public class PltMasterIndex extends BaseEntity {
     private String mpiNo;
     private Long patientId;
+    /** 1 正常 0 停用（一百零三轮漂移审计：主索引停用状态实体不可见） */
+    private Integer status;
     private Integer mergeFlag;
     private Long mergedInto;
 

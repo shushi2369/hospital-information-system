@@ -234,7 +234,11 @@ def main():
     st, dl2 = call("GET", "/basedata/doctors", admin)
     doctors = dl2["data"] if isinstance(dl2["data"], list) else (dl2["data"].get("list") or [])
     dr_li_doctor = next((d for d in doctors if d.get("userId")), None)
-    check("37. 医生数据范围(仅本人命中)", all(True for _ in mine), "count=%d" % len(mine))
+    st, dl_d = call("GET", "/basedata/doctors", admin)
+    dr_doctor_id = next((d["id"] for d in (dl_d["data"] if isinstance(dl_d["data"], list) else dl_d["data"].get("list", [])) if d.get("userId") == 3), None)
+    check("37. 医生数据范围(仅本人命中)",
+          all(h.get("doctorId") == dr_doctor_id for h in mine) if (mine and dr_doctor_id) else True,
+          "count=%d dr_doctor_id=%s" % (len(mine), dr_doctor_id))
     # CDSS 故障隔离：规则不存在时开单仍成功（上面 34 已隐含验证 hook 不阻断）
 
     # ================= 绩效 KPI =================
