@@ -230,6 +230,11 @@ public class LisService {
                 .reduce((a, b) -> a + "、" + b).orElse("未见危急项");
         LisReport report = new LisReport();
         report.setReportNo(idGenerator.next("BG"));
+        Long resultCount = resultMapper.selectCount(new LambdaQueryWrapper<LisResult>()
+                .eq(LisResult::getRequestId, requestId).eq(LisResult::getStatus, 1));
+        if (resultCount == null || resultCount == 0) {
+            throw new BizException(ErrorCode.A0001, "该申请尚无检验结果，请先录入结果再发布");
+        }
         report.setRequestId(requestId);
         report.setResultSummary("危急项：" + abnormal);
         report.setReporterId(CurrentUser.id());
@@ -267,7 +272,11 @@ public class LisService {
                 .eq(LisReport::getRequestId, requestId).last("LIMIT 1"));
         List<LisResult> results = resultMapper.selectList(new LambdaQueryWrapper<LisResult>()
                 .eq(LisResult::getRequestId, requestId).eq(LisResult::getStatus, 1));
-        return Map.of("request", request, "report", report, "results", results);
+        java.util.LinkedHashMap<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("request", request);
+        result.put("report", report);
+        result.put("results", results);
+        return result;
     }
 
     /** 申请单分页（L-01）。开单医生名批量回填（一百轮浏览器走查：裸 ID 列） */
@@ -301,8 +310,18 @@ public class LisService {
     /** 阈值维护（L-10） */
     @Transactional
     public Long saveThreshold(ThresholdRequest req) {
+        // T2+T3（一百零七轮走查）：low/high 交叉校验（low>high = 全量判危急的风暴配置）
+        if (req.getLowValue() == null && req.getHighValue() == null) {
+            throw new BizException(ErrorCode.A0001, "下限和上限至少填一项");
+        }
+        if (req.getLowValue() != null && req.getHighValue() != null
+                && req.getLowValue().compareTo(req.getHighValue()) >= 0) {
+            throw new BizException(ErrorCode.A0001, "下限必须小于上限");
+        }
         LisCriticalThreshold threshold = thresholdMapper.selectOne(new LambdaQueryWrapper<LisCriticalThreshold>()
                 .eq(LisCriticalThreshold::getItemName, req.getItemName()).last("LIMIT 1"));
+        // T1（一百零七轮走查）：selectOne 按名查到的即目标行（upsert 语义安全——同名只会命中自身）
+        // 改名场景由前端控制：前端编辑弹窗保存时 itemName 是主键，改名=新建不会走到这里
         if (threshold == null) {
             threshold = new LisCriticalThreshold();
             threshold.setItemName(req.getItemName());

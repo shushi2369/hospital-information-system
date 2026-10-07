@@ -28,6 +28,7 @@ public class CntService {
     private final IdGenerator idGenerator;
     private final com.his.modules.basedata.app.BasedataAppService basedataAppService;
     private final com.his.modules.patient.app.PatientAppService patientAppService;
+    private final com.his.modules.clinic.mapper.CliVisitMapper clinicVisitMapper;
     private final com.his.modules.system.app.SystemAppService systemAppService;
 
     /** 会诊申请（T-01）：住院/门诊二选一 */
@@ -37,7 +38,22 @@ public class CntService {
             throw new BizException(ErrorCode.A0001, "住院或门诊就诊至少关联一项");
         }
         if (req.getAdmissionId() != null) {
-            inpAppService.requireInHospital(req.getAdmissionId());
+            var adm = inpAppService.requireInHospital(req.getAdmissionId());
+            // C3（一百零七轮走查）：患者与住院登记一致性校验——防跨患者挂会诊
+            if (adm.getPatientId() != null && req.getPatientId() != null
+                    && !adm.getPatientId().equals(req.getPatientId())) {
+                throw new BizException(ErrorCode.A0001, "患者与住院登记不匹配，禁止跨患者挂会诊");
+            }
+            if (adm.getPatientId() != null) {
+                req.setPatientId(adm.getPatientId());
+            }
+        }
+        if (req.getVisitId() != null) {
+            // C4（一百零七轮走查）：门诊 visitId 存在性校验——原代码无任何校验
+            com.his.modules.clinic.entity.CliVisit opVisit = clinicVisitMapper.selectById(req.getVisitId());
+            if (opVisit == null) {
+                throw new BizException(ErrorCode.A0001, "门诊就诊不存在");
+            }
         }
         req.setReqNo(idGenerator.next("HZ"));
         req.setPatientId(req.getPatientId());
