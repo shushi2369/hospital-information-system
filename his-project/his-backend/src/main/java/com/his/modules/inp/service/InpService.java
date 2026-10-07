@@ -145,12 +145,17 @@ public class InpService {
             throw new BizException(ErrorCode.B6003, "住院未结算，不能退押金");
         }
         BigDecimal billTotal = BigDecimal.ZERO;
+        // 一百零八轮 D3：与出院结算同口径取净额（应收-已退）——totalAmount 会把已退部分
+        // 误算成押金抵扣，压低应退；LIMIT 1 必须带排序，防多账单时取行不确定
         BilChargeBill bill = billMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<BilChargeBill>()
-                .eq(BilChargeBill::getAdmissionId, admissionId).last("LIMIT 1"));
-        if (bill != null && bill.getTotalAmount() != null) {
-            billTotal = bill.getTotalAmount();
+                .eq(BilChargeBill::getAdmissionId, admissionId)
+                .orderByDesc(BilChargeBill::getId).last("LIMIT 1"));
+        if (bill != null && bill.getPayableAmount() != null) {
+            billTotal = bill.getPayableAmount().subtract(
+                    bill.getRefundAmount() == null ? BigDecimal.ZERO : bill.getRefundAmount());
         }
-        BigDecimal refundable = admission.getDepositTotal().subtract(billTotal);
+        BigDecimal depositTotal = admission.getDepositTotal() == null ? BigDecimal.ZERO : admission.getDepositTotal();
+        BigDecimal refundable = depositTotal.subtract(billTotal);
         if (req.getAmount().compareTo(refundable) > 0) {
             throw new BizException(ErrorCode.B6007, "退押金超过应退金额（上限 " + refundable + "）");
         }

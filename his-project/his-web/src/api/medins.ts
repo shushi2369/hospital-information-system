@@ -12,6 +12,10 @@ export interface InsuranceSettle {
   settleNo: string
   billId: number
   admissionId?: number | null
+  /** 展示字段：列表批量回填（一百一十轮 D6） */
+  billNo?: string | null
+  patientId?: number | null
+  patientName?: string | null
   /** 1 职工 2 居民 */
   insuranceType: number
   totalAmount: string | number

@@ -1,5 +1,13 @@
 <template>
   <div class="page-card">
+    <!-- 视图切换（一百一十轮 M4：借阅台账入口） -->
+    <el-radio-group v-model="view" class="view-switch" @change="handleViewChange">
+      <el-radio-button value="archive">病案台账</el-radio-button>
+      <el-radio-button value="borrow">借阅台账</el-radio-button>
+    </el-radio-group>
+
+    <!-- 病案台账视图 -->
+    <template v-if="view === 'archive'">
     <!-- 搜索栏 -->
     <el-form class="search-bar" :model="query" inline>
       <el-form-item label="病案号">
@@ -33,7 +41,6 @@
       <el-table-column prop="patientName" label="患者" min-width="90" show-overflow-tooltip>
         <template #default="{ row }">{{ row.patientName || '-' }}</template>
       </el-table-column>
-      <el-table-column prop="admissionId" label="住院ID" width="90" align="center" />
       <el-table-column label="归档状态" width="95" align="center">
         <template #default="{ row }">
           <el-tag size="small" :type="archiveStatusTagType(row.archiveStatus)">
@@ -104,6 +111,61 @@
         @current-change="fetchList"
       />
     </div>
+    </template>
+
+    <!-- 借阅台账视图（一百一十轮 M4） -->
+    <template v-else>
+      <el-form class="search-bar" inline @submit.prevent>
+        <el-form-item label="状态">
+          <el-select v-model="borrowQuery.status" placeholder="全部" clearable style="width: 120px" @change="handleBorrowSearch">
+            <el-option v-for="o in MRC_BORROW_STATUS_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :icon="Search" @click="handleBorrowSearch">查询</el-button>
+          <el-button :icon="Refresh" :loading="borrowLedgerLoading" @click="fetchBorrowLedger">刷新</el-button>
+        </el-form-item>
+      </el-form>
+
+      <el-table v-loading="borrowLedgerLoading" :data="borrowLedger" border stripe>
+        <el-table-column prop="mrcNo" label="病案号" min-width="140" show-overflow-tooltip />
+        <el-table-column prop="patientName" label="患者" min-width="90" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.patientName || '-' }}</template>
+        </el-table-column>
+        <el-table-column prop="borrowerName" label="借阅人" min-width="100" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.borrowerName || '-' }}</template>
+        </el-table-column>
+        <el-table-column prop="borrowTime" label="借出时间" min-width="150" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.borrowTime || '-' }}</template>
+        </el-table-column>
+        <el-table-column prop="expectReturnTime" label="应还日期" width="110" align="center">
+          <template #default="{ row }">{{ row.expectReturnTime || '-' }}</template>
+        </el-table-column>
+        <el-table-column prop="returnTime" label="归还时间" min-width="150" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.returnTime || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="状态" width="90" align="center">
+          <template #default="{ row }">
+            <el-tag size="small" :type="mrcBorrowStatusTagType(row.status)">
+              {{ mrcBorrowStatusLabel(row.status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <div class="pagination-bar">
+        <el-pagination
+          v-model:current-page="borrowQuery.pageNum"
+          v-model:page-size="borrowQuery.pageSize"
+          :total="borrowTotal"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          background
+          @size-change="handleBorrowSizeChange"
+          @current-change="fetchBorrowLedger"
+        />
+      </div>
+    </template>
 
     <!-- 首页编码弹窗 -->
     <el-dialog v-model="codeDialogVisible" title="病案首页编码" width="560px" destroy-on-close>
@@ -179,6 +241,18 @@
     <el-dialog v-model="borrowDialogVisible" title="病案借阅" width="440px" destroy-on-close>
       <div v-if="borrowRow" class="mrc-line">病案号：{{ borrowRow.mrcNo }}｜患者：{{ borrowRow.patientName || '-' }}</div>
       <el-form label-width="110px">
+        <el-form-item label="借阅人">
+          <!-- 一百零九轮 M4：补借阅人选择，缺省视为当前登录人（后端兜底） -->
+          <el-select
+            v-model="borrowerId"
+            filterable
+            clearable
+            placeholder="默认当前登录人"
+            style="width: 220px"
+          >
+            <el-option v-for="d in doctorOptions" :key="d.id" :label="d.doctorName" :value="d.id" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="预计归还天数">
           <el-input-number
             v-model="borrowDays"
@@ -245,7 +319,11 @@ import {
   ARCHIVE_STATUS_OPTIONS,
   borrowMrc,
   getHomepage,
+  getMrcBorrowPage,
   getMrcPage,
+  mrcBorrowStatusLabel,
+  mrcBorrowStatusTagType,
+  MRC_BORROW_STATUS_OPTIONS,
   mrcQcStatusLabel,
   mrcQcStatusTagType,
   MRC_QC_STATUS_OPTIONS,
@@ -257,9 +335,53 @@ import {
   searchIcd10,
   type HomepageCodePayload,
   type Icd10Item,
+  type MrcBorrow,
   type MrcHomepage,
   type MrcRecord,
 } from '@/api/mrc'
+import { getDoctorListCached, type Doctor } from '@/api/basedata'
+
+// ---------------- 视图切换（病案台账 / 借阅台账） ----------------
+const view = ref<'archive' | 'borrow'>('archive')
+
+function handleViewChange() {
+  if (view.value === 'borrow') fetchBorrowLedger()
+}
+
+// ---------------- 借阅台账（一百一十轮 M4） ----------------
+const borrowLedgerLoading = ref(false)
+const borrowLedger = ref<MrcBorrow[]>([])
+const borrowTotal = ref(0)
+const borrowQuery = reactive({
+  pageNum: 1,
+  pageSize: 10,
+  status: undefined as number | undefined,
+})
+
+async function fetchBorrowLedger() {
+  borrowLedgerLoading.value = true
+  try {
+    const res = await getMrcBorrowPage({
+      pageNum: borrowQuery.pageNum,
+      pageSize: borrowQuery.pageSize,
+      status: borrowQuery.status,
+    })
+    borrowLedger.value = res.list ?? []
+    borrowTotal.value = res.total ?? 0
+  } finally {
+    borrowLedgerLoading.value = false
+  }
+}
+
+function handleBorrowSearch() {
+  borrowQuery.pageNum = 1
+  fetchBorrowLedger()
+}
+
+function handleBorrowSizeChange() {
+  borrowQuery.pageNum = 1
+  fetchBorrowLedger()
+}
 
 // ---------------- 列表 ----------------
 const loading = ref(false)
@@ -350,25 +472,28 @@ async function openCodeDialog(row: MrcRecord) {
   codeForm.operationCode = ''
   icdOptions.value = []
   codeDialogVisible.value = true
-  // 预填已有首页编码
-  try {
-    const hp = await getHomepage(row.admissionId)
-    // 乱序守卫：期间用户已切换到另一行则丢弃本次预填（防 A 病案编码写进 B 弹窗）
-    if (hp && codeRow.value === row) {
-      codeForm.mainDiagnosisCode = hp.mainDiagnosisCode || ''
-      codeForm.mainDiagnosisName = hp.mainDiagnosisName || ''
-      codeForm.otherDiagnoses = otherDiagnosesText(hp.otherDiagnoses)
-      if (codeForm.otherDiagnoses === '-') codeForm.otherDiagnoses = ''
-      codeForm.operationCode = hp.operationCode || ''
-      if (codeForm.mainDiagnosisCode && !icdOptions.value.some((i) => i.code === codeForm.mainDiagnosisCode)) {
-        icdOptions.value = [
-          { code: codeForm.mainDiagnosisCode, name: codeForm.mainDiagnosisName || codeForm.mainDiagnosisCode },
-        ]
+    // 预填已有首页编码
+    try {
+      const hp = await getHomepage(row.admissionId)
+      // 乱序守卫：期间用户已切换到另一行则丢弃本次预填（防 A 病案编码写进 B 弹窗）
+      if (hp && codeRow.value === row) {
+        // 一百零九轮 M5：异步预填不覆盖用户已输入内容——仅补空字段
+        if (!codeForm.mainDiagnosisCode) codeForm.mainDiagnosisCode = hp.mainDiagnosisCode || ''
+        if (!codeForm.mainDiagnosisName) codeForm.mainDiagnosisName = hp.mainDiagnosisName || ''
+        if (!codeForm.otherDiagnoses) {
+          codeForm.otherDiagnoses = otherDiagnosesText(hp.otherDiagnoses)
+          if (codeForm.otherDiagnoses === '-') codeForm.otherDiagnoses = ''
+        }
+        if (!codeForm.operationCode) codeForm.operationCode = hp.operationCode || ''
+        if (codeForm.mainDiagnosisCode && !icdOptions.value.some((i) => i.code === codeForm.mainDiagnosisCode)) {
+          icdOptions.value = [
+            { code: codeForm.mainDiagnosisCode, name: codeForm.mainDiagnosisName || codeForm.mainDiagnosisCode },
+          ]
+        }
       }
+    } catch {
+      // 首页未编码等情况忽略
     }
-  } catch {
-    // 首页未编码等情况忽略
-  }
 }
 
 async function handleCodeSubmit() {
@@ -449,18 +574,29 @@ const borrowDialogVisible = ref(false)
 const borrowSubmitting = ref(false)
 const borrowRow = ref<MrcRecord | null>(null)
 const borrowDays = ref(14)
+// 借阅人（一百零九轮 M4：缺省当前登录人，后端兜底）
+const borrowerId = ref<number | undefined>(undefined)
+const doctorOptions = ref<Doctor[]>([])
 
 function openBorrowDialog(row: MrcRecord) {
   borrowRow.value = row
   borrowDays.value = 14
+  borrowerId.value = undefined
   borrowDialogVisible.value = true
+  getDoctorListCached({})
+    .then((opts) => {
+      doctorOptions.value = opts ?? []
+    })
+    .catch(() => {
+      doctorOptions.value = []
+    })
 }
 
 async function handleBorrowSubmit() {
   if (!borrowRow.value) return
   borrowSubmitting.value = true
   try {
-    await borrowMrc(borrowRow.value.admissionId, borrowDays.value)
+    await borrowMrc(borrowRow.value.admissionId, borrowDays.value, borrowerId.value)
     ElMessage.success('病案借阅成功')
     borrowDialogVisible.value = false
     fetchList()
@@ -518,6 +654,10 @@ onMounted(fetchList)
 </script>
 
 <style scoped>
+.view-switch {
+  margin-bottom: 12px;
+}
+
 .mrc-line {
   margin-bottom: 12px;
   color: #606266;

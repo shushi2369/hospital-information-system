@@ -74,9 +74,11 @@
 
           <el-table v-loading="settleLoading" :data="settles" border stripe size="small">
             <el-table-column prop="settleNo" label="结算单号" min-width="150" show-overflow-tooltip />
-            <el-table-column prop="billId" label="账单ID" width="80" align="center" />
-            <el-table-column prop="admissionId" label="住院ID" width="85" align="center">
-              <template #default="{ row }">{{ row.admissionId ?? '-' }}</template>
+            <el-table-column prop="billNo" label="账单号" min-width="150" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.billNo || `#${row.billId}` }}</template>
+            </el-table-column>
+            <el-table-column prop="patientName" label="患者" min-width="90" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.patientName || '-' }}</template>
             </el-table-column>
             <el-table-column label="险种" width="95" align="center">
               <template #default="{ row }">

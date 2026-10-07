@@ -295,6 +295,11 @@ function openCreate() {
 async function handleSubmit() {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
+  form.name = form.name.trim()
+  if (!form.name) {
+    ElMessage.warning('患者姓名不能为空白字符')
+    return
+  }
   submitting.value = true
   try {
     const patientNo = await createPatient({

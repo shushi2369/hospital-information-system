@@ -33,6 +33,7 @@ public class MedinsService {
     private final MedinsSettleMapper settleMapper;
     private final BilChargeBillMapper billMapper;
     private final InpAppService inpAppService;
+    private final com.his.modules.patient.app.PatientAppService patientAppService;
     private final MedInsuranceGateway gateway;
     private final com.his.modules.plt.service.PltService pltService;
     private final com.his.infrastructure.util.IdGenerator idGenerator;
@@ -108,12 +109,16 @@ public class MedinsService {
         BigDecimal netAmount = bill == null ? BigDecimal.ZERO
                 : bill.getPayableAmount().subtract(bill.getRefundAmount());
         boolean pass = gateway.reconcile(settle.getSettleNo(), settle.getTotalAmount(), netAmount);
+        // 一百一十轮 D3：对账备注落库——不再收集后静默丢弃（diff_reason 复用为差异原因+备注承载列）
+        String remark = req == null || req.getRemark() == null || req.getRemark().isBlank()
+                ? null : req.getRemark().trim();
         settle.setStatus(pass ? 20 : 30);
         settle.setReconcileTime(LocalDateTime.now());
-        settle.setDiffReason(pass ? null : "申报金额与账单不一致");
+        settle.setDiffReason(pass ? remark
+                : "申报金额与账单不一致" + (remark == null ? "" : "｜备注：" + remark));
         settleMapper.updateById(settle);
         pltService.recordEvent("medins.settle.reconciled", settle.getSettleNo(),
-                "{\"pass\":" + pass + "}");
+                "{\"pass\":" + pass + ",\"remark\":" + (remark != null) + "}");
     }
 
     /** 申报单分页（Y-02） */
@@ -124,6 +129,32 @@ public class MedinsService {
                                 MedinsSettle::getSettleNo, LikeEscapeUtil.escape(query.getSettleNo()))
                         .eq(query.getStatus() != null, MedinsSettle::getStatus, query.getStatus())
                         .orderByDesc(MedinsSettle::getId));
+        // 一百一十轮 D6：裸 ID 列展示修复——批量回填账单号与患者名
+        var rows = page.getRecords();
+        if (!rows.isEmpty()) {
+            java.util.Map<Long, BilChargeBill> bills = billMapper.selectBatchIds(
+                            rows.stream().map(MedinsSettle::getBillId).filter(java.util.Objects::nonNull).toList())
+                    .stream().collect(java.util.stream.Collectors.toMap(BilChargeBill::getId, b -> b));
+            java.util.Set<Long> patientIds = new java.util.HashSet<>();
+            for (MedinsSettle s : rows) {
+                BilChargeBill bill = bills.get(s.getBillId());
+                if (bill != null) {
+                    s.setBillNo(bill.getBillNo());
+                    s.setPatientId(bill.getPatientId());
+                    patientIds.add(bill.getPatientId());
+                }
+            }
+            if (!patientIds.isEmpty()) {
+                java.util.Map<Long, com.his.modules.patient.app.PatientDTO> patients = new java.util.HashMap<>();
+                for (var p : patientAppService.listByIds(new java.util.ArrayList<>(patientIds))) {
+                    patients.put(p.getId(), p);
+                }
+                for (MedinsSettle s : rows) {
+                    var p = patients.get(s.getPatientId());
+                    s.setPatientName(p == null ? null : p.getName());
+                }
+            }
+        }
         return PageResult.of(page);
     }
 

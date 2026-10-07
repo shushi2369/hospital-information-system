@@ -556,9 +556,11 @@ public class BillingService {
     // ---------------- 查询 ----------------
 
     public PageResult<BillResponse> billPage(BillQuery query) {
-        // 数据范围（《04》§4）：收费员仅本人经办；管理员/对账员全量
+        // 数据范围（《04》§4）：收费员仅本人经办；管理员/对账员/医保专员全量
+        //（一百一十轮 D4：医保专员申报/对账引用任意收费员账单，锁本人范围恒空）
         com.his.infrastructure.security.LoginUser user = com.his.infrastructure.security.CurrentUser.get();
-        if (!user.getRoleCodes().contains("ADMIN") && !user.getRoleCodes().contains("AUDITOR")) {
+        if (!user.getRoleCodes().contains("ADMIN") && !user.getRoleCodes().contains("AUDITOR")
+                && !user.getRoleCodes().contains("MEDCLERK")) {
             query.setCashierId(user.getUserId());
         }
         Page<BilChargeBill> page = billMapper.selectPage(query.toPage(),

@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @TableName("mrc_borrow")
-public class MrcBorrow extends BaseEntity {
+public class MrcBorrow extends BaseEntity implements com.his.infrastructure.util.PatientNameBackfill.PatientIdCarrier {
     private Long mrcId;
     private Long borrowerId;
     private LocalDateTime borrowTime;
@@ -20,6 +20,18 @@ public class MrcBorrow extends BaseEntity {
     private java.time.LocalDate expectReturnTime;
     private LocalDateTime returnTime;
     private Integer status;
+
+    /** 展示字段（不入库）：借阅台账列表批量回填（一百一十轮 M4） */
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private String mrcNo;
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private Long admissionId;
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private Long patientId;
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private String patientName;
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private String borrowerName;
 
     @Version
     private Integer version;

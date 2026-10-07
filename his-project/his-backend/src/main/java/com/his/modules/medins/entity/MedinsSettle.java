@@ -28,6 +28,14 @@ public class MedinsSettle extends BaseEntity {
     private Long operatorId;
     private Integer status;
 
+    /** 展示字段（不入库）：列表批量回填（一百一十轮 D6 裸 ID 列清查） */
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private String billNo;
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private Long patientId;
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private String patientName;
+
     @Version
     private Integer version;
 }

@@ -303,6 +303,12 @@
       <div v-if="currentRow" class="dep-line">
         住院号：{{ currentRow.admissionNo }}｜患者：{{ currentRow.patientName }}｜累计押金：¥{{ fmtMoney(currentRow.depositTotal) }}
       </div>
+      <div v-if="currentRow" class="dep-line">
+        <!-- 一百零八轮 D5：出院前费用合计回显（未结一日清费用），让"去结算"有预期 -->
+        费用合计：<span class="dep-amount">¥{{ fmtMoney(dcFeeTotal) }}</span>
+        <span v-if="dcFeeLoading" class="form-tip">（计算中…）</span>
+        <span v-else class="form-tip">（未结一日清费用，实际以出院结算为准）</span>
+      </div>
       <el-form ref="dcFormRef" :model="dcForm" :rules="dcRules" label-width="90px">
         <el-form-item label="出院方式" prop="dischargeWay">
           <el-select v-model="dcForm.dischargeWay" placeholder="选择出院方式" style="width: 100%">
@@ -537,11 +543,10 @@ const admRules: FormRules = {
   ],
 }
 
-/** 病区按所选科室过滤（无匹配时回退展示全部病区） */
+/** 病区按所选科室过滤（一百零八轮 D4：无匹配时不回退全部——后端强校验 ward.deptId，回退必败组合） */
 const wardOptions = computed(() => {
   if (!admForm.deptId) return wardAllOptions.value
-  const matched = wardAllOptions.value.filter((w) => w.deptId === admForm.deptId)
-  return matched.length > 0 ? matched : wardAllOptions.value
+  return wardAllOptions.value.filter((w) => w.deptId === admForm.deptId)
 })
 
 async function fetchWards() {
@@ -562,6 +567,8 @@ async function fetchDepts() {
   }
 }
 
+// 一百零八轮 D7：科室→医生联动竞态守卫——快速切换科室时旧请求后到不得覆盖新结果
+let doctorSeq = 0
 async function handleDeptChange() {
   admForm.wardId = undefined
   admForm.bedId = undefined
@@ -569,29 +576,35 @@ async function handleDeptChange() {
   bedOptions.value = []
   doctorOptions.value = []
   if (!admForm.deptId) return
+  const seq = ++doctorSeq
   doctorLoading.value = true
   try {
-    doctorOptions.value = (await getDoctorListCached({ deptId: admForm.deptId, status: 1 })) ?? []
+    const opts = (await getDoctorListCached({ deptId: admForm.deptId, status: 1 })) ?? []
+    if (seq === doctorSeq) doctorOptions.value = opts
   } catch {
-    doctorOptions.value = []
+    if (seq === doctorSeq) doctorOptions.value = []
   } finally {
-    doctorLoading.value = false
+    if (seq === doctorSeq) doctorLoading.value = false
   }
 }
 
+// 一百零八轮 D7：病区→床位联动竞态守卫（同款）
+let bedSeq = 0
 async function handleWardChange() {
   admForm.bedId = undefined
   bedOptions.value = []
   if (!admForm.wardId) return
+  const seq = ++bedSeq
   bedLoading.value = true
   try {
-    bedOptions.value = ((await getBeds({ wardId: admForm.wardId, bedStatus: 1 })) ?? []).filter(
+    const opts = ((await getBeds({ wardId: admForm.wardId, bedStatus: 1 })) ?? []).filter(
       (b) => b.bedStatus === 1
     )
+    if (seq === bedSeq) bedOptions.value = opts
   } catch {
-    bedOptions.value = []
+    if (seq === bedSeq) bedOptions.value = []
   } finally {
-    bedLoading.value = false
+    if (seq === bedSeq) bedLoading.value = false
   }
 }
 
@@ -748,6 +761,9 @@ const dcDialogVisible = ref(false)
 const dcSubmitting = ref(false)
 const dcFormRef = ref<FormInstance>()
 const dcForm = reactive({ dischargeWay: undefined as number | undefined, dischargeDiagnosis: '' })
+// 一百零八轮 D5：出院弹窗费用合计回显
+const dcFeeTotal = ref(0)
+const dcFeeLoading = ref(false)
 
 const dcRules: FormRules = {
   dischargeWay: [{ required: true, message: '请选择出院方式', trigger: 'change' }],
@@ -759,6 +775,22 @@ function openDischargeDialog(row: Admission) {
   dcForm.dischargeWay = undefined
   dcForm.dischargeDiagnosis = ''
   dcDialogVisible.value = true
+  // 一百零八轮 D5：出院前回显未结费用合计
+  dcFeeTotal.value = 0
+  dcFeeLoading.value = true
+  getDailyFees(row.id)
+    .then((groups) => {
+      dcFeeTotal.value = (groups ?? []).reduce(
+        (sum, g) => sum + (Number(g.totalAmount) || 0),
+        0
+      )
+    })
+    .catch(() => {
+      dcFeeTotal.value = 0
+    })
+    .finally(() => {
+      dcFeeLoading.value = false
+    })
 }
 
 async function handleDischargeSubmit() {

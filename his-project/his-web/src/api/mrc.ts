@@ -78,12 +78,43 @@ export const archiveMrc = (admissionId: number) =>
   post<void>(`/mrc/admissions/${admissionId}/archive`)
 
 /** 病案借阅 */
-export const borrowMrc = (admissionId: number, expectReturnDays?: number) =>
-  post<void>(`/mrc/admissions/${admissionId}/borrow`, { expectReturnDays })
+export const borrowMrc = (admissionId: number, expectReturnDays?: number, borrowerId?: number) =>
+  post<void>(`/mrc/admissions/${admissionId}/borrow`, { expectReturnDays, borrowerId })
 
 /** 病案归还 */
 export const returnMrc = (admissionId: number) =>
   post<void>(`/mrc/admissions/${admissionId}/return`)
+
+/** 借阅台账行（一百一十轮 M4），status: 1 借阅中 2 已归还 */
+export interface MrcBorrow {
+  id: number
+  mrcId: number
+  mrcNo?: string | null
+  admissionId?: number | null
+  patientId?: number | null
+  patientName?: string | null
+  borrowerId?: number | null
+  borrowerName?: string | null
+  borrowTime?: string | null
+  expectReturnTime?: string | null
+  returnTime?: string | null
+  status: number
+}
+
+export const MRC_BORROW_STATUS_OPTIONS: DictOption[] = [
+  { label: '借阅中', value: 1 },
+  { label: '已归还', value: 2 },
+]
+
+export const mrcBorrowStatusLabel = (v?: number | null) => dictLabel(MRC_BORROW_STATUS_OPTIONS, v)
+
+export function mrcBorrowStatusTagType(v?: number | null): 'primary' | 'success' {
+  return v === 2 ? 'success' : 'primary'
+}
+
+/** 借阅台账分页（GET /mrc/borrows，含病案号/患者/借阅人批量回填） */
+export const getMrcBorrowPage = (params: { pageNum: number; pageSize: number; status?: number }) =>
+  get<PageResult<MrcBorrow>>('/mrc/borrows', params)
 
 /** ICD-10 字典远程搜索 */
 export const searchIcd10 = (keyword: string) =>

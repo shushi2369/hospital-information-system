@@ -9,6 +9,7 @@ import com.his.modules.mrc.dto.HomepageCodeRequest;
 import com.his.modules.mrc.dto.HomepageQcRequest;
 import com.his.modules.mrc.dto.MrcQuery;
 import com.his.modules.mrc.dto.MrcRecordVO;
+import com.his.modules.mrc.entity.MrcBorrow;
 import com.his.modules.mrc.entity.MrcHomepage;
 import com.his.modules.mrc.entity.MrcIcd10;
 import com.his.modules.mrc.entity.MrcRecord;
@@ -72,6 +73,14 @@ public class MrcController {
     @PreAuthorize("@ss.hasPerm('mrc:archive:query')")
     public R<MrcHomepage> homepage(@PathVariable Long admissionId) {
         return R.ok(mrcService.homepage(admissionId));
+    }
+
+    /** 借阅台账（一百一十轮 M4）：借阅记录全链路可见 */
+    @GetMapping("/borrows")
+    @PreAuthorize("@ss.hasPerm('mrc:archive:query') or @ss.hasPerm('mrc:borrow:create')")
+    public R<PageResult<MrcBorrow>> borrows(com.his.common.PageQuery query,
+            @RequestParam(required = false) Integer status) {
+        return R.ok(mrcService.borrowPage(query, status));
     }
 
     @PostMapping("/admissions/{admissionId}/borrow")

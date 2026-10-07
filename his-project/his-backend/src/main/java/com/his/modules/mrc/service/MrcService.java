@@ -49,6 +49,7 @@ public class MrcService {
     private final MrcIcd10Mapper icd10Mapper;
     private final InpAppService inpAppService;
     private final PatientAppService patientAppService;
+    private final com.his.modules.system.app.SystemAppService systemAppService;
     private final com.his.modules.plt.service.PltService pltService;
     private final com.his.modules.rpt.service.RptService rptService;
 
@@ -185,17 +186,28 @@ public class MrcService {
     private Map<String, Object> chargeSummary(Long admissionId) {
         Map<String, Object> summary = new HashMap<>();
         BigDecimal total = BigDecimal.ZERO;
+        Map<Integer, BigDecimal> byType = new HashMap<>();
         try {
             var fees = inpAppService.listUnpaidDailyFees(admissionId);
-            Map<Integer, BigDecimal> byType = new HashMap<>();
             for (var f : fees) {
                 byType.merge(f.getFeeType(), f.getAmount(), BigDecimal::add);
                 total = total.add(f.getAmount());
             }
-            summary.put("byType", byType);
         } catch (Exception ignored) {
             // 已结算住院无未结费用
         }
+        if (total.compareTo(BigDecimal.ZERO) == 0) {
+            // 一百一十轮 M6：未结费用为空不代表没花费——已结算/已归档住院回补全量费用（应收口径）
+            try {
+                for (var f : inpAppService.listAllDailyFees(admissionId)) {
+                    byType.merge(f.getFeeType(), f.getAmount(), BigDecimal::add);
+                    total = total.add(f.getAmount());
+                }
+            } catch (Exception ignored) {
+                // 无任何费用记录
+            }
+        }
+        summary.put("byType", byType);
         summary.put("total", total);
         return summary;
     }
@@ -254,6 +266,35 @@ public class MrcService {
 
     /** 借阅（M-06）：仅已归档病案可借 */
     @Transactional
+    /** 借阅台账（一百一十轮 M4）：分页 + 病案/借阅人/患者信息批量回填 */
+    public PageResult<MrcBorrow> borrowPage(com.his.common.PageQuery query, Integer status) {
+        Page<MrcBorrow> page = borrowMapper.selectPage(query.toPage(),
+                new LambdaQueryWrapper<MrcBorrow>()
+                        .eq(status != null, MrcBorrow::getStatus, status)
+                        .orderByDesc(MrcBorrow::getId));
+        var rows = page.getRecords();
+        if (!rows.isEmpty()) {
+            Map<Long, MrcRecord> records = recordMapper.selectList(new LambdaQueryWrapper<MrcRecord>()
+                            .in(MrcRecord::getId, rows.stream().map(MrcBorrow::getMrcId).toList()))
+                    .stream().collect(java.util.stream.Collectors.toMap(MrcRecord::getId, r -> r));
+            Map<Long, String> users = systemAppService.getUsernameMap(
+                    rows.stream().map(MrcBorrow::getBorrowerId).filter(java.util.Objects::nonNull).toList());
+            for (MrcBorrow b : rows) {
+                MrcRecord r = records.get(b.getMrcId());
+                if (r != null) {
+                    b.setMrcNo(r.getMrcNo());
+                    b.setAdmissionId(r.getAdmissionId());
+                    b.setPatientId(r.getPatientId());
+                }
+                b.setBorrowerName(users.get(b.getBorrowerId()));
+            }
+            com.his.infrastructure.util.PatientNameBackfill.fill(
+                    rows.stream().filter(b -> b.getPatientId() != null).toList(), patientAppService);
+        }
+        return PageResult.of(page);
+    }
+
+    /** 借阅（M-07） */
     public Long borrow(Long admissionId, BorrowRequest req) {
         MrcRecord record = requireRecord(admissionId);
         if (record.getArchiveStatus() == 10) {

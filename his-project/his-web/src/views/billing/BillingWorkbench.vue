@@ -400,6 +400,15 @@
       <div v-if="refundBill" class="refund-bill-line">
         收费单号：{{ refundBill.billNo }}｜患者：{{ refundBill.patientName }}｜实收：¥{{ fmtMoney(refundBill.paidAmount) }}｜已退：¥{{ fmtMoney(refundBill.refundAmount) }}
       </div>
+      <!-- 一百零八轮 D6：整方退提示（部分退药品费会被 B3003 拦截） -->
+      <el-alert
+        v-if="refundRows.some((r) => r.sourceType === 2 && r.feeType === 7 && r.refundStatus !== 2)"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="refund-alert"
+        title="本单含药品费：药品费必须整方退（一次退清该处方全部数量），部分退会被拦截。"
+      />
       <el-table v-loading="refundLoading" :data="refundRows" border size="small" max-height="330">
         <el-table-column prop="itemName" label="项目名称" min-width="150" show-overflow-tooltip />
         <el-table-column label="费用类别" width="85" align="center">
@@ -721,6 +730,10 @@ async function handleRefundSubmit() {
     ElMessage.success(`退费成功，退费单号：${res}`)
     refundDialogVisible.value = false
     fetchBills()
+    // 一百零八轮 D10：详情抽屉若开着同一账单，同步刷新明细与退费状态
+    if (drawerVisible.value && billDetail.value?.bill?.id === refundBill.value.id) {
+      await openBillDrawer(refundBill.value)
+    }
   } catch {
     // B3003 退费超限 / B3004 已发药先退药 / B3005 挂号费不可退已在拦截器统一提示
   } finally {

@@ -83,6 +83,27 @@ public class InpAppService {
                 }).toList();
     }
 
+    /** 全量一日清费用（一百一十轮 M6：已结算/已归档住院首页费用合计回补，跨模块返回 DTO） */
+    public List<DailyFeeDTO> listAllDailyFees(Long admissionId) {
+        return dailyFeeMapper.selectList(new LambdaQueryWrapper<InpDailyFee>()
+                .eq(InpDailyFee::getAdmissionId, admissionId)
+                .eq(InpDailyFee::getStatus, 1)
+                .orderByAsc(InpDailyFee::getFeeDate))
+                .stream().map(f -> {
+                    DailyFeeDTO dto = new DailyFeeDTO();
+                    dto.setId(f.getId());
+                    dto.setFeeDate(f.getFeeDate());
+                    dto.setFeeType(f.getFeeType());
+                    dto.setSourceType(f.getSourceType());
+                    dto.setSourceDetailId(f.getSourceDetailId());
+                    dto.setItemName(f.getItemName());
+                    dto.setQuantity(f.getQuantity());
+                    dto.setUnitPrice(f.getUnitPrice());
+                    dto.setAmount(f.getAmount());
+                    return dto;
+                }).toList();
+    }
+
     /** 结算联动：一日清标记已结算（仅限账单实际包含的费用，防止标记窗口期新增费用被误标记为已结） */
     @Transactional
     public void markDailyFeesSettled(java.util.Collection<Long> feeIds) {

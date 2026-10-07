@@ -38,6 +38,17 @@
           <template v-if="b.bedStatus === 2">
             <div class="bed-patient">{{ b.patientName || '住院患者' }}</div>
             <div class="bed-sub">住院 ID：{{ b.currentAdmissionId ?? '-' }}</div>
+            <!-- 一百零八轮 D11：占用床位可查看住院单摘要 -->
+            <el-button
+              v-if="b.currentAdmissionId"
+              link
+              type="primary"
+              size="small"
+              class="bed-view-btn"
+              @click="openBedAdmission(b)"
+            >
+              查看住院
+            </el-button>
           </template>
           <template v-else>
             <div class="bed-sub">床位费：¥{{ fmtMoney(b.bedFee) }}/日</div>
@@ -56,6 +67,25 @@
         </div>
       </div>
     </div>
+
+    <!-- 占用床位住院摘要弹窗（一百零八轮 D11） -->
+    <el-dialog v-model="bedAdmVisible" title="在院患者摘要" width="460px" destroy-on-close>
+      <div v-loading="bedAdmLoading">
+        <template v-if="bedAdm">
+          <el-descriptions :column="1" border size="small">
+            <el-descriptions-item label="住院号">{{ bedAdm.admissionNo }}</el-descriptions-item>
+            <el-descriptions-item label="患者">{{ bedAdm.patientName || bedAdm.patientId }}</el-descriptions-item>
+            <el-descriptions-item label="科室">{{ bedAdm.deptName || bedAdm.deptId }}</el-descriptions-item>
+            <el-descriptions-item label="医师">{{ bedAdm.doctorName || bedAdm.doctorId || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="入院时间">{{ bedAdm.admissionTime || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="累计押金">¥{{ fmtMoney(bedAdm.depositTotal) }}</el-descriptions-item>
+          </el-descriptions>
+        </template>
+      </div>
+      <template #footer>
+        <el-button @click="bedAdmVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
 
     <!-- 新增床位弹窗 -->
     <el-dialog v-model="dialogVisible" title="新增床位" width="480px" destroy-on-close>
@@ -104,9 +134,11 @@ import {
   bedStatusTagType,
   BED_STATUS_OPTIONS,
   createBed,
+  getAdmissionDetail,
   getBeds,
   getWards,
   updateBedStatus,
+  type Admission,
   type Bed,
   type Ward,
 } from '@/api/inp'
@@ -117,6 +149,25 @@ const wardId = ref<number | undefined>(undefined)
 const bedStatusFilter = ref<number | undefined>(undefined)
 const beds = ref<Bed[]>([])
 const loading = ref(false)
+
+// ---------------- 占用床位住院摘要（一百零八轮 D11） ----------------
+const bedAdmVisible = ref(false)
+const bedAdmLoading = ref(false)
+const bedAdm = ref<Admission | null>(null)
+
+async function openBedAdmission(b: Bed) {
+  if (!b.currentAdmissionId) return
+  bedAdmVisible.value = true
+  bedAdmLoading.value = true
+  bedAdm.value = null
+  try {
+    bedAdm.value = await getAdmissionDetail(b.currentAdmissionId)
+  } catch {
+    bedAdm.value = null
+  } finally {
+    bedAdmLoading.value = false
+  }
+}
 
 async function fetchWards() {
   try {
@@ -289,6 +340,11 @@ onMounted(fetchWards)
 .bed-patient {
   font-weight: 600;
   color: #303133;
+}
+
+.bed-view-btn {
+  margin-top: 4px;
+  padding: 0;
 }
 
 .bed-sub {
