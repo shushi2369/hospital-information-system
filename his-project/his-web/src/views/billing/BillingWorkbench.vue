@@ -425,7 +425,7 @@
               v-if="row.refundStatus !== 2"
               v-model="row.refundQty"
               :min="1"
-              :max="row.quantity"
+              :max="(Number(row.quantity) || 0) - (Number(row.refundedQty) || 0)"
               size="small"
               controls-position="right"
               style="width: 110px"

@@ -66,7 +66,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="床位号" prop="bedNo">
-          <el-input v-model="form.bedNo" placeholder="如 0201" maxlength="20" />
+          <el-input v-model="form.bedNo" placeholder="如 0201" maxlength="16" />
         </el-form-item>
         <el-form-item label="床位费项目" prop="chargeItemId">
           <el-select

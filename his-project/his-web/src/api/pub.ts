@@ -67,3 +67,43 @@ export interface PubHaiPayload {
 
 /** 院感病例报告，返回病例号 */
 export const reportHaiCase = (data: PubHaiPayload) => post<string>('/pub/hai', data)
+
+/** 院感病例状态机（对齐 PubService.haiConfirm）：10 待确认 → 20 已确认（整改中）→ 30 整改完成 */
+export const PUB_HAI_STATUS_OPTIONS = [
+  { value: 10, label: '待确认' },
+  { value: 20, label: '整改中' },
+  { value: 30, label: '已闭环' },
+]
+
+export function pubHaiStatusLabel(status: number): string {
+  return PUB_HAI_STATUS_OPTIONS.find((o) => o.value === status)?.label ?? String(status)
+}
+
+export function pubHaiStatusTagType(status: number): 'warning' | 'primary' | 'success' {
+  if (status === 10) return 'warning'
+  if (status === 20) return 'primary'
+  return 'success'
+}
+
+export interface PubHaiCase {
+  id: number
+  caseNo: string
+  admissionId: number
+  patientId: number
+  patientName?: string | null
+  infectionType: number
+  infectionSite: string
+  diagnoseDate: string
+  reporterId?: number | null
+  status: number
+  confirmNote?: string | null
+  confirmTime?: string | null
+}
+
+/** 院感病例分页（一百一十轮 P5 补齐列表接口） */
+export const getPubHaiPage = (params: { pageNum: number; pageSize: number; status?: number }) =>
+  get<PageResult<PubHaiCase>>('/pub/hai', params)
+
+/** 院感确认/整改推进（10→20 或 20→30），权限 pub:hai:confirm */
+export const confirmPubHai = (id: number, targetStatus: number, note?: string) =>
+  post<void>(`/pub/hai/${id}/confirm?targetStatus=${targetStatus}${note ? `&note=${encodeURIComponent(note)}` : ''}`)

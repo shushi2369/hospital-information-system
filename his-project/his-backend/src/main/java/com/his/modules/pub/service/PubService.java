@@ -40,6 +40,17 @@ public class PubService {
     private final IdGenerator idGenerator;
     private final com.his.modules.rpt.service.RptService rptService;
     private final com.his.modules.patient.app.PatientAppService patientAppService;
+    private final com.his.modules.inp.app.InpAppService inpAppService;
+
+    /** 院感病例分页（一百一十轮 P5：确认闭环 UI 的数据源） */
+    public PageResult<PubHaiCase> haiPage(com.his.common.PageQuery query, Integer status) {
+        Page<PubHaiCase> page = haiMapper.selectPage(query.toPage(),
+                new LambdaQueryWrapper<PubHaiCase>()
+                        .eq(status != null, PubHaiCase::getStatus, status)
+                        .orderByAsc(PubHaiCase::getStatus).orderByDesc(PubHaiCase::getId));
+        com.his.infrastructure.util.PatientNameBackfill.fill(page.getRecords(), patientAppService);
+        return PageResult.of(page);
+    }
 
     /** 传染病报告卡分页（PUB-01） */
     public PageResult<PubInfectiousCard> cardPage(com.his.common.PageQuery query, Integer status) {
@@ -142,6 +153,11 @@ public class PubService {
     public String haiReport(PubHaiCase req) {
         // 患者存在性校验（八十八轮 IDOR 审计 P2-2）：防对虚构 patientId 产生公卫记录
         patientAppService.requireActive(req.getPatientId());
+        // 一百一十轮 P3：admissionId 归属校验——必须存在且属于该患者，防张冠李戴的院感关联
+        var adm = inpAppService.requireAdmission(req.getAdmissionId());
+        if (!adm.getPatientId().equals(req.getPatientId())) {
+            throw new BizException(ErrorCode.A0001, "住院记录与患者不匹配");
+        }
         req.setCaseNo(idGenerator.next("GR"));
         req.setStatus(10);
         req.setReporterId(CurrentUser.id());

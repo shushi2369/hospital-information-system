@@ -556,7 +556,7 @@ async function fetchWards() {
 async function fetchDepts() {
   if (deptOptions.value.length > 0) return
   try {
-    deptOptions.value = (await getDepartmentListCached({ deptType: 1 })) ?? []
+    deptOptions.value = (await getDepartmentListCached({ deptType: 1, status: 1 })) ?? []
   } catch {
     deptOptions.value = []
   }
@@ -571,7 +571,7 @@ async function handleDeptChange() {
   if (!admForm.deptId) return
   doctorLoading.value = true
   try {
-    doctorOptions.value = (await getDoctorListCached({ deptId: admForm.deptId })) ?? []
+    doctorOptions.value = (await getDoctorListCached({ deptId: admForm.deptId, status: 1 })) ?? []
   } catch {
     doctorOptions.value = []
   } finally {

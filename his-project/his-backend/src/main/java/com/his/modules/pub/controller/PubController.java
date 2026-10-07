@@ -56,12 +56,18 @@ public class PubController {
         return R.ok();
     }
 
+    @GetMapping("/hai")
+    @PreAuthorize("@ss.hasPerm('pub:hai:confirm')")
+    public R<PageResult<PubHaiCase>> haiPage(com.his.common.PageQuery query,
+            @RequestParam(required = false) Integer status) {
+        return R.ok(pubService.haiPage(query, status));
+    }
+
     @PostMapping("/hai")
     @PreAuthorize("@ss.hasPerm('pub:hai:confirm') or @ss.hasPerm('clinic:exam:create')")
     @Idempotent
     @AuditLog(module = "pub", action = "院感病例上报", bizType = "pub_hai_case")
     public R<String> haiReport(@Valid @RequestBody PubHaiCase req) {
-        req.setInfectionSite(req.getInfectionSite());
         return R.ok(pubService.haiReport(req));
     }
 

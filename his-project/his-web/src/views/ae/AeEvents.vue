@@ -129,7 +129,10 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item label="发生科室" required>
-          <el-input-number v-model="reportForm.departmentId" :min="1" :controls="false" class="num-input" />
+          <!-- 一百一十轮 A2：裸 ID 手输改科室下拉，防错输不存在的科室 -->
+          <el-select v-model="reportForm.departmentId" filterable style="width: 100%" placeholder="选择发生科室">
+            <el-option v-for="d in deptOptions" :key="d.id" :value="d.id" :label="d.deptName" />
+          </el-select>
         </el-form-item>
         <el-form-item label="发生时间" required>
           <el-date-picker
@@ -199,6 +202,17 @@ import {
   reportAeEvent,
   type AeEvent,
 } from '@/api/ae'
+import { getDepartmentListCached, type Department } from '@/api/basedata'
+
+// 发生科室下拉（一百零九轮 #A2：裸 ID 手输改下拉，防错输不存在的科室）
+const deptOptions = ref<Department[]>([])
+onMounted(async () => {
+  try {
+    deptOptions.value = (await getDepartmentListCached({ status: 1 })) ?? []
+  } catch {
+    // 拦截器已统一提示
+  }
+})
 
 // ---------------- 列表查询 ----------------
 const loading = ref(false)
@@ -279,6 +293,18 @@ async function handleReportSubmit() {
   }
 }
 
+/**
+ * 过滤 tab 下操作成功后不重置页码（一百零九轮 #A4）：
+ * 留在当前页刷新；若当前页被推进掏空则回退一页，避免"操作成功后列表空白"。
+ */
+async function refreshKeepPage() {
+  await fetchList()
+  if (!list.value.length && query.pageNum > 1) {
+    query.pageNum -= 1
+    await fetchList()
+  }
+}
+
 // ---------------- 质控派单（10 → 20） ----------------
 async function handleAssign(row: AeEvent) {
   try {
@@ -293,7 +319,7 @@ async function handleAssign(row: AeEvent) {
   try {
     await assignAeEvent(row.id)
     ElMessage.success('派单成功，待科室整改')
-    fetchList()
+    refreshKeepPage()
   } catch {
     // 拦截器已统一提示
   }
@@ -322,7 +348,7 @@ async function handleRectifySubmit() {
     await rectifyAeEvent(rectifyRow.value.id, handlerNote.value.trim())
     ElMessage.success('整改登记完成，待质控关闭')
     rectifyDialogVisible.value = false
-    fetchList()
+    refreshKeepPage()
   } catch {
     // 拦截器已统一提示
   } finally {
@@ -344,7 +370,7 @@ async function handleClose(row: AeEvent) {
   try {
     await closeAeEvent(row.id)
     ElMessage.success('事件已关闭')
-    fetchList()
+    refreshKeepPage()
   } catch {
     // 拦截器已统一提示
   }
