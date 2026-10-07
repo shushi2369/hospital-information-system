@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.his.common.BizException;
 import com.his.common.ErrorCode;
 import com.his.common.PageResult;
+import java.util.Map;
 import com.his.infrastructure.security.CurrentUser;
 import com.his.infrastructure.util.IdGenerator;
 import com.his.modules.cnt.entity.CntRequest;
@@ -25,6 +26,8 @@ public class CntService {
     private final InpAppService inpAppService;
     private final PltService pltService;
     private final IdGenerator idGenerator;
+    private final com.his.modules.basedata.app.BasedataAppService basedataAppService;
+    private final com.his.modules.system.app.SystemAppService systemAppService;
 
     /** 会诊申请（T-01）：住院/门诊二选一 */
     @Transactional
@@ -53,6 +56,19 @@ public class CntService {
                         .eq(patientId != null, CntRequest::getPatientId, patientId)
                         .eq(status != null, CntRequest::getStatus, status)
                         .orderByAsc(CntRequest::getStatus).orderByDesc(CntRequest::getId));
+        // 科室名/医师名批量回填（一百轮浏览器走查：裸 ID 列对齐九十二轮幽灵字段修法）
+        java.util.Set<Long> doctorIds = new java.util.HashSet<>();
+        for (CntRequest r : page.getRecords()) {
+            if (r.getConsultDoctorId() != null) doctorIds.add(r.getConsultDoctorId());
+        }
+        Map<Long, String> doctorNames = systemAppService.getUsernameMap(doctorIds);
+        Map<Long, ? extends com.his.modules.basedata.app.DepartmentDTO> depts =
+                basedataAppService.departmentMap();
+        for (CntRequest r : page.getRecords()) {
+            var d = depts.get(r.getDeptId());
+            r.setDeptName(d == null ? null : d.getDeptName());
+            r.setConsultDoctorName(doctorNames.get(r.getConsultDoctorId()));
+        }
         return PageResult.of(page);
     }
 

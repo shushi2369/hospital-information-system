@@ -17,6 +17,15 @@ BASE = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8080/api/v1"
 PASSWORD = "His@2026"
 results = []
 
+# 开跑前清理：E10/verify_course 等会以 cashier.li 日结，当日锁会拦本套件结算步
+# （B3006 是按(收费员,当日)的全局锁，测试基建惯例：套件自带解锁）
+import subprocess as _sp
+_mysql_exe = "C:/his-runtime/mysql-8.0.36-winx64/bin/mysql.exe"
+_sp.run([_mysql_exe, "-uroot", "-proot123", "his", "-e",
+         "DELETE FROM bil_daily_settlement WHERE settle_date=CURDATE() AND cashier_id=5"],
+        capture_output=True)
+
+
 
 def call(method, path, token=None, body=None, idem=None):
     data = json.dumps(body).encode("utf-8") if body is not None else None

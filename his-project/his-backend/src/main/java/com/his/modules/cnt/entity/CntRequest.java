@@ -12,6 +12,11 @@ import lombok.Setter;
 @TableName("cnt_request")
 public class CntRequest extends BaseEntity {
     private String reqNo;
+    /** 展示字段（不入库）：列表批量回填（一百轮浏览器走查——裸 ID 列） */
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private String deptName;
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private String consultDoctorName;
     private Long admissionId;
     private Long visitId;
     private Long patientId;

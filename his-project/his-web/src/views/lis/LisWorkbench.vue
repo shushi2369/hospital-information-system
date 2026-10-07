@@ -52,7 +52,7 @@
         <template #default="{ row }">{{ row.admissionId ?? '-' }}</template>
       </el-table-column>
       <el-table-column prop="patientId" label="患者ID" width="90" align="center" />
-      <el-table-column prop="doctorId" label="医生ID" width="90" align="center" />
+      <el-table-column prop="doctorName" label="开单医生" width="100" align="center" show-overflow-tooltip />
       <el-table-column prop="specimenType" label="标本类型" width="100" align="center">
         <template #default="{ row }">{{ row.specimenType || '-' }}</template>
       </el-table-column>

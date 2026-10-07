@@ -24,6 +24,15 @@ API = BASE + "/api/v1"
 PASSWORD = "His@2026"
 results = []
 
+# 开跑前清理：E10/verify_course 等会以 cashier.li 日结，当日锁会拦本套件结算步
+# （B3006 是按(收费员,当日)的全局锁，测试基建惯例：套件自带解锁）
+import subprocess as _sp
+_mysql_exe = "C:/his-runtime/mysql-8.0.36-winx64/bin/mysql.exe"
+_sp.run([_mysql_exe, "-uroot", "-proot123", "his", "-e",
+         "DELETE FROM bil_daily_settlement WHERE settle_date=CURDATE() AND cashier_id=5"],
+        capture_output=True)
+
+
 
 def check(name, cond, detail=None):
     results.append((name, bool(cond)))

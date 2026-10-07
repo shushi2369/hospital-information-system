@@ -16,6 +16,9 @@ public class LisRequest extends BaseEntity {
     private Long admissionId;
     private Long patientId;
     private Long doctorId;
+    /** 展示字段（不入库）：列表批量回填（一百轮浏览器走查——裸 ID 列） */
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private String doctorName;
     private String specimenType;
     private Integer status;
 

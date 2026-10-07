@@ -51,6 +51,7 @@ public class LisService {
     private final LabInstrumentGateway instrumentGateway;
     private final AlertService alertService;
     private final com.his.modules.plt.service.PltService pltService;
+    private final com.his.modules.system.app.SystemAppService systemAppService;
     private final IdGenerator idGenerator;
 
     /** 护士执行检验医嘱时自动生成申请单（doc → lis 单向调用，《12》§3） */
@@ -268,7 +269,7 @@ public class LisService {
         return Map.of("request", request, "report", report, "results", results);
     }
 
-    /** 申请单分页（L-01） */
+    /** 申请单分页（L-01）。开单医生名批量回填（一百轮浏览器走查：裸 ID 列） */
     public PageResult<LisRequest> page(LisRequestQuery query) {
         Page<LisRequest> page = requestMapper.selectPage(query.toPage(),
                 new LambdaQueryWrapper<LisRequest>()
@@ -276,6 +277,14 @@ public class LisService {
                         .eq(query.getPatientId() != null, LisRequest::getPatientId, query.getPatientId())
                         .eq(query.getStatus() != null, LisRequest::getStatus, query.getStatus())
                         .orderByDesc(LisRequest::getId));
+        java.util.Set<Long> doctorIds = new java.util.HashSet<>();
+        for (LisRequest r : page.getRecords()) {
+            if (r.getDoctorId() != null) doctorIds.add(r.getDoctorId());
+        }
+        Map<Long, String> doctors = systemAppService.getUsernameMap(doctorIds);
+        for (LisRequest r : page.getRecords()) {
+            r.setDoctorName(doctors.get(r.getDoctorId()));
+        }
         return PageResult.of(page);
     }
 

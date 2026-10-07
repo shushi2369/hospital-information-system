@@ -44,8 +44,8 @@
           <span v-else>-</span>
         </template>
       </el-table-column>
-      <el-table-column prop="deptId" label="申请科室" width="90" align="center" />
-      <el-table-column prop="consultDoctorId" label="会诊医师" width="90" align="center" />
+      <el-table-column prop="deptName" label="申请科室" width="110" align="center" show-overflow-tooltip />
+      <el-table-column prop="consultDoctorName" label="会诊医师" width="100" align="center" show-overflow-tooltip />
       <el-table-column label="缓急" width="80" align="center">
         <template #default="{ row }">
           <el-tag size="small" :type="row.urgent === 1 ? 'danger' : 'info'">
