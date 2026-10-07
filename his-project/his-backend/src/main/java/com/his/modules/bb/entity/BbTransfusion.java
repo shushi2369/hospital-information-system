@@ -15,6 +15,11 @@ public class BbTransfusion extends BaseEntity {
     private Long bagId;
     private Long executorId;
     private Long checker1Id;
+    /** 展示字段（不入库）：详情批量回填（一百零二轮裸 ID 清查 #6） */
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private String checker1Name;
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private String checker2Name;
     private Long checker2Id;
     private String vitalBefore;
     private java.time.LocalDateTime startTime;

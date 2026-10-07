@@ -24,6 +24,7 @@ public class AeService {
     private final AeEventMapper eventMapper;
     private final PltService pltService;
     private final IdGenerator idGenerator;
+    private final com.his.modules.basedata.app.BasedataAppService basedataAppService;
 
     /** 上报（AE-01）：任何员工 */
     @Transactional
@@ -50,6 +51,13 @@ public class AeService {
                         .eq(status != null, AeEvent::getStatus, status)
                         .eq(eventType != null, AeEvent::getEventType, eventType)
                         .orderByAsc(AeEvent::getStatus).orderByDesc(AeEvent::getId));
+        // 发生科室名回填（一百零二轮裸 ID 清查 #5）
+        java.util.Map<Long, ? extends com.his.modules.basedata.app.DepartmentDTO> depts =
+                basedataAppService.departmentMap();
+        for (AeEvent e : page.getRecords()) {
+            var d = depts.get(e.getDepartmentId());
+            e.setDeptName(d == null ? null : d.getDeptName());
+        }
         return PageResult.of(page);
     }
 

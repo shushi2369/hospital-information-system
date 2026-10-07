@@ -2,6 +2,7 @@ package com.his.modules.nur.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.his.common.BizException;
+import java.util.Map;
 import com.his.common.ErrorCode;
 import com.his.infrastructure.security.CurrentUser;
 import com.his.modules.inp.app.InpAppService;
@@ -32,6 +33,7 @@ public class NurService {
     private final NurVitalSignMapper vitalSignMapper;
     private final PatientAppService patientAppService;
     private final InpAppService inpAppService;
+    private final com.his.modules.system.app.SystemAppService systemAppService;
 
     /** 排班（N-01）：同护士同日唯一 */
     @Transactional
@@ -99,11 +101,21 @@ public class NurService {
 
     /** 体征查询（N-03，体温单数据源） */
     public List<NurVitalSign> vitalSigns(Long admissionId, LocalDateTime start, LocalDateTime end) {
-        return vitalSignMapper.selectList(new LambdaQueryWrapper<NurVitalSign>()
+        List<NurVitalSign> rows = vitalSignMapper.selectList(new LambdaQueryWrapper<NurVitalSign>()
                 .eq(NurVitalSign::getAdmissionId, admissionId)
                 .ge(start != null, NurVitalSign::getRecordTime, start)
                 .le(end != null, NurVitalSign::getRecordTime, end)
                 .orderByAsc(NurVitalSign::getRecordTime));
+        // 录入护士姓名回填（一百零二轮裸 ID 清查 #3：幽灵列永远显示'-'）
+        java.util.Set<Long> nurseIds = new java.util.HashSet<>();
+        for (NurVitalSign r : rows) {
+            if (r.getNurseId() != null) nurseIds.add(r.getNurseId());
+        }
+        Map<Long, String> names = systemAppService.getUsernameMap(nurseIds);
+        for (NurVitalSign r : rows) {
+            r.setNurseName(names.get(r.getNurseId()));
+        }
+        return rows;
     }
 
     private void validateRange(String label, Object value, double min, double max) {

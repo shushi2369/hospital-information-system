@@ -13,6 +13,9 @@ import lombok.Setter;
 public class CdssHit extends BaseEntity {
     private Long orderId;
     private Long doctorId;
+    /** 展示字段（不入库）：命中列表批量回填（一百零二轮裸 ID 清查 #4） */
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private String doctorName;
     private Long ruleId;
     private String message;
     private Integer ignored;

@@ -219,6 +219,13 @@ public class MatService {
                         .eq(query.getMaterialId() != null, MatRequisition::getMaterialId, query.getMaterialId())
                         .eq(query.getDeptId() != null, MatRequisition::getDeptId, query.getDeptId())
                         .orderByDesc(MatRequisition::getId));
+        // 领用科室名回填（一百零二轮裸 ID 清查 #7）
+        java.util.Map<Long, ? extends com.his.modules.basedata.app.DepartmentDTO> depts =
+                basedataAppService.departmentMap();
+        for (MatRequisition r : page.getRecords()) {
+            var d = depts.get(r.getDeptId());
+            r.setDeptName(d == null ? null : d.getDeptName());
+        }
         return PageResult.of(page);
     }
 

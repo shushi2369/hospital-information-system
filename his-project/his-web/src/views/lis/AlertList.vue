@@ -54,7 +54,7 @@
       <el-table-column label="通知登记" min-width="150" show-overflow-tooltip>
         <template #default="{ row }">
           <template v-if="row.notifiedAt">
-            通知人ID {{ row.notifiedNurse ?? '-' }}<br />{{ row.notifiedAt }}
+            {{ row.notifiedNurseName ?? 'ID ' + row.notifiedNurse }}<br />{{ row.notifiedAt }}
           </template>
           <span v-else>-</span>
         </template>
@@ -62,7 +62,7 @@
       <el-table-column label="医生确认" min-width="150" show-overflow-tooltip>
         <template #default="{ row }">
           <template v-if="row.confirmedAt">
-            确认人ID {{ row.confirmedDoctor ?? '-' }}<br />{{ row.confirmedAt }}
+            {{ row.confirmedDoctorName ?? 'ID ' + row.confirmedDoctor }}<br />{{ row.confirmedAt }}
           </template>
           <span v-else>-</span>
         </template>

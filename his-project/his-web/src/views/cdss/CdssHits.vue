@@ -5,7 +5,7 @@
         <el-table v-loading="loading" :data="hits" border stripe size="small">
           <el-table-column prop="id" label="ID" width="70" align="center" />
           <el-table-column prop="orderId" label="医嘱ID" width="100" align="center" />
-          <el-table-column prop="doctorId" label="开单医生ID" width="110" align="center" />
+          <el-table-column prop="doctorName" label="开单医生" width="110" align="center" show-overflow-tooltip />
           <el-table-column prop="message" label="提示" min-width="240" show-overflow-tooltip />
           <el-table-column label="医生处置" width="110" align="center">
             <template #default="{ row }">

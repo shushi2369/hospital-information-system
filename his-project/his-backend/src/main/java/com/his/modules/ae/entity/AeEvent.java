@@ -15,6 +15,9 @@ public class AeEvent extends BaseEntity {
     private Integer eventType;
     private Integer severity;
     private Long departmentId;
+    /** 展示字段（不入库）：列表批量回填（一百零二轮裸 ID 清查 #5） */
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private String deptName;
     private java.time.LocalDateTime eventTime;
     private String description;
     private Long reporterId;

@@ -14,6 +14,9 @@ public class MatRequisition extends BaseEntity {
     private String reqNo;
     private Long materialId;
     private Long deptId;
+    /** 展示字段（不入库）：列表批量回填（一百零二轮裸 ID 清查 #7） */
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private String deptName;
     private Integer quantity;
     private Long applicantId;
     private String purpose;

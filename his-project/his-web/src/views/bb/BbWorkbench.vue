@@ -229,8 +229,8 @@
         <el-table :data="(detail.transfusions as Array<Record<string, unknown>>) || []" border size="small" class="mt4">
           <el-table-column prop="startTime" label="开始" width="150" />
           <el-table-column prop="endTime" label="结束" width="150" />
-          <el-table-column prop="checker1Id" label="核对1" width="70" align="center" />
-          <el-table-column prop="checker2Id" label="核对2" width="70" align="center" />
+          <el-table-column prop="checker1Name" label="核对1" width="90" align="center" show-overflow-tooltip />
+          <el-table-column prop="checker2Name" label="核对2" width="90" align="center" show-overflow-tooltip />
         </el-table>
       </template>
     </el-drawer>

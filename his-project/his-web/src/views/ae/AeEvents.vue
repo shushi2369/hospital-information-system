@@ -50,7 +50,7 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="departmentId" label="科室ID" width="80" align="center" />
+      <el-table-column prop="deptName" label="发生科室" width="110" align="center" show-overflow-tooltip />
       <el-table-column prop="eventTime" label="发生时间" min-width="150" show-overflow-tooltip />
       <el-table-column prop="description" label="事件描述" min-width="160" show-overflow-tooltip />
       <el-table-column label="状态" width="90" align="center">

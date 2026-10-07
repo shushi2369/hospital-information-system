@@ -20,6 +20,11 @@ public class AlertCritical extends BaseEntity {
     private String itemName;
     private String criticalValue;
     private Long notifiedNurse;
+    /** 展示字段（不入库）：列表批量回填（一百零二轮裸 ID 清查） */
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private String notifiedNurseName;
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private String confirmedDoctorName;
     private java.time.LocalDateTime notifiedAt;
     private Long confirmedDoctor;
     private java.time.LocalDateTime confirmedAt;

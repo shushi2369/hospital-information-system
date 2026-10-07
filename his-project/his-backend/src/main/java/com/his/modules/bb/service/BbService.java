@@ -145,8 +145,20 @@ public class BbService {
                 .eq(BbCrossMatch::getRequestId, id).orderByDesc(BbCrossMatch::getId)));
         result.put("issues", issueMapper.selectList(new LambdaQueryWrapper<BbIssue>()
                 .eq(BbIssue::getRequestId, id)));
-        result.put("transfusions", transfusionMapper.selectList(new LambdaQueryWrapper<BbTransfusion>()
-                .eq(BbTransfusion::getRequestId, id)));
+        List<BbTransfusion> transfusions = transfusionMapper.selectList(new LambdaQueryWrapper<BbTransfusion>()
+                .eq(BbTransfusion::getRequestId, id));
+        // 双核对人姓名回填（一百零二轮裸 ID 清查 #6）
+        java.util.Set<Long> checkerIds = new java.util.HashSet<>();
+        for (BbTransfusion t : transfusions) {
+            if (t.getChecker1Id() != null) checkerIds.add(t.getChecker1Id());
+            if (t.getChecker2Id() != null) checkerIds.add(t.getChecker2Id());
+        }
+        Map<Long, String> checkers = systemAppService.getUsernameMap(checkerIds);
+        for (BbTransfusion t : transfusions) {
+            t.setChecker1Name(checkers.get(t.getChecker1Id()));
+            t.setChecker2Name(checkers.get(t.getChecker2Id()));
+        }
+        result.put("transfusions", transfusions);
         result.put("adverses", adverseMapper.selectList(new LambdaQueryWrapper<BbAdverse>()
                 .eq(BbAdverse::getRequestId, id).orderByDesc(BbAdverse::getId)));
         return result;

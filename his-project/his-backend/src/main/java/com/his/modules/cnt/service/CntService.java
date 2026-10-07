@@ -55,7 +55,8 @@ public class CntService {
                 new LambdaQueryWrapper<CntRequest>()
                         .eq(patientId != null, CntRequest::getPatientId, patientId)
                         .eq(status != null, CntRequest::getStatus, status)
-                        .orderByAsc(CntRequest::getStatus).orderByDesc(CntRequest::getId));
+                        .orderByDesc(CntRequest::getUrgent)
+                .orderByAsc(CntRequest::getStatus).orderByDesc(CntRequest::getId));
         // 科室名/医师名批量回填（一百轮浏览器走查：裸 ID 列对齐九十二轮幽灵字段修法）
         java.util.Set<Long> doctorIds = new java.util.HashSet<>();
         for (CntRequest r : page.getRecords()) {

@@ -473,6 +473,15 @@ public class DocOrderService {
                 .eq(DocOrderItem::getOrderId, orderId).orderByAsc(DocOrderItem::getId));
         List<DocOrderExec> execs = execMapper.selectList(new LambdaQueryWrapper<DocOrderExec>()
                 .eq(DocOrderExec::getOrderId, orderId).orderByAsc(DocOrderExec::getId));
+        // 执行护士姓名回填（一百零二轮裸 ID 清查 #2：幽灵列永远显示'-'）
+        java.util.Set<Long> nurseIds = new java.util.HashSet<>();
+        for (DocOrderExec e : execs) {
+            if (e.getNurseId() != null) nurseIds.add(e.getNurseId());
+        }
+        Map<Long, String> nurseNames = systemAppService.getUsernameMap(nurseIds);
+        for (DocOrderExec e : execs) {
+            e.setNurseName(nurseNames.get(e.getNurseId()));
+        }
         return Map.of("order", order, "items", items, "executions", execs);
     }
 

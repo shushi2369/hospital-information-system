@@ -22,6 +22,9 @@ public class NurVitalSign extends BaseEntity {
     private Integer spo2;
     private Integer painScore;
     private Long nurseId;
+    /** 展示字段（不入库）：列表批量回填（一百零二轮裸 ID 清查 #3 幽灵列） */
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private String nurseName;
     private Integer status;
     @Version
     private Integer version;

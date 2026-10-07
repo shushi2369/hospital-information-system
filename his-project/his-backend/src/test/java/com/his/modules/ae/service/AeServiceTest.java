@@ -21,7 +21,7 @@ class AeServiceTest extends UnitTestBase {
     private final IdGenerator idGen = mock(IdGenerator.class);
 
     private AeService svc() {
-        return new AeService(eventMapper, pltService, idGen);
+        return new AeService(eventMapper, pltService, idGen, mock(com.his.modules.basedata.app.BasedataAppService.class));
     }
 
     private AeEvent event(Long id, int status) {

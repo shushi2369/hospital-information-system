@@ -352,7 +352,9 @@ const batchQuery = reactive({
   pageSize: 10,
   drugId: undefined as number | undefined,
   batchNo: '',
-  status: undefined as number | undefined,
+  // 默认在库（一百零二轮排序审计：效期升序 + 混态展示下过期批次霸榜，
+  // 在库可用药批次一屏不可见；要看全部/过期用状态下拉切）
+  status: 1 as number | undefined,
 })
 
 async function fetchBatches() {

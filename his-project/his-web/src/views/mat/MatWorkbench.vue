@@ -72,7 +72,7 @@
           <el-table-column prop="id" label="ID" width="70" align="center" />
           <el-table-column prop="reqNo" label="领用单号" min-width="140" />
           <el-table-column prop="materialId" label="物资ID" width="90" align="center" />
-          <el-table-column prop="deptId" label="科室ID" width="90" align="center" />
+          <el-table-column prop="deptName" label="领用科室" width="120" align="center" show-overflow-tooltip />
           <el-table-column prop="quantity" label="数量" width="90" align="center" />
           <el-table-column prop="purpose" label="用途" min-width="150" show-overflow-tooltip>
             <template #default="{ row }">{{ row.purpose || '-' }}</template>

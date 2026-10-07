@@ -96,6 +96,20 @@ public class CdssService {
 
     /** 命中分页（C-02）：医生数据范围限本人开立医嘱的命中（冗余 doctor_id 过滤，管理员全量）。
      *  doctor_id 为 bas_doctor.id，须经 getDoctorByUserId 做 sys_user→doctor 映射（ID 体系不同）。 */
+    /** 命中列表开单医生名回填（一百零二轮裸 ID 清查 #4；doctorId 是 bas_doctor.id） */
+    private void fillDoctorNames(Page<CdssHit> page) {
+        java.util.Set<Long> ids = new java.util.HashSet<>();
+        for (CdssHit h : page.getRecords()) {
+            if (h.getDoctorId() != null) ids.add(h.getDoctorId());
+        }
+        if (ids.isEmpty()) return;
+        for (var d : basedataAppService.listDoctorsByIds(ids).values()) {
+            for (CdssHit h : page.getRecords()) {
+                if (d.getId().equals(h.getDoctorId())) h.setDoctorName(d.getDoctorName());
+            }
+        }
+    }
+
     public PageResult<CdssHit> hitPage(CdssQuery query) {
         boolean admin = CurrentUser.get().getRoleCodes().contains("ADMIN");
         if (!admin) {
@@ -110,12 +124,14 @@ public class CdssService {
                             .eq(CdssHit::getDoctorId, doctor.getId())
                             .eq(query.getOrderId() != null, CdssHit::getOrderId, query.getOrderId())
                             .orderByDesc(CdssHit::getId));
+            fillDoctorNames(page);
             return PageResult.of(page);
         }
         Page<CdssHit> page = hitMapper.selectPage(query.toPage(),
                 new LambdaQueryWrapper<CdssHit>()
                         .eq(query.getOrderId() != null, CdssHit::getOrderId, query.getOrderId())
                         .orderByDesc(CdssHit::getId));
+        fillDoctorNames(page);
         return PageResult.of(page);
     }
 

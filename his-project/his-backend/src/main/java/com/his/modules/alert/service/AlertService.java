@@ -7,6 +7,7 @@ import com.his.common.BizException;
 import com.his.common.ErrorCode;
 import com.his.common.PageQuery;
 import com.his.common.PageResult;
+import java.util.Map;
 import com.his.infrastructure.security.CurrentUser;
 import com.his.infrastructure.util.IdGenerator;
 import com.his.modules.alert.entity.AlertCritical;
@@ -36,6 +37,7 @@ public class AlertService {
     private final com.his.modules.basedata.app.BasedataAppService basedataAppService;
     private final PltService pltService;
     private final IdGenerator idGenerator;
+    private final com.his.modules.system.app.SystemAppService systemAppService;
 
     /** 结果危急时生成危急值（lis 调用） */
     @Transactional
@@ -80,6 +82,17 @@ public class AlertService {
                 new LambdaQueryWrapper<AlertCritical>()
                         .eq(status != null, AlertCritical::getStatus, status)
                         .orderByAsc(AlertCritical::getStatus).orderByDesc(AlertCritical::getId));
+        // 通知人/确认人姓名回填（一百零二轮裸 ID 清查 #1）
+        java.util.Set<Long> userIds = new java.util.HashSet<>();
+        for (AlertCritical a : page.getRecords()) {
+            if (a.getNotifiedNurse() != null) userIds.add(a.getNotifiedNurse());
+            if (a.getConfirmedDoctor() != null) userIds.add(a.getConfirmedDoctor());
+        }
+        Map<Long, String> names = systemAppService.getUsernameMap(userIds);
+        for (AlertCritical a : page.getRecords()) {
+            a.setNotifiedNurseName(names.get(a.getNotifiedNurse()));
+            a.setConfirmedDoctorName(names.get(a.getConfirmedDoctor()));
+        }
         return PageResult.of(page);
     }
 

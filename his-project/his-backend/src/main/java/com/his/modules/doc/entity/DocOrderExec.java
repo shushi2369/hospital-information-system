@@ -17,6 +17,9 @@ public class DocOrderExec extends BaseEntity {
     private String execSlot;
     private Integer execType;
     private Long nurseId;
+    /** 展示字段（不入库）：详情批量回填（一百零二轮裸 ID 清查 #2 幽灵列） */
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private String nurseName;
     private String bedNo;
     private String result;
     private Long chargeDetailId;
