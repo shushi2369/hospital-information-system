@@ -29,7 +29,7 @@
         plain
         size="small"
         class="toolbar-action"
-        @click="reportDialogVisible = true"
+        @click="resetReportForm(); reportDialogVisible = true"
       >
         上报不良事件
       </el-button>

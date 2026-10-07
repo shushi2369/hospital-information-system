@@ -252,7 +252,7 @@ async function fetchBills() {
     const res = await getBillPage({ pageNum: 1, pageSize: 50 })
     bills.value = (res.list ?? []).filter((b) => {
       const admissionId = (b as Bill & { admissionId?: number | null }).admissionId
-      return admissionId !== null && admissionId !== undefined && b.status === 10
+      return admissionId !== null && admissionId !== undefined && (b.status === 10 || b.status === 20)
     })
   } catch {
     bills.value = []

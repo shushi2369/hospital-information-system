@@ -21,11 +21,13 @@ export interface AeEvent {
   status: number
 }
 
+// 一百零九轮：对齐 V34 字典枚举（原前端标签 2~4 与后端字典错位——
+// 跌倒入库为 2 却显示"用药错误"，铁证见 V35 演示数据 AE2026001）
 export const AE_EVENT_TYPE_OPTIONS = [
-  { value: 1, label: '跌倒/坠床' },
-  { value: 2, label: '用药错误' },
-  { value: 3, label: '压疮' },
-  { value: 4, label: '管路事件' },
+  { value: 1, label: '药品' },
+  { value: 2, label: '跌倒/坠床' },
+  { value: 3, label: '器械' },
+  { value: 4, label: '输血' },
   { value: 5, label: '手术相关' },
   { value: 6, label: '院感相关' },
   { value: 7, label: '其他' },

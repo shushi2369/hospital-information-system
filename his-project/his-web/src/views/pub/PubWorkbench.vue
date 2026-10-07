@@ -29,7 +29,7 @@
         plain
         size="small"
         class="toolbar-action"
-        @click="haiDialogVisible = true"
+        @click="resetHaiForm(); haiDialogVisible = true"
       >
         院感病例报告
       </el-button>
@@ -141,16 +141,17 @@
         </el-form-item>
         <el-form-item label="感染类型" required>
           <el-select v-model="haiForm.infectionType" style="width: 100%">
-            <el-option label="呼吸道" :value="1" />
-            <el-option label="消化道" :value="2" />
-            <el-option label="切口感染" :value="3" />
-            <el-option label="血液相关" :value="4" />
-            <el-option label="泌尿道" :value="5" />
-            <el-option label="其他" :value="9" />
+            <el-option v-for="t in [
+              { value: 1, label: '呼吸道' },
+              { value: 2, label: '导管相关' },
+              { value: 3, label: '切口感染' },
+              { value: 4, label: '胃肠道' },
+              { value: 5, label: '其他' },
+            ]" :key="t.value" :value="t.value" :label="t.label" />
           </el-select>
         </el-form-item>
         <el-form-item label="感染部位" required>
-          <el-input v-model="haiForm.infectionSite" maxlength="100" placeholder="如：下呼吸道、手术切口" />
+          <el-input v-model="haiForm.infectionSite" maxlength="64" placeholder="如：下呼吸道、手术切口" />
         </el-form-item>
       </el-form>
       <template #footer>

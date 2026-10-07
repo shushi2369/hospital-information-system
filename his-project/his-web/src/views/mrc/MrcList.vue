@@ -54,10 +54,10 @@
       <el-table-column label="操作" width="300" align="center" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="openHomepageDrawer(row)">首页详情</el-button>
-          <el-button v-perm="'mrc:homepage:code'" link type="primary" @click="openCodeDialog(row)">
+          <el-button v-if="row.archiveStatus === 10" v-perm="'mrc:homepage:code'" link type="primary" @click="openCodeDialog(row)">
             首页编码
           </el-button>
-          <el-button v-perm="'mrc:homepage:qc'" link type="warning" @click="openQcDialog(row)">
+          <el-button v-if="row.archiveStatus === 10" v-perm="'mrc:homepage:qc'" link type="warning" @click="openQcDialog(row)">
             首页质控
           </el-button>
           <el-button
@@ -131,7 +131,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="诊断名称" prop="mainDiagnosisName">
-          <el-input v-model="codeForm.mainDiagnosisName" placeholder="选择主诊断后自动带出，可修改" maxlength="128" />
+          <el-input v-model="codeForm.mainDiagnosisName" placeholder="选择主诊断后自动带出，可修改" maxlength="64" />
         </el-form-item>
         <el-form-item label="其他诊断">
           <el-input
@@ -143,7 +143,7 @@
           />
         </el-form-item>
         <el-form-item label="手术编码">
-          <el-input v-model="codeForm.operationCode" placeholder="选填，如 ICD-9-CM3 手术操作编码" maxlength="64" />
+          <el-input v-model="codeForm.operationCode" placeholder="选填，如 ICD-9-CM3 手术操作编码" maxlength="16" />
         </el-form-item>
       </el-form>
       <template #footer>
