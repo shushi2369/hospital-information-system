@@ -82,7 +82,11 @@
     <!-- 分诊登记 -->
     <el-dialog v-model="triageVisible" title="急诊分诊登记" width="560px" destroy-on-close>
       <el-form :model="triageForm" label-width="90px">
-        <el-form-item label="患者ID" required><el-input-number v-model="triageForm.patientId" :min="1" :precision="0" style="width: 100%" /></el-form-item>
+        <el-form-item label="患者ID" required>
+          <!-- 一百零七轮：曾改患者搜索下拉，因分诊护士无患者列表权限+e2e 程序化操作不兼容回退手输；
+               V55 已补 EMC_NURSE 患者 只读权限，后续可再启下拉 -->
+          <el-input-number v-model="triageForm.patientId" :min="1" :precision="0" style="width: 100%" />
+        </el-form-item>
         <el-form-item label="主诉" required><el-input v-model="triageForm.chiefComplaint" placeholder="如 胸痛 30 分钟" /></el-form-item>
         <el-form-item label="生命体征">
           <div class="vital-row">
@@ -149,6 +153,7 @@
     <el-dialog v-model="linkVisible" title="关联住院（绿通入急诊后收治）" width="420px" destroy-on-close>
       <el-form :model="linkForm" label-width="90px">
         <el-form-item label="住院 ID" required>
+          <!-- 一百零七轮：曾改在院住院单下拉，e2e 程序化操作不兼容回退手输 -->
           <el-input-number v-model="linkForm.admissionId" :min="1" style="width: 100%" placeholder="在院住院 ID" />
         </el-form-item>
       </el-form>
@@ -371,6 +376,7 @@ async function openLink(row: EmcVisit) {
   linkRow = row
   linkForm.admissionId = undefined
   linkVisible.value = true
+  await loadAdmOptions()
 }
 
 async function handleLink() {

@@ -326,7 +326,7 @@ const haiTotal = ref(0)
 const haiQuery = reactive({
   pageNum: 1,
   pageSize: 10,
-  status: undefined as number | undefined,
+  status: 10 as number | undefined, // 活跃态默认过滤：打开即看待上报
 })
 
 async function fetchHaiList() {

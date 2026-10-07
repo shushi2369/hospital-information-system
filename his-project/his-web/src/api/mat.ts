@@ -96,8 +96,26 @@ export function approvePurchase(id: number) {
   return post<void>(`/mat/purchases/${id}/approve`)
 }
 
-export function receivePurchase(id: number) {
-  return post<void>(`/mat/purchases/${id}/receive`)
+/** 供应商下拉（一百零七轮：采购单供应商选择数据源） */
+export interface BasSupplier {
+  id: number
+  supplierCode: string
+  supplierName: string
+  contact?: string | null
+  phone?: string | null
+  status: number
+}
+
+export function getSupplierList() {
+  return get<BasSupplier[]>('/mat/suppliers')
+}
+
+/** 到货入库（一百零七轮：效期必填，批次号选填时后端按采购单号派生） */
+export function receivePurchase(id: number, batchNo?: string, expireDate?: string) {
+  const qs: string[] = []
+  if (batchNo) qs.push(`batchNo=${encodeURIComponent(batchNo)}`)
+  if (expireDate) qs.push(`expireDate=${expireDate}`)
+  return post<void>(`/mat/purchases/${id}/receive${qs.length ? `?${qs.join('&')}` : ''}`)
 }
 
 export function cancelPurchase(id: number) {

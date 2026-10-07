@@ -97,7 +97,7 @@
             v-perm="'lab:report:publish'"
             link
             type="success"
-            @click="handlePublish(row)"
+            @click="openPublishDialog(row)"
           >
             发布
           </el-button>
@@ -192,6 +192,27 @@
       </template>
       <el-empty v-else description="报告加载中或不存在" />
     </el-drawer>
+
+    <!-- 报告发布弹窗（一百零七轮 L3：互认标识从死 UI 变可录入） -->
+    <el-dialog v-model="publishDialogVisible" title="发布检验报告" width="480px" destroy-on-close append-to-body>
+      <div v-if="publishRow" class="dialog-line">{{ publishRow.requestNo }}｜患者 {{ publishRow.patientName || publishRow.patientId }}</div>
+      <el-form label-width="110px">
+        <el-form-item label="纳入互认(HR)">
+          <el-switch v-model="publishMutual" active-text="纳入互认" inactive-text="不纳入" />
+        </el-form-item>
+        <el-form-item v-if="publishMutual" label="互认备注">
+          <el-input
+            v-model="publishMutualNote"
+            maxlength="128"
+            placeholder="如：结果符合互认范围（选填）"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="publishDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="publishSubmitting" @click="handlePublishSubmit">确认发布</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -328,23 +349,36 @@ async function handleMockEntry(row: LisRequest) {
   }
 }
 
-// ---------------- 报告发布 ----------------
-async function handlePublish(row: LisRequest) {
+// ---------------- 报告发布（一百零七轮 L3：互认标识可录入） ----------------
+const publishDialogVisible = ref(false)
+const publishSubmitting = ref(false)
+const publishRow = ref<LisRequest | null>(null)
+const publishMutual = ref(false)
+const publishMutualNote = ref('')
+
+function openPublishDialog(row: LisRequest) {
+  publishRow.value = row
+  publishMutual.value = false
+  publishMutualNote.value = ''
+  publishDialogVisible.value = true
+}
+
+async function handlePublishSubmit() {
+  if (!publishRow.value) return
+  publishSubmitting.value = true
   try {
-    await ElMessageBox.confirm(`确认发布申请单 ${row.requestNo} 的检验报告？`, '报告发布', {
-      type: 'warning',
-      confirmButtonText: '确认发布',
-      cancelButtonText: '取消',
-    })
-  } catch {
-    return
-  }
-  try {
-    const reportNo = await publishReport(row.id)
+    const reportNo = await publishReport(
+      publishRow.value.id,
+      publishMutual.value ? 1 : 0,
+      publishMutual.value ? publishMutualNote.value.trim() || undefined : undefined
+    )
     ElMessage.success(`报告发布成功，报告号：${reportNo}`)
+    publishDialogVisible.value = false
     fetchList()
   } catch {
     // 拦截器已统一提示
+  } finally {
+    publishSubmitting.value = false
   }
 }
 
@@ -366,6 +400,12 @@ onMounted(fetchList)
 </script>
 
 <style scoped>
+.dialog-line {
+  margin-bottom: 10px;
+  color: #606266;
+  font-size: 13px;
+}
+
 .report-desc {
   margin-bottom: 14px;
 }

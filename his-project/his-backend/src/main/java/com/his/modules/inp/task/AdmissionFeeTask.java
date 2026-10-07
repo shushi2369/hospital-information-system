@@ -40,12 +40,15 @@ public class AdmissionFeeTask {
         recordBedFeesFor(LocalDate.now().minusDays(1));
     }
 
-    /** 启动补偿（九十轮资源审计 P1-3）：00:20 停机窗口错过日结时，启动即补记昨日床位费。
-     *  幂等（admission+feeDate+sourceType exists 检查），重复调用安全 */
+    /** 启动补偿（九十轮资源审计 P1-3）：00:20 停机窗口错过日结时，启动即补记床位费。
+     *  一百零七轮（日切多日补偿）：停机多日只补昨日会漏中间日——改为回补最近 7 天，
+     *  recordBedFeesFor 幂等（admission+feeDate+sourceType exists 检查），重复补记安全 */
     @EventListener(ApplicationReadyEvent.class)
     public void catchUpOnStartup() {
         try {
-            recordBedFeesFor(LocalDate.now().minusDays(1));
+            for (int i = 7; i >= 1; i--) {
+                recordBedFeesFor(LocalDate.now().minusDays(i));
+            }
         } catch (Exception e) {
             // 补偿失败降级为"待补"，不得阻断启动（启动失败 = 全院不可用 + crash-loop）
             log.error("床位费启动补偿失败（待下次 cron/重启补记）", e);

@@ -268,6 +268,8 @@ public class LisService {
     /** 报告详情（L-08） */
     public Map<String, Object> reportDetail(Long requestId) {
         LisRequest request = requireRequest(requestId);
+        // 一百零七轮 L4：详情患者名回填——列表有名字、详情只有裸 ID 的断档
+        com.his.infrastructure.util.PatientNameBackfill.fill(java.util.List.of(request), patientAppService);
         LisReport report = reportMapper.selectOne(new LambdaQueryWrapper<LisReport>()
                 .eq(LisReport::getRequestId, requestId).last("LIMIT 1"));
         List<LisResult> results = resultMapper.selectList(new LambdaQueryWrapper<LisResult>()

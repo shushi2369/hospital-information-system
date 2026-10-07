@@ -361,6 +361,7 @@ def main():
         page.wait_for_timeout(1000)
         # el-input-number 程序化 fill 不更新 Vue 模型（<十七>轮），用原生 setter + 事件派发；
         # 登记按钮 JS 点击绕过透明遮罩（<九十>轮实测 hit-test 拦截复发）
+        # 一百零七轮回退说明：患者选择保持手输 ID（下拉方案与 e2e 程序化操作不兼容）
         page.evaluate("""(pid) => {
           const dlg = [...document.querySelectorAll('.el-dialog')].find(d => d.offsetParent !== null);
           const input = dlg?.querySelector('.el-input-number input');
@@ -662,6 +663,22 @@ def main():
 
         browser.close()
 
+
+    # teardown：释放本轮手术排台占用的槽位（一百零七轮防复发：测试排台累积占满
+    # seq 1~10 会击穿 verify_course E7.3 的重试假设；排台无删除端点，SQL 治理）
+    def release_test_schedules():
+        import subprocess
+        sql = ("UPDATE or_schedule s JOIN or_surgery_request r ON r.id=s.request_id "
+               "SET s.status=0, s.slot_active=0, s.updated_at=NOW() "
+               "WHERE s.status=1 AND (r.surgery_name LIKE '实验术式%' OR r.surgery_name LIKE 'UI链路术式%');")
+        try:
+            subprocess.run(["C:/his-runtime/mysql-8.0.36-winx64/bin/mysql.exe", "-uroot", "-proot123", "his", "-e", sql],
+                           capture_output=True, timeout=30)
+            print("teardown: 测试排台槽位已释放")
+        except Exception as _e2:
+            print("teardown 排台清理跳过:", _e2)
+
+    release_test_schedules()
     failed = [n for n, ok in results if not ok]
     print("\n===== UI 链路回归结果: %d/%d 通过 =====" % (len(results) - len(failed), len(results)))
     if failed:

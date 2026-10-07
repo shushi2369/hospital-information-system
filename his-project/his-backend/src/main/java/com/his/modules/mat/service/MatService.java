@@ -38,6 +38,7 @@ public class MatService {
     private final MatPurchaseMapper purchaseMapper;
     private final MatRequisitionMapper requisitionMapper;
     private final MatBatchMapper batchMapper;
+    private final com.his.modules.whse.mapper.BasSupplierMapper supplierMapper;
     private final com.his.modules.basedata.app.BasedataAppService basedataAppService;
     private final PltService pltService;
     private final IdGenerator idGenerator;
@@ -128,6 +129,14 @@ public class MatService {
     @Transactional
     public String createPurchase(MatPurchaseRequest req) {
         MatMaterial material = requireMaterial(req.getMaterialId());
+        // 一百零七轮：供应商存在性校验——原 supplierId 裸落库，99999 这类幽灵供应商照样入库
+        if (req.getSupplierId() == null) {
+            throw new BizException(ErrorCode.A0001, "请选择供应商");
+        }
+        var supplier = supplierMapper.selectById(req.getSupplierId());
+        if (supplier == null || (supplier.getStatus() != null && supplier.getStatus() != 1)) {
+            throw new BizException(ErrorCode.A0001, "供应商不存在或已停用");
+        }
         MatPurchase po = new MatPurchase();
         po.setPoNo(idGenerator.next("MC"));
         po.setSupplierId(req.getSupplierId());
@@ -138,6 +147,13 @@ public class MatService {
         po.setStatus(10);
         purchaseMapper.insert(po);
         return po.getPoNo();
+    }
+
+    /** 供应商下拉（一百零七轮：采购单裸供应商 ID 改下拉） */
+    public List<com.his.modules.whse.entity.BasSupplier> supplierList() {
+        return supplierMapper.selectList(new LambdaQueryWrapper<com.his.modules.whse.entity.BasSupplier>()
+                .eq(com.his.modules.whse.entity.BasSupplier::getStatus, 1)
+                .orderByAsc(com.his.modules.whse.entity.BasSupplier::getId));
     }
 
     /** 审批（M-05）：10 → 20 */
@@ -163,7 +179,11 @@ public class MatService {
         if (po.getStatus() != 20) {
             throw new BizException(ErrorCode.A0001, "采购单未审批或已入库");
         }
-        if (expireDate != null && !expireDate.isAfter(java.time.LocalDate.now())) {
+        if (expireDate == null) {
+            // 一百零七轮：效期必填——原来不录效期会静默造 DEFAULT 批次（效期+1 年），FEFO 依据失真
+            throw new BizException(ErrorCode.A0001, "请录入批次效期");
+        }
+        if (!expireDate.isAfter(java.time.LocalDate.now())) {
             throw new BizException(ErrorCode.A0001, "批次已过期，禁止入库");
         }
         po.setStatus(30);
@@ -171,9 +191,9 @@ public class MatService {
             throw new BizException(ErrorCode.A0008, "采购单状态已变化，请刷新后重试");
         }
         addStock(po.getMaterialId(), po.getQuantity());
-        // 批次明细：未传批次号时以默认批次兼容（效期 +1 年）
-        String bn = (batchNo == null || batchNo.isBlank()) ? "DEFAULT-" + java.time.LocalDate.now() : batchNo;
-        java.time.LocalDate exp = expireDate == null ? java.time.LocalDate.now().plusYears(1) : expireDate;
+        // 批次明细：未传批次号时以采购单号派生（效期已强制录入）
+        String bn = (batchNo == null || batchNo.isBlank()) ? "PO-" + po.getPoNo() : batchNo;
+        java.time.LocalDate exp = expireDate;
         MatBatch exist = batchMapper.selectOne(new LambdaQueryWrapper<MatBatch>()
                 .eq(MatBatch::getMaterialId, po.getMaterialId())
                 .eq(MatBatch::getBatchNo, bn).last("LIMIT 1"));
@@ -233,7 +253,10 @@ public class MatService {
     @Transactional
     public String requisition(MatRequisitionRequest req) {
         requireMaterial(req.getMaterialId());
-        basedataAppService.getDepartment(req.getDeptId()); // 领用科室须真实存在
+        // 一百零七轮：getDepartment 对不存在 ID 返回 null——原"校验"调完即弃是空操作
+        if (req.getDeptId() == null || basedataAppService.getDepartment(req.getDeptId()) == null) {
+            throw new BizException(ErrorCode.A0001, "领用科室不存在");
+        }
         int deducted = stockMapper.update(null, new LambdaUpdateWrapper<MatStock>()
                 .eq(MatStock::getMaterialId, req.getMaterialId())
                 .ge(MatStock::getQuantity, req.getQuantity())

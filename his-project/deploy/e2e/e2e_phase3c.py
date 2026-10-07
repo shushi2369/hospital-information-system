@@ -106,7 +106,10 @@ def main():
     po_id = po["id"]
     st, r = call("POST", "/mat/purchases/%d/approve" % po_id, admin, idem="p3c-m3-" + uid)
     check("12. 采购审批(10→20)", r["code"] == "OK", r)
-    st, r = call("POST", "/mat/purchases/%d/receive" % po_id, admin, idem="p3c-m4-" + uid)
+    # 一百零七轮：入库效期必填（不再静默造 DEFAULT 批次）
+    import datetime as _dt
+    _exp = (_dt.date.today() + _dt.timedelta(days=365)).isoformat()
+    st, r = call("POST", "/mat/purchases/%d/receive?expireDate=%s" % (po_id, _exp), admin, idem="p3c-m4-" + uid)
     check("13. 到货入库(20→30)", r["code"] == "OK", r)
     st, r = call("POST", "/mat/purchases/%d/receive" % po_id, admin, idem="p3c-m5-" + uid)
     check("14. 重复入库拦截", r["code"] != "OK", r)

@@ -48,6 +48,13 @@ public class MatController {
         return R.ok(matService.stocks());
     }
 
+    /** 供应商下拉（一百零七轮：采购单供应商选择数据源） */
+    @GetMapping("/suppliers")
+    @PreAuthorize("@ss.hasPerm('mat:purchase:query') or @ss.hasPerm('mat:purchase:create')")
+    public R<List<com.his.modules.whse.entity.BasSupplier>> suppliers() {
+        return R.ok(matService.supplierList());
+    }
+
     @GetMapping("/purchases")
     @PreAuthorize("@ss.hasPerm('mat:purchase:query')")
     public R<PageResult<MatPurchase>> purchasePage(MatQuery query) {

@@ -46,12 +46,15 @@ public class LongOrderPlanTask {
         generatePlanFor(LocalDate.now());
     }
 
-    /** 启动补偿（九十轮资源审计 P1-3）：00:30 停机窗口错过后，启动即补生成当日执行单
-     *  （护士当日待办不缺失）。幂等：执行单唯一索引 + 先查后插，重复调用安全 */
+    /** 启动补偿（九十轮资源审计 P1-3）：00:30 停机窗口错过后，启动即补生成长嘱执行单
+     *  （护士当日待办不缺失）。一百零七轮（日切多日补偿）：停机多日只补当日会漏中间日——
+     *  改为回补最近 7 天；幂等：执行单唯一索引 + 先查后插，重复生成安全 */
     @EventListener(ApplicationReadyEvent.class)
     public void catchUpOnStartup() {
         try {
-            generatePlanFor(LocalDate.now());
+            for (int i = 7; i >= 0; i--) {
+                generatePlanFor(LocalDate.now().minusDays(i));
+            }
         } catch (Exception e) {
             // 补偿失败降级为"待补"，不得阻断启动
             log.error("长嘱执行计划启动补偿失败（待下次 cron/重启补生成）", e);

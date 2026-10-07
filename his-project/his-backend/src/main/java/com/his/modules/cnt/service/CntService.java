@@ -114,15 +114,22 @@ public class CntService {
         if (req.getStatus() != 20) {
             throw new BizException(ErrorCode.A0001, "会诊未接受，不能完成");
         }
+        // 一百零七轮 C7：空意见兜底拦截（Controller 已有 @RequestParam 前置校验）
+        if (opinion == null || opinion.isBlank()) {
+            throw new BizException(ErrorCode.A0001, "会诊意见不能为空");
+        }
         // 会诊意见须由受邀医生（=接受者）填写（八十八轮 IDOR 审计 P1-3）
         if (req.getConsultDoctorId() != null && !req.getConsultDoctorId().equals(CurrentUser.id())
                 && !com.his.infrastructure.security.CurrentUser.get().getRoleCodes().contains("ADMIN")) {
             throw new BizException(ErrorCode.A0003, "会诊意见仅受邀医生可填写");
         }
         req.setStatus(30);
-        req.setOpinion(opinion);
+        req.setOpinion(opinion.trim());
         req.setOpinionTime(LocalDateTime.now());
-        req.setConsultDoctorId(CurrentUser.id());
+        // 一百零七轮 C7：接受者即会诊医师——管理员代完成不得覆盖真实会诊医师留痕
+        if (req.getConsultDoctorId() == null) {
+            req.setConsultDoctorId(CurrentUser.id());
+        }
         if (requestMapper.updateById(req) != 1) {
             throw new BizException(ErrorCode.A0008, "会诊状态已变化，请刷新后重试");
         }

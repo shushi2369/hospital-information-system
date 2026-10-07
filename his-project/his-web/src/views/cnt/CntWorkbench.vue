@@ -27,7 +27,7 @@
         plain
         size="small"
         class="toolbar-action"
-        @click="createDialogVisible = true"
+        @click="openCreateDialog"
       >
         新建会诊申请
       </el-button>
@@ -79,7 +79,7 @@
             接受
           </el-button>
           <el-button
-            v-if="row.status === 20"
+            v-if="row.status === 20 && canComplete(row)"
             v-perm="'cnt:execute'"
             link
             type="success"
@@ -87,7 +87,7 @@
           >
             完成
           </el-button>
-          <span v-if="row.status === 30">-</span>
+          <span v-if="row.status === 30 || (row.status === 20 && !canComplete(row))">-</span>
         </template>
       </el-table-column>
     </el-table>
@@ -107,24 +107,53 @@
 
     <!-- 新建会诊申请弹窗 -->
     <el-dialog v-model="createDialogVisible" title="新建会诊申请" width="560px" destroy-on-close append-to-body>
-      <el-form label-width="100px">
+      <el-form label-width="120px">
         <el-form-item label="就诊类型" required>
-          <el-radio-group v-model="createForm.target">
+          <el-radio-group v-model="createForm.target" @change="onCreateTargetChange">
             <el-radio-button value="inpatient">住院</el-radio-button>
             <el-radio-button value="outpatient">门诊</el-radio-button>
           </el-radio-group>
         </el-form-item>
-        <el-form-item :label="createForm.target === 'inpatient' ? '住院ID' : '门诊就诊ID'" required>
-          <el-input-number v-model="createForm.targetId" :min="1" :controls="false" class="num-input" />
+        <el-form-item :label="createForm.target === 'inpatient' ? '在院住院单' : '门诊就诊ID'" required>
+          <!-- 一百零七轮 C8：住院改下拉选择并自动带出患者；门诊暂无列表 API 保持手输 -->
+          <el-select
+            v-if="createForm.target === 'inpatient'"
+            v-model="createForm.targetId"
+            filterable
+            style="width: 100%"
+            placeholder="选择在院患者（自动带出患者）"
+            :loading="admLoading"
+            @change="onAdmPicked"
+          >
+            <el-option
+              v-for="a in admOptions"
+              :key="a.id"
+              :value="a.id"
+              :label="`${a.admissionNo}｜${a.patientName || '患者' + a.patientId}`"
+            />
+          </el-select>
+          <el-input-number v-else v-model="createForm.targetId" :min="1" :controls="false" class="num-input" />
         </el-form-item>
-        <el-form-item label="患者ID" required>
-          <el-input-number v-model="createForm.patientId" :min="1" :controls="false" class="num-input" />
+        <el-form-item label="患者">
+          <span class="c8-patient">{{ createForm.patientId || '-' }}</span>
+          <span v-if="createForm.target === 'outpatient'" class="form-tip">门诊就诊请手输患者ID</span>
         </el-form-item>
-        <el-form-item label="申请科室ID" required>
-          <el-input-number v-model="createForm.deptId" :min="1" :controls="false" class="num-input" />
+        <el-form-item label="申请科室" required>
+          <!-- 一百零七轮 C8：裸科室ID改下拉 -->
+          <el-select v-model="createForm.deptId" filterable style="width: 100%" placeholder="选择申请科室">
+            <el-option v-for="d in deptOptions" :key="d.id" :value="d.id" :label="d.deptName" />
+          </el-select>
         </el-form-item>
-        <el-form-item label="会诊医师ID" required>
-          <el-input-number v-model="createForm.consultDoctorId" :min="1" :controls="false" class="num-input" />
+        <el-form-item label="受邀会诊医师" required>
+          <!-- 一百零七轮 C7/C8：裸ID改下拉；文案对齐口径——实际会诊人以接受人为准 -->
+          <el-select
+            v-model="createForm.consultDoctorId"
+            filterable
+            style="width: 100%"
+            placeholder="选择拟邀请医师（实际会诊人以接受人为准）"
+          >
+            <el-option v-for="doc in doctorOptions" :key="doc.id" :value="doc.id" :label="doc.doctorName" />
+          </el-select>
         </el-form-item>
         <el-form-item label="缓急">
           <el-radio-group v-model="createForm.urgent">
@@ -150,7 +179,7 @@
 
     <!-- 完成会诊弹窗（20 → 30） -->
     <el-dialog v-model="completeDialogVisible" title="完成会诊" width="520px" destroy-on-close append-to-body>
-      <div v-if="completeRow" class="dialog-line">{{ completeRow.reqNo }}｜患者 {{ completeRow.patientId }}</div>
+      <div v-if="completeRow" class="dialog-line">{{ completeRow.reqNo }}｜患者 {{ completeRow.patientName || completeRow.patientId }}</div>
       <el-form label-width="90px">
         <el-form-item label="会诊意见" required>
           <el-input
@@ -173,7 +202,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import {
@@ -186,6 +215,9 @@ import {
   getCntPage,
   type CntRequest,
 } from '@/api/cnt'
+import { getDepartmentListCached, getDoctorListCached, type Department, type Doctor } from '@/api/basedata'
+import { getAdmissionPage, type Admission } from '@/api/inp'
+import { useUserStore } from '@/stores/user'
 
 // ---------------- 列表查询 ----------------
 const loading = ref(false)
@@ -197,7 +229,11 @@ const query = reactive({
   status: undefined as number | undefined,
 })
 
+// 一百零七轮 C5：列表 GET 竞态守卫——快速切换状态时旧响应不得覆盖新结果
+let fetchSeq = 0
+
 async function fetchList() {
+  const seq = ++fetchSeq
   loading.value = true
   try {
     const res = await getCntPage({
@@ -205,10 +241,11 @@ async function fetchList() {
       pageSize: query.pageSize,
       status: query.status,
     })
+    if (seq !== fetchSeq) return
     list.value = res.list ?? []
     total.value = res.total ?? 0
   } finally {
-    loading.value = false
+    if (seq === fetchSeq) loading.value = false
   }
 }
 
@@ -220,6 +257,15 @@ function handleSearch() {
 function handleSizeChange() {
   query.pageNum = 1
   fetchList()
+}
+
+/** 一百零七轮 C6：操作成功后保持当前页；当前页被推进掏空则回退一页 */
+async function refreshKeepPage() {
+  await fetchList()
+  if (!list.value.length && query.pageNum > 1) {
+    query.pageNum -= 1
+    await fetchList()
+  }
 }
 
 // ---------------- 新建会诊申请 ----------------
@@ -235,6 +281,29 @@ const createForm = reactive({
   reason: '',
 })
 
+// 下拉数据源（一百零七轮 C8：裸 ID 手输改下拉）
+const deptOptions = ref<Department[]>([])
+const doctorOptions = ref<Doctor[]>([])
+const admOptions = ref<Admission[]>([])
+const admLoading = ref(false)
+
+async function openCreateDialog() {
+  // 一百零七轮 C1：打开即重置，防上次取消残留
+  resetCreateForm()
+  createDialogVisible.value = true
+  try {
+    if (!deptOptions.value.length) {
+      deptOptions.value = (await getDepartmentListCached({ status: 1 })) ?? []
+    }
+    if (!doctorOptions.value.length) {
+      doctorOptions.value = (await getDoctorListCached({ status: 1 })) ?? []
+    }
+  } catch {
+    // 拦截器已统一提示
+  }
+  if (createForm.target === 'inpatient') await loadAdmOptions()
+}
+
 function resetCreateForm() {
   createForm.target = 'inpatient'
   createForm.targetId = undefined
@@ -243,6 +312,29 @@ function resetCreateForm() {
   createForm.consultDoctorId = undefined
   createForm.urgent = 0
   createForm.reason = ''
+}
+
+async function loadAdmOptions() {
+  admLoading.value = true
+  try {
+    const res = await getAdmissionPage({ pageNum: 1, pageSize: 200, status: 10 })
+    admOptions.value = res.list ?? []
+  } finally {
+    admLoading.value = false
+  }
+}
+
+function onCreateTargetChange() {
+  createForm.targetId = undefined
+  createForm.patientId = undefined
+  if (createForm.target === 'inpatient') {
+    loadAdmOptions()
+  }
+}
+
+function onAdmPicked(admissionId: number) {
+  const adm = admOptions.value.find((a) => a.id === admissionId)
+  createForm.patientId = adm?.patientId
 }
 
 async function handleCreateSubmit() {
@@ -279,7 +371,7 @@ async function handleCreateSubmit() {
 async function handleAccept(row: CntRequest) {
   try {
     await ElMessageBox.confirm(
-      `确认接受会诊 ${row.reqNo}（患者 ${row.patientId}）？接受后请按时完成会诊。`,
+      `确认接受会诊 ${row.reqNo}（患者 ${row.patientName || row.patientId}）？接受后你即为本次会诊医师。`,
       '接受会诊',
       { type: 'warning', confirmButtonText: '确认接受', cancelButtonText: '取消' }
     )
@@ -289,7 +381,7 @@ async function handleAccept(row: CntRequest) {
   try {
     await acceptCntRequest(row.id)
     ElMessage.success('已接受，会诊进行中')
-    fetchList()
+    refreshKeepPage()
   } catch {
     // 拦截器已统一提示
   }
@@ -300,6 +392,16 @@ const completeDialogVisible = ref(false)
 const completeSubmitting = ref(false)
 const completeRow = ref<CntRequest | null>(null)
 const opinion = ref('')
+
+// 一百零七轮 C2：完成按钮门禁口径与后端一致——仅会诊医师本人或管理员可见
+const userStore = useUserStore()
+const isAdmin = computed(() => (userStore.userInfo?.roleCodes ?? []).includes('ADMIN'))
+const myUserId = computed(() => userStore.userInfo?.userId)
+
+function canComplete(row: CntRequest): boolean {
+  if (isAdmin.value) return true
+  return row.consultDoctorId != null && row.consultDoctorId === myUserId.value
+}
 
 function openCompleteDialog(row: CntRequest) {
   completeRow.value = row
@@ -318,7 +420,7 @@ async function handleCompleteSubmit() {
     await completeCntRequest(completeRow.value.id, opinion.value.trim())
     ElMessage.success('会诊已完成')
     completeDialogVisible.value = false
-    fetchList()
+    refreshKeepPage()
   } catch {
     // 拦截器已统一提示
   } finally {
@@ -343,6 +445,17 @@ onMounted(fetchList)
   margin-bottom: 10px;
   color: #606266;
   font-size: 13px;
+}
+
+.c8-patient {
+  color: #606266;
+  font-size: 13px;
+}
+
+.form-tip {
+  margin-left: 8px;
+  color: #909399;
+  font-size: 12px;
 }
 
 .num-input {

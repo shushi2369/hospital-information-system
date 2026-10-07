@@ -166,7 +166,7 @@ const total = ref(0)
 const query = reactive({
   pageNum: 1,
   pageSize: 10,
-  status: undefined as number | undefined,
+  status: 10 as number | undefined, // 活跃态默认过滤：打开即看待处理
 })
 
 async function fetchList() {

@@ -142,9 +142,13 @@ export const receiveSpecimen = (requestId: number) =>
 /** 结果录入（检验中），data 为危急项数；fetch=true 走 Mock 仪器取数 */
 export const entryResults = (data: ResultEntryPayload) => post<number>('/lis/results/entry', data)
 
-/** 发布报告（检验中 → 已报告），data 为报告号 */
-export const publishReport = (requestId: number) =>
-  post<string>(`/lis/reports/${requestId}/publish`)
+/** 发布报告（检验中 → 已报告），data 为报告号；一百零七轮 L3：支持互认标识 HR+备注 */
+export const publishReport = (requestId: number, mutualFlag?: number, mutualNote?: string) => {
+  const qs: string[] = []
+  if (mutualFlag !== undefined) qs.push(`mutualFlag=${mutualFlag}`)
+  if (mutualNote) qs.push(`mutualNote=${encodeURIComponent(mutualNote)}`)
+  return post<string>(`/lis/reports/${requestId}/publish${qs.length ? `?${qs.join('&')}` : ''}`)
+}
 
 /** 报告分页 */
 export const getReportPage = (params: { pageNum?: number; pageSize?: number }) =>

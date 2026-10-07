@@ -249,7 +249,23 @@ if aid:
 else:
     check("E9 前置：存在待处理危急值", False, "当前无 status=10 危急值（手册依赖前序 LIS 实验）")
 
+
+# teardown：释放本轮手术排台占用的槽位（一百零七轮防复发：测试排台累积会占满
+# seq 1~10 击穿 E7.3 的重试假设；排台无删除端点，用 SQL 治理——仅清测试单来源）
+def _release_test_schedules():
+    import subprocess
+    sql = ("UPDATE or_schedule s JOIN or_surgery_request r ON r.id=s.request_id "
+           "SET s.status=0, s.slot_active=0, s.updated_at=NOW() "
+           "WHERE s.status=1 AND (r.surgery_name LIKE '实验术式%' OR r.surgery_name LIKE 'UI链路术式%');")
+    try:
+        subprocess.run(["C:/his-runtime/mysql-8.0.36-winx64/bin/mysql.exe", "-uroot", "-proot123", "his", "-e", sql],
+                       capture_output=True, timeout=30)
+        print("teardown: 测试排台槽位已释放")
+    except Exception as _e2:
+        print("teardown 排台清理跳过:", _e2)
+
 # teardown：停用本轮自建收费员（账号卫生三件套；保留行供审计）
+_release_test_schedules()
 try:
     st, r = call("PUT", "/system/users/%d/status" % ce_user_id, "admin", {"status": 0},
                  idem="ce-disable-" + uid)

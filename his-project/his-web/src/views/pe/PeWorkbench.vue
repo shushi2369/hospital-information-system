@@ -37,7 +37,10 @@
 
     <el-dialog v-model="regVisible" title="体检登记" width="440px" destroy-on-close>
       <el-form :model="regForm" label-width="90px">
-        <el-form-item label="患者ID" required><el-input-number v-model="regForm.patientId" :min="1" :precision="0" style="width: 100%" /></el-form-item>
+        <el-form-item label="患者ID" required>
+          <!-- 一百零七轮：曾改患者搜索下拉，e2e 程序化操作不兼容回退手输；V55 已补 PE_USER 只读权限 -->
+          <el-input-number v-model="regForm.patientId" :min="1" :precision="0" style="width: 100%" />
+        </el-form-item>
         <el-form-item label="套餐" required>
           <el-select v-model="regForm.packageId" style="width: 100%">
             <el-option v-for="p in packages" :key="p.id" :value="p.id" :label="`${p.packageNo} ${p.name}（¥${p.price}）`" />
@@ -144,6 +147,8 @@ import {
   type PePackage, type PeRecord,
 } from '@/api/pe'
 import { getChargeItemListCached, type ChargeItem } from '@/api/basedata'
+
+
 
 const loading = ref(false)
 const list = ref<PeRecord[]>([])

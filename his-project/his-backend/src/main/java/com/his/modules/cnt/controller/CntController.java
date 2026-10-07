@@ -47,7 +47,11 @@ public class CntController {
     @Idempotent
     @AuditLog(module = "cnt", action = "会诊完成", bizType = "cnt_request")
     public R<Void> complete(@PathVariable Long id, @RequestParam String opinion) {
-        cntService.complete(id, opinion);
+        // 一百零七轮 C7：空意见网关拦截（服务层兜底双保险）
+        if (opinion == null || opinion.isBlank()) {
+            throw new com.his.common.BizException(com.his.common.ErrorCode.A0001, "会诊意见不能为空");
+        }
+        cntService.complete(id, opinion.trim());
         return R.ok();
     }
 }
