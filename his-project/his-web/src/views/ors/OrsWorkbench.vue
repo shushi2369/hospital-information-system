@@ -403,9 +403,20 @@ const anesthesiaForm = reactive({ asaGrade: 1, drugNote: '', eventNote: '' })
 
 async function openAnesthesia(row: OrsRequest) {
   currentRow = row
+  // P0-3（一百零八轮走查）：先查已有麻醉记录回填——后端 saveAnesthesia 对已有记录
+  // 无条件覆盖，二次打开重置为默认值会清空此前录入的用药/事件
   anesthesiaForm.asaGrade = 1
   anesthesiaForm.drugNote = ''
   anesthesiaForm.eventNote = ''
+  try {
+    const det = await getOrsDetail(row.id)
+    const anes = det?.anesthesia
+    if (anes) {
+      anesthesiaForm.asaGrade = anes.asaGrade ?? 1
+      anesthesiaForm.drugNote = anes.drugNote ?? ''
+      anesthesiaForm.eventNote = anes.eventNote ?? ''
+    }
+  } catch { /* 详情不可达时降级为默认值 */ }
   anesthesiaVisible.value = true
 }
 

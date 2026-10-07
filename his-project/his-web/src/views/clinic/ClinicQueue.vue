@@ -79,7 +79,7 @@ async function handleStart(row: Registration) {
   startingId.value = row.id
   try {
     const res = await startVisit(row.id)
-    await router.push({ path: '/clinic/workbench', query: { visitId: String(res.visitId) } })
+    await router.push({ path: '/clinic/workbench', query: { visitId: String(res) } })
   } catch {
     // B2001 就诊已完成等错误已在拦截器中统一提示
   } finally {

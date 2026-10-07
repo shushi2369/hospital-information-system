@@ -106,7 +106,7 @@
                 摆药
               </el-button>
               <el-button
-                v-if="row.status === 20 || row.status === 30"
+                v-if="(row.status === 20 || row.status === 30) && row.orderClass === 1"
                 v-perm="'doc:order:stop'"
                 link
                 type="warning"
@@ -214,10 +214,11 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item label="长短嘱">
+          <!-- 非药品（category!==1）不提供长期选项——后端频次白名单仅对药品有效，
+               长期+非药品提交 100% B4008/NPE（一百零八轮 P0-2 实锤） -->
           <el-radio-group v-model="orderForm.orderClass">
-            <el-radio v-for="o in ORDER_CLASS_OPTIONS" :key="o.value" :value="o.value">
-              {{ o.label }}
-            </el-radio>
+            <el-radio v-for="o in ORDER_CLASS_OPTIONS.filter(o => o.value === 2 || orderForm.category === 1)"
+              :key="o.value" :value="o.value">{{ o.label }}</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item v-if="orderForm.category === 1" label="用药频次">
