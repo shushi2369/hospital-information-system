@@ -23,7 +23,7 @@ class CntServiceTest extends UnitTestBase {
     private final IdGenerator idGen = mock(IdGenerator.class);
 
     private CntService svc() {
-        return new CntService(requestMapper, inpAppService, pltService, idGen, mock(com.his.modules.basedata.app.BasedataAppService.class), mock(com.his.modules.system.app.SystemAppService.class));
+        return new CntService(requestMapper, inpAppService, pltService, idGen, mock(com.his.modules.basedata.app.BasedataAppService.class), mock(com.his.modules.patient.app.PatientAppService.class), mock(com.his.modules.system.app.SystemAppService.class));
     }
 
     private CntRequest request(Long id, int status) {

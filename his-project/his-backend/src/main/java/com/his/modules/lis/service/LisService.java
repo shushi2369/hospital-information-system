@@ -52,6 +52,7 @@ public class LisService {
     private final AlertService alertService;
     private final com.his.modules.plt.service.PltService pltService;
     private final com.his.modules.system.app.SystemAppService systemAppService;
+    private final com.his.modules.patient.app.PatientAppService patientAppService;
     private final IdGenerator idGenerator;
 
     /** 护士执行检验医嘱时自动生成申请单（doc → lis 单向调用，《12》§3） */
@@ -285,6 +286,7 @@ public class LisService {
         for (LisRequest r : page.getRecords()) {
             r.setDoctorName(doctors.get(r.getDoctorId()));
         }
+        com.his.infrastructure.util.PatientNameBackfill.fill(page.getRecords(), patientAppService);
         return PageResult.of(page);
     }
 

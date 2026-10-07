@@ -124,12 +124,14 @@ public class EmcService {
 
     /** 病例分页（E-04） */
     public PageResult<EmcVisit> pageVisits(EmcVisitQuery query) {
+        // 患者姓名回填在 return 前（一百零三轮患者裸列清查）
         Page<EmcVisit> page = visitMapper.selectPage(query.toPage(),
                 new LambdaQueryWrapper<EmcVisit>()
                         .eq(query.getPatientId() != null, EmcVisit::getPatientId, query.getPatientId())
                         .eq(query.getCenterType() != null, EmcVisit::getCenterType, query.getCenterType())
                         .eq(query.getStatus() != null, EmcVisit::getStatus, query.getStatus())
                         .orderByAsc(EmcVisit::getStatus).orderByDesc(EmcVisit::getId));
+        com.his.infrastructure.util.PatientNameBackfill.fill(page.getRecords(), patientAppService);
         return PageResult.of(page);
     }
 

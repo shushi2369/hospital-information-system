@@ -11,7 +11,7 @@
     <el-table v-loading="loading" :data="list" border stripe size="small">
       <el-table-column prop="id" label="ID" width="70" align="center" />
       <el-table-column prop="recordNo" label="登记号" min-width="140" />
-      <el-table-column prop="patientId" label="患者ID" width="90" align="center" />
+      <el-table-column prop="patientName" label="患者" width="90" align="center" />
       <el-table-column prop="examDate" label="体检日期" width="110" align="center" />
       <el-table-column label="状态" width="100" align="center">
         <template #default="{ row }">

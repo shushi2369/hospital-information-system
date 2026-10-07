@@ -12,7 +12,7 @@
     <el-table v-loading="triageLoading" :data="triages" border stripe size="small">
       <el-table-column prop="id" label="ID" width="70" align="center" />
       <el-table-column prop="triageNo" label="分诊号" min-width="130" show-overflow-tooltip />
-      <el-table-column prop="patientId" label="患者ID" width="90" align="center" />
+      <el-table-column prop="patientName" label="患者" width="90" align="center" />
       <el-table-column prop="chiefComplaint" label="主诉" min-width="140" show-overflow-tooltip />
       <el-table-column label="级别" width="100" align="center">
         <template #default="{ row }">
@@ -46,7 +46,7 @@
     <el-table v-loading="loading" :data="visits" border stripe size="small">
       <el-table-column prop="id" label="ID" width="70" align="center" />
       <el-table-column prop="visitNo" label="登记号" min-width="130" show-overflow-tooltip />
-      <el-table-column prop="patientId" label="患者ID" width="90" align="center" />
+      <el-table-column prop="patientName" label="患者" width="90" align="center" />
       <el-table-column label="中心" width="120" align="center">
         <template #default="{ row }">{{ centerTypeLabel(row.centerType) }}</template>
       </el-table-column>

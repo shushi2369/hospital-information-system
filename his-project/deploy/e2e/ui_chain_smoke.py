@@ -386,8 +386,8 @@ def main():
         page.wait_for_timeout(1000)
         page.locator(".el-dialog:visible").get_by_role("button", name="登记").click()
         page.wait_for_timeout(2000)
-        check("EMC·病例列表出现登记记录（患者 %s）" % pid_emc,
-              page.locator(".el-table").nth(1).locator("tr", has_text=str(pid_emc)).count() > 0)
+        check("EMC·病例列表出现登记记录（患者名 链路急诊%s）" % uid,
+              page.locator(".el-table").nth(1).locator("tr", has_text="链路急诊" + uid).count() > 0)
         # API 录入达标节点 → UI 时间轴抽屉展示"达标"
         vl = api("/emc/visits?patientId=%s" % pid_emc, emc_nurse)
         v10 = [v for v in vl["data"]["list"] if v["status"] == 10]
@@ -395,7 +395,7 @@ def main():
             api("/emc/visits/%s/timepoints" % v10[0]["id"], emc_nurse,
                 {"nodeCode": "XT_ECG", "nodeTime": time.strftime("%Y-%m-%dT%H:%M:%S"),
                  "note": "UI链路节点"}, idem="ui-emc-tp-" + uid)
-            page.locator(".el-table").nth(1).locator("tr", has_text=str(pid_emc)).first.get_by_role(
+            page.locator(".el-table").nth(1).locator("tr", has_text="链路急诊" + uid).first.get_by_role(
                 "button", name="时间轴").click()
             page.wait_for_timeout(1500)
             drawer = page.locator(".el-drawer:visible")
@@ -461,7 +461,7 @@ def main():
         page.evaluate("(t) => localStorage.setItem('his_token', t)", pe_tok)
         page.goto(BASE + "/pe/workbench")
         page.wait_for_timeout(2500)
-        prow = page.locator("tr", has_text=str(pe_pid))
+        prow = page.locator("tr", has_text="链路体检" + uid)
         check("体检·登记记录可见", prow.count() > 0)
         prow.first.get_by_role("button", name="开始").click()
         page.wait_for_timeout(1500)
@@ -489,7 +489,7 @@ def main():
         page.evaluate("(t) => localStorage.setItem('his_token', t)", doc_tok2)
         page.reload()
         page.wait_for_timeout(2500)
-        prow = page.locator("tr", has_text=str(pe_pid))
+        prow = page.locator("tr", has_text="链路体检" + uid)
         prow.first.get_by_role("button", name="总检发布").click()
         page.wait_for_timeout(1000)
         dlg_pe = page.locator(".el-dialog:visible")

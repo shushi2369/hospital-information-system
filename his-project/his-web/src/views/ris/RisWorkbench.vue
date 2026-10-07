@@ -33,7 +33,7 @@
       <el-table-column prop="id" label="ID" width="70" align="center" />
       <el-table-column prop="requestNo" label="申请号" min-width="130" show-overflow-tooltip />
       <el-table-column prop="admissionId" label="就诊ID" width="90" align="center" />
-      <el-table-column prop="patientId" label="患者ID" width="90" align="center" />
+      <el-table-column prop="patientName" label="患者" width="90" align="center" />
       <el-table-column label="检查类别" width="90" align="center">
         <template #default="{ row }">{{ modalityLabel(row.modality) }}</template>
       </el-table-column>

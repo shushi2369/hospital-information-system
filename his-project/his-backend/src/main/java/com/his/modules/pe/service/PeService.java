@@ -88,6 +88,7 @@ public class PeService {
                         .eq(query.getStatus() != null, PeRecord::getStatus, query.getStatus())
                         // 七十三轮：最新优先（原 status ASC 待办优先会把陈年未检记录顶在首页，新登记被挤到后页）
                         .orderByDesc(PeRecord::getId));
+        com.his.infrastructure.util.PatientNameBackfill.fill(page.getRecords(), patientAppService);
         return PageResult.of(page);
     }
 

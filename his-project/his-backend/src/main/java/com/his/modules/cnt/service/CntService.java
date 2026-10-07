@@ -27,6 +27,7 @@ public class CntService {
     private final PltService pltService;
     private final IdGenerator idGenerator;
     private final com.his.modules.basedata.app.BasedataAppService basedataAppService;
+    private final com.his.modules.patient.app.PatientAppService patientAppService;
     private final com.his.modules.system.app.SystemAppService systemAppService;
 
     /** 会诊申请（T-01）：住院/门诊二选一 */
@@ -70,6 +71,7 @@ public class CntService {
             r.setDeptName(d == null ? null : d.getDeptName());
             r.setConsultDoctorName(doctorNames.get(r.getConsultDoctorId()));
         }
+        com.his.infrastructure.util.PatientNameBackfill.fill(page.getRecords(), patientAppService);
         return PageResult.of(page);
     }
 

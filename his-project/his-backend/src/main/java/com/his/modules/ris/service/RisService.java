@@ -33,6 +33,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class RisService {
     private final RisRequestMapper requestMapper;
+    private final com.his.modules.patient.app.PatientAppService patientAppService;
     private final RisDeviceMapper deviceMapper;
     private final RisAppointmentMapper appointmentMapper;
     private final RisImageMapper imageMapper;
@@ -134,6 +135,7 @@ public class RisService {
                         .eq(query.getModality() != null, RisRequest::getModality, query.getModality())
                         .eq(query.getUrgency() != null, RisRequest::getUrgency, query.getUrgency())
                         .orderByAsc(RisRequest::getStatus).orderByDesc(RisRequest::getId));
+        com.his.infrastructure.util.PatientNameBackfill.fill(page.getRecords(), patientAppService);
         return PageResult.of(page);
     }
 

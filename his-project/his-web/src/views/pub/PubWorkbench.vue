@@ -42,7 +42,7 @@
       <el-table-column prop="diseaseCategory" label="分类" width="90" align="center">
         <template #default="{ row }">{{ row.diseaseCategory || '-' }}</template>
       </el-table-column>
-      <el-table-column prop="patientId" label="患者ID" width="80" align="center" />
+      <el-table-column prop="patientName" label="患者" width="80" align="center" />
       <el-table-column label="就诊关联" width="110" align="center">
         <template #default="{ row }">
           <span v-if="row.admissionId">住院 {{ row.admissionId }}</span>

@@ -12,12 +12,15 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @TableName("emc_visit")
-public class EmcVisit extends BaseEntity {
+public class EmcVisit extends BaseEntity implements com.his.infrastructure.util.PatientNameBackfill.PatientIdCarrier {
     private String visitNo;
     private Long triageId;
     private Integer centerType;
     private Long doctorId;
     private Long patientId;
+    /** 展示字段（不入库）：列表批量回填（一百零三轮患者裸列清查） */
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private String patientName;
     private Long admissionId;
     private Long visitId;
     private LocalDateTime startTime;

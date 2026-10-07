@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.his.common.BizException;
 import com.his.common.ErrorCode;
 import com.his.common.PageResult;
+import java.util.Map;
 import com.his.infrastructure.security.CurrentUser;
 import com.his.infrastructure.util.IdGenerator;
 import com.his.modules.plt.service.PltService;
@@ -46,6 +47,7 @@ public class PubService {
                 new LambdaQueryWrapper<PubInfectiousCard>()
                         .eq(status != null, PubInfectiousCard::getStatus, status)
                         .orderByAsc(PubInfectiousCard::getStatus).orderByDesc(PubInfectiousCard::getId));
+        com.his.infrastructure.util.PatientNameBackfill.fill(page.getRecords(), patientAppService);
         return PageResult.of(page);
     }
 
