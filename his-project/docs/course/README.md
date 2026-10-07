@@ -20,7 +20,7 @@
 | 健康检查 | `bash deploy/health_check.sh` |
 | 一致性巡检 | `mysql -uroot -proot123 his < deploy/db/consistency_check.sql`（应 0 行） |
 | 回归测试 | `python deploy/e2e/e2e_acceptance.py`（9 套 e2e 见 deploy/e2e/） |
-| 数据库 | MySQL 8：`mysql -uroot -proot123 his`；迁移 Flyway V1~V38 |
+| 数据库 | MySQL 8：`mysql -uroot -proot123 his`；迁移 Flyway V1~V52 |
 
 ## 16 课时地图
 

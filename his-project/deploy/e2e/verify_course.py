@@ -214,7 +214,23 @@ st, r = call("POST", "/billing/bills", "admin", {"visitId": vid, "payMethod": 1}
 check("E8.3b 换账号同就诊=B3001 重复收费（换就诊才正常，见手册）", r.get("code") == "B3001", r)
 
 print("===== E9 危急值闭环 =====")
-st, al = call("GET", "/alerts?status=10&pageNum=1&pageSize=5", "lab.chen") if False else (None, None)
+# E9.0 造数（手册口径）：检验医嘱 category=3 → 执行 → 采集 → 接收 → Mock 录入 → 危急值
+st, r = call("POST", "/doc/orders", "dr.li", {"admissionId": adm, "orderClass": 2, "category": 3,
+    "frequency": "qd", "items": [{"chargeItemId": None}]}, idem="ce9-o-" + uid)
+st, ol9 = call("GET", "/doc/orders?admissionId=%s&status=10" % adm, "dr.li")
+lab_orders = [o for o in ol9["data"]["list"] if o["category"] == 3]
+if lab_orders:
+    oid9 = lab_orders[0]["id"]
+    st, det9 = call("GET", "/doc/orders/%s" % oid9, "dr.li")
+    execs9 = [e for e in (det9["data"].get("executions") or []) if e.get("execType") == 2]
+    if execs9:
+        call("POST", "/doc/executions/%s/do" % execs9[0]["id"], "nurse.wang", idem="ce9-ex-" + uid)
+    st, reqs9 = call("GET", "/lis/requests?admissionId=%s" % adm, "lab.chen")
+    if reqs9.get("data") and reqs9["data"]["list"]:
+        lis9 = reqs9["data"]["list"][0]["id"]
+        call("POST", "/lis/specimens/collect?requestId=%s" % lis9, "lab.chen", idem="ce9-col-" + uid)
+        call("POST", "/lis/specimens/%s/receive" % lis9, "lab.chen", idem="ce9-rec-" + uid)
+        call("POST", "/lis/results/entry", "lab.chen", {"requestId": lis9, "fetch": True}, idem="ce9-ent-" + uid)
 st, al = call("GET", "/alerts?status=10&pageNum=1&pageSize=5", "admin")
 alerts = (al.get("data") or {}).get("list") if isinstance(al.get("data"), dict) else (al.get("data") or [])
 aid = alerts[0]["id"] if alerts else None
