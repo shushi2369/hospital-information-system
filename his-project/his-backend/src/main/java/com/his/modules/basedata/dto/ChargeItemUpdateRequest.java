@@ -4,6 +4,7 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -16,6 +17,7 @@ public class ChargeItemUpdateRequest {
 
     /** 项目名称 */
     @NotBlank(message = "项目名称不能为空")
+    @Size(max = 64)
     private String itemName;
 
     /** 类别：1 挂号费 2 诊查费 3 检查费 4 检验费 5 治疗费 6 材料费 7 药品费（不传则不修改） */
@@ -28,6 +30,7 @@ public class ChargeItemUpdateRequest {
     private BigDecimal price;
 
     /** 计价单位（传 null 不修改） */
+    @Size(max = 16)
     private String unit;
 
     /** 状态：1 启用 0 停用（不传则不修改） */

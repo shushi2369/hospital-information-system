@@ -4,6 +4,7 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -21,10 +22,12 @@ public class DoctorUpdateRequest {
 
     /** 医生姓名 */
     @NotBlank(message = "医生姓名不能为空")
+    @Size(max = 64)
     private String doctorName;
 
     /** 职称：主任医师/副主任医师/主治医师/住院医师 */
     @NotBlank(message = "职称不能为空")
+    @Size(max = 32)
     private String title;
 
     /** 是否专家：1 专家号 0 普通号（不传则不修改） */

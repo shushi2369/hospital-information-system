@@ -4,6 +4,7 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
@@ -26,14 +27,17 @@ public class DoctorCreateRequest {
 
     /** 工号（唯一） */
     @NotBlank(message = "工号不能为空")
+    @Size(max = 32)
     private String doctorCode;
 
     /** 医生姓名 */
     @NotBlank(message = "医生姓名不能为空")
+    @Size(max = 64)
     private String doctorName;
 
     /** 职称：主任医师/副主任医师/主治医师/住院医师 */
     @NotBlank(message = "职称不能为空")
+    @Size(max = 32)
     private String title;
 
     /** 是否专家：1 专家号 0 普通号（不传默认普通号） */
@@ -57,5 +61,6 @@ public class DoctorCreateRequest {
     private Integer dailyQuota;
 
     /** 联系电话（仅透传给 sys_user 场景使用，bas_doctor 不存储，后端忽略） */
+    @Size(max = 20)
     private String phone;
 }

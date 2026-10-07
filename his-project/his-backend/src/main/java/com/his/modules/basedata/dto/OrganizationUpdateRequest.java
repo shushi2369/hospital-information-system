@@ -1,6 +1,7 @@
 package com.his.modules.basedata.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
@@ -17,6 +18,7 @@ public class OrganizationUpdateRequest {
     private String address;
 
     /** 联系电话 */
+    @Size(max = 20)
     private String phone;
 
     /** 状态：1 启用 0 停用（不传则不修改） */

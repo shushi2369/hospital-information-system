@@ -4,6 +4,7 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -17,6 +18,7 @@ public class DrugUpdateRequest {
 
     /** 药品名称（商品名/名称） */
     @NotBlank(message = "药品名称不能为空")
+    @Size(max = 64)
     private String drugName;
 
     /** 通用名（传 null 不修改） */
@@ -24,6 +26,7 @@ public class DrugUpdateRequest {
 
     /** 规格，如 0.25g×24粒 */
     @NotBlank(message = "规格不能为空")
+    @Size(max = 64)
     private String spec;
 
     /** 剂型（传 null 不修改） */
@@ -35,10 +38,12 @@ public class DrugUpdateRequest {
     private Integer category;
 
     /** 生产厂家（传 null 不修改） */
+    @Size(max = 64)
     private String manufacturer;
 
     /** 最小发药单位（盒/瓶/支） */
     @NotBlank(message = "最小发药单位不能为空")
+    @Size(max = 16)
     private String unit;
 
     /** 零售价（不传则不修改；变更记操作审计） */

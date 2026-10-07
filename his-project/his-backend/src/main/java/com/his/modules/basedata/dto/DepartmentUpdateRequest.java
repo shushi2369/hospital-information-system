@@ -3,6 +3,7 @@ package com.his.modules.basedata.dto;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
@@ -17,6 +18,7 @@ public class DepartmentUpdateRequest {
 
     /** 科室名称 */
     @NotBlank(message = "科室名称不能为空")
+    @Size(max = 64)
     private String deptName;
 
     /** 科室类型：1 临床科室 2 医技科室 3 药房 4 收费挂号（不传则不修改） */
@@ -25,6 +27,7 @@ public class DepartmentUpdateRequest {
     private Integer deptType;
 
     /** 位置（楼层/诊区，传 null 不修改） */
+    @Size(max = 128)
     private String location;
 
     /** 状态：1 启用 0 停用（不传则不修改） */
