@@ -94,14 +94,8 @@ public class LongOrderPlanTask {
                     .eq(DocOrderItem::getStatus, 1));
             for (DocOrderItem item : items) {
                 for (String slot : slots) {
-                    Long exists = execMapper.selectCount(new LambdaQueryWrapper<DocOrderExec>()
-                            .eq(DocOrderExec::getItemId, item.getId())
-                            .eq(DocOrderExec::getExecDate, today)
-                            .eq(DocOrderExec::getExecSlot, slot)
-                            .eq(DocOrderExec::getExecType, 2));
-                    if (exists != null && exists > 0) {
-                        continue;
-                    }
+                    // 一百一十八轮性能【6】：去掉预查 selectCount（uk_exec + DuplicateKeyException
+                    // 已兜底，预查冗余且每 item×slot 多 1 查）；并发冲突走 catch 跳过
                     DocOrderExec exec = new DocOrderExec();
                     exec.setOrderId(order.getId());
                     exec.setItemId(item.getId());

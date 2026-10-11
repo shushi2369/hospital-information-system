@@ -238,12 +238,15 @@ public class PharmacyService {
                                 query.getEndDate() == null ? null : query.getEndDate().plusDays(1).atStartOfDay())
                         .orderByDesc(PhrDispenseOrder::getId));
         List<Long> rxIds = page.getRecords().stream().map(PhrDispenseOrder::getPrescriptionId).toList();
-        Map<Long, String> rxNoById = new HashMap<>();
-        for (Long rxId : rxIds) {
-            var rx = clinicAppService.getPrescriptionView(rxId);
-            if (rx != null) {
-                rxNoById.put(rxId, rx.getRxNo());
-            }
+        // 一百一十八轮性能【2】：rxNo 一次批查（原每行 getPrescriptionView 连明细共 2 查）
+        Map<Long, String> rxNoById = rxIds.isEmpty() ? new HashMap<>()
+                : clinicAppService.prescriptionRxNoByIds(rxIds);
+        // 一百一十八轮性能【2】：患者名批查（原每行 getById 恒 2 查——合并链+患者表）
+        List<Long> ptIds = page.getRecords().stream().map(PhrDispenseOrder::getPatientId)
+                .filter(java.util.Objects::nonNull).distinct().toList();
+        Map<Long, String> patientNameById = new HashMap<>();
+        for (var pt : patientAppService.listByIds(ptIds)) {
+            patientNameById.put(pt.getId(), pt.getName());
         }
         // 一百一十三轮 A-P3-1：批量判定已退药发药单（返回处方状态 50 = 整方退药完成）
         java.util.Set<Long> returnedRxIds = rxIds.isEmpty() ? java.util.Set.of()
@@ -257,8 +260,7 @@ public class PharmacyService {
             vo.setDispenseNo(order.getDispenseNo());
             vo.setPrescriptionId(order.getPrescriptionId());
             vo.setRxNo(rxNoById.get(order.getPrescriptionId()));
-            var patient = patientAppService.getById(order.getPatientId());
-            vo.setPatientName(patient == null ? null : patient.getName());
+            vo.setPatientName(patientNameById.get(order.getPatientId()));
             vo.setDispenserName(systemAppService.getUsername(order.getDispenserId()));
             vo.setTotalQuantity(order.getTotalQuantity());
             vo.setDispenseTime(order.getDispenseTime());

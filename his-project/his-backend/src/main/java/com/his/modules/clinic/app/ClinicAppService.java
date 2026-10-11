@@ -227,11 +227,24 @@ public class ClinicAppService {
         if (itemIds == null || itemIds.isEmpty()) {
             return result;
         }
-        for (CliPrescriptionItem row : prescriptionItemMapper.selectBatchIds(itemIds)) {
-            CliPrescription rx = prescriptionMapper.selectById(row.getPrescriptionId());
-            result.put(row.getId(), rx == null ? null : rx.getStatus());
+        List<CliPrescriptionItem> rows = prescriptionItemMapper.selectBatchIds(itemIds);
+        // 一百一十八轮性能【5】：处方一次批查（原循环内逐条 selectById，退费行锁窗口内 +N 查）
+        Map<Long, Integer> rxStatus = prescriptionMapper.selectBatchIds(
+                        rows.stream().map(CliPrescriptionItem::getPrescriptionId).distinct().toList())
+                .stream().collect(java.util.stream.Collectors.toMap(CliPrescription::getId, CliPrescription::getStatus));
+        for (CliPrescriptionItem row : rows) {
+            result.put(row.getId(), rxStatus.get(row.getPrescriptionId()));
         }
         return result;
+    }
+
+    /** 处方 ID → 处方号（一百一十八轮性能【2】：发药/退药单分页批量取号，替代逐行视图查询） */
+    public Map<Long, String> prescriptionRxNoByIds(Collection<Long> rxIds) {
+        if (rxIds == null || rxIds.isEmpty()) {
+            return new HashMap<>();
+        }
+        return prescriptionMapper.selectBatchIds(rxIds).stream()
+                .collect(java.util.stream.Collectors.toMap(CliPrescription::getId, CliPrescription::getRxNo));
     }
 
     /** 处方 ID → 处方状态（一百一十三轮 A-P3-1：发药单列表批量判定已整方退药 status=50） */
@@ -286,14 +299,88 @@ public class ClinicAppService {
 
     // ---------------- 药房库存视角 ----------------
 
-    /** 药房队列：按状态查处方（含展示明细，最多 100 条） */
+    /** 药房队列：按状态查处方（含展示明细，最多 100 条）。
+     *  一百一十八轮性能【1】P2：批量预取 visit/医生/科室/患者/明细——原逐行 toRxDisplay
+     *  每行 7 次单查，队列满 100 条 ≈700 查（秒级卡顿） */
     public List<RxDisplayDTO> listPrescriptionsByStatus(Integer status, Integer chargeStatus) {
         List<CliPrescription> rxs = prescriptionMapper.selectList(new LambdaQueryWrapper<CliPrescription>()
                 .eq(status != null, CliPrescription::getStatus, status)
                 .eq(chargeStatus != null, CliPrescription::getChargeStatus, chargeStatus)
                 .orderByDesc(CliPrescription::getId)
                 .last("LIMIT 100"));
-        return rxs.stream().map(this::toRxDisplay).toList();
+        if (rxs.isEmpty()) {
+            return List.of();
+        }
+        // 批量预取（5 次查询替代至多 700 次）
+        List<Long> visitIds = rxs.stream().map(CliPrescription::getVisitId).filter(java.util.Objects::nonNull).distinct().toList();
+        Map<Long, CliVisit> visits = visitIds.isEmpty() ? Map.of()
+                : visitMapper.selectBatchIds(visitIds).stream()
+                        .collect(java.util.stream.Collectors.toMap(CliVisit::getId, v -> v));
+        java.util.Set<Long> doctorIds = visits.values().stream()
+                .map(CliVisit::getDoctorId).filter(java.util.Objects::nonNull).collect(java.util.stream.Collectors.toSet());
+        Map<Long, DoctorDTO> doctors = basedataAppService.listDoctorsByIds(doctorIds);
+        java.util.Set<Long> deptIds = visits.values().stream()
+                .map(CliVisit::getDeptId).filter(java.util.Objects::nonNull).collect(java.util.stream.Collectors.toSet());
+        Map<Long, ? extends com.his.modules.basedata.app.DepartmentDTO> depts = deptIds.isEmpty()
+                ? Map.of() : basedataAppService.departmentMap();
+        List<Long> patientIds = rxs.stream().map(CliPrescription::getPatientId).filter(java.util.Objects::nonNull).distinct().toList();
+        Map<Long, PatientDTO> patients = new HashMap<>();
+        for (PatientDTO pt : patientAppService.listByIds(patientIds)) {
+            patients.put(pt.getId(), pt);
+        }
+        List<Long> rxIds = rxs.stream().map(CliPrescription::getId).toList();
+        Map<Long, List<RxDisplayDTO.Item>> itemsByRx = prescriptionItemMapper.selectList(
+                        new LambdaQueryWrapper<CliPrescriptionItem>()
+                                .in(CliPrescriptionItem::getPrescriptionId, rxIds)
+                                .eq(CliPrescriptionItem::getStatus, 1)
+                                .orderByAsc(CliPrescriptionItem::getId))
+                .stream().collect(java.util.stream.Collectors.groupingBy(CliPrescriptionItem::getPrescriptionId,
+                        java.util.stream.Collectors.mapping(this::toRxItem, java.util.stream.Collectors.toList())));
+        return rxs.stream().map(rx -> {
+            RxDisplayDTO dto = new RxDisplayDTO();
+            dto.setId(rx.getId());
+            dto.setRxNo(rx.getRxNo());
+            dto.setVisitId(rx.getVisitId());
+            dto.setPatientId(rx.getPatientId());
+            dto.setTotalAmount(rx.getTotalAmount());
+            dto.setStatus(rx.getStatus());
+            dto.setChargeStatus(rx.getChargeStatus());
+            dto.setCreatedAt(rx.getCreatedAt());
+            CliVisit visit = visits.get(rx.getVisitId());
+            if (visit != null) {
+                dto.setVisitNo(visit.getVisitNo());
+                DoctorDTO doctor = doctors.get(visit.getDoctorId());
+                dto.setDoctorName(doctor == null ? null : doctor.getDoctorName());
+                var dept = depts.get(visit.getDeptId());
+                dto.setDeptName(dept == null ? null : dept.getDeptName());
+            }
+            PatientDTO patient = patients.get(rx.getPatientId());
+            if (patient != null) {
+                dto.setPatientName(patient.getName());
+                dto.setPatientNo(patient.getPatientNo());
+            }
+            dto.setItems(itemsByRx.getOrDefault(rx.getId(), List.of()));
+            return dto;
+        }).toList();
+    }
+
+    /** 明细行 → DTO 条目（批量化共用，一百一十八轮性能【1】） */
+    private RxDisplayDTO.Item toRxItem(CliPrescriptionItem row) {
+        RxDisplayDTO.Item item = new RxDisplayDTO.Item();
+        item.setItemId(row.getId());
+        item.setDrugId(row.getDrugId());
+        item.setDrugName(row.getDrugName());
+        item.setSpec(row.getSpec());
+        item.setDosage(row.getDosage());
+        item.setFrequency(row.getFrequency());
+        item.setUsageRoute(row.getUsageRoute());
+        item.setDays(row.getDays());
+        item.setQuantity(row.getQuantity());
+        item.setUnit(row.getUnit());
+        item.setUnitPrice(row.getUnitPrice());
+        item.setAmount(row.getAmount());
+        item.setUsageNote(row.getUsageNote());
+        return item;
     }
 
     /** 可发药队列：审核通过且已收费 */

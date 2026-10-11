@@ -79,9 +79,15 @@ public class BasedataAppService {
 
     /** 医生字典 Map（列表批量解析姓名/费用用，避免逐行查询） */
     public Map<Long, DoctorDTO> doctorMap() {
+        // 一百一十八轮性能【4】：科室一次预取内存拼装——原每医生一次科室单查（30-50 查/页）
+        Map<Long, Department> deptById = departmentMapper.selectList(null).stream()
+                .collect(java.util.stream.Collectors.toMap(Department::getId, d -> d));
         Map<Long, DoctorDTO> map = new java.util.HashMap<>();
         for (Doctor doctor : doctorMapper.selectList(null)) {
-            map.put(doctor.getId(), toDoctorDTO(doctor));
+            DoctorDTO dto = toDoctorDTO(doctor);
+            Department dept = deptById.get(doctor.getDeptId());
+            dto.setDeptName(dept == null ? null : dept.getDeptName());
+            map.put(doctor.getId(), dto);
         }
         return map;
     }
