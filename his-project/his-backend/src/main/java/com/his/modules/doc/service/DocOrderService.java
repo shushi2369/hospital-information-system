@@ -236,7 +236,16 @@ public class DocOrderService {
         if (dispensed != 1) {
             throw new BizException(ErrorCode.B6102, "医嘱状态已变化（可能已并发摆药），请刷新后重试");
         }
+        assertStillInHospital(order.getAdmissionId());
         pltService.recordEvent("order.dispensed", order.getOrderNo(), "{}");
+    }
+
+    /** 一百一十五轮 D-03：事务尾住院在院条件更新（兼作住院行锁）——摆药/执行与
+     *  出院结算并发（TOCTOU）时 0 行即整体回滚，孤儿药品费/执行费不再落库已结算住院 */
+    private void assertStillInHospital(Long admissionId) {
+        if (!inpAppService.touchInHospital(admissionId)) {
+            throw new BizException(ErrorCode.B6003, "患者已出院或结算，本次操作已回滚");
+        }
     }
 
     /** 护士执行（O-11）：非药品执行即计费；长期/临时推进状态 */
@@ -281,12 +290,25 @@ public class DocOrderService {
             }
         }
         if (order.getStatus() == 20) {
-            order.setStatus(30);
-            orderMapper.updateById(order);
+            // 一百一十五轮 D-01 P0：状态推进必须条件更新+断言——原 updateById 不查返回值，
+            // 与作废(voidOrder)并发时本更新被乐观锁静默吞掉，终态=医嘱已作废但执行单已执行、
+            // 费用有效入账（计费随本事务回滚才有机会纠正）
+            int toExecuting = orderMapper.update(null, new LambdaUpdateWrapper<DocOrder>()
+                    .eq(DocOrder::getId, order.getId())
+                    .eq(DocOrder::getStatus, 20)
+                    .set(DocOrder::getStatus, 30));
+            if (toExecuting != 1) {
+                throw new BizException(ErrorCode.B6106, "医嘱状态已变化（可能已作废），执行已回滚");
+            }
         }
         if (order.getOrderClass() == 2 && allExecDone(order.getId())) {
-            order.setStatus(40);
-            orderMapper.updateById(order);
+            int toDone = orderMapper.update(null, new LambdaUpdateWrapper<DocOrder>()
+                    .eq(DocOrder::getId, order.getId())
+                    .eq(DocOrder::getStatus, 30)
+                    .set(DocOrder::getStatus, 40));
+            if (toDone != 1) {
+                throw new BizException(ErrorCode.B6106, "医嘱状态已变化，请刷新后重试");
+            }
         }
         // 检验医嘱执行 → 生成 LIS 检验申请单（doc → lis 单向，《12》§3）
         if (order.getCategory() == 3 && exec.getExecType() == 2) {
@@ -298,6 +320,7 @@ public class DocOrderService {
             DocOrderItem risItem = itemMapper.selectById(exec.getItemId());
             risAppService.createRequestFromOrder(order, risItem, CurrentUser.id());
         }
+        assertStillInHospital(order.getAdmissionId());
         pltService.recordEvent("order.executed", order.getOrderNo(),
                 "{\"execId\":" + execId + "}");
     }
@@ -327,6 +350,8 @@ public class DocOrderService {
     @Transactional
     public void resume(Long orderId) {
         DocOrder order = requireOrder(orderId);
+        // 一百一十五轮 D-09：停嘱恢复须患者仍在院——出院患者恢复执行单只会产出死单
+        inpAppService.requireInHospital(order.getAdmissionId());
         requireAttendingDoctor(order);
         if (order.getStatus() != 50) {
             throw new BizException(ErrorCode.B6101, "医嘱不在停止状态");
@@ -405,6 +430,9 @@ public class DocOrderService {
                     .in(DocOrder::getStatus, 10, 20, 30)
                     .set(DocOrder::getStatus, 60)
                     .set(DocOrder::getVoidReason, "皮试阳性，医嘱作废"));
+            // 一百一十五轮 D-05：阳性作废同步清理当日执行单——原漏调 skipFutureExec，
+            // 死单永挂护士待执行列表（执行必得 B6106），与 voidOrder 的清理对照
+            skipFutureExec(exec.getOrderId(), java.time.LocalDate.now());
         }
     }
 

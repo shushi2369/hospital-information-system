@@ -164,10 +164,18 @@ export async function exportRevenueDetail(startDate: string, endDate: string): P
     const resp = await axios.get('/api/v1/stats/revenue/detail/export', {
       params: { startDate, endDate },
       responseType: 'blob',
+      timeout: 30000, // 一百一十五轮 F4：大报表导出补超时（裸 axios 实例无默认 15s）
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     })
     blob = resp.data as Blob
   } catch (err) {
+    // 一百一十五轮 F4：裸 axios 旁路拦截器——会话过期时对齐主链路 401 行为（跳登录）
+    const status = (err as { response?: { status?: number } }).response?.status
+    if (status === 401 && !window.location.pathname.startsWith('/login')) {
+      const redirect = encodeURIComponent(window.location.pathname + window.location.search)
+      window.location.href = `/login?redirect=${redirect}`
+      throw err
+    }
     // 权限不足等场景后端返回 JSON 错误体，尝试解析并提示
     const data = (err as { response?: { data?: unknown } }).response?.data
     let message = '导出失败，请稍后重试'

@@ -67,6 +67,9 @@ public class LongOrderPlanTask {
                 .in(DocOrder::getStatus, 20, 30));
         int created = 0;
         for (DocOrder order : orders) {
+          // 一百一十五轮 D-08：逐单 try + uk_exec 冲突兜底（对齐 AdmissionFeeTask）——
+          // 原任一单异常会让整轮中断，剩余在院患者当日执行单全部缺失
+          try {
             var admission = inpAppService.getAdmission(order.getAdmissionId());
             if (admission == null || admission.getStatus() != 10) {
                 continue; // 非在院不生成（理论上出院前已停嘱，防御性跳过）
@@ -111,6 +114,11 @@ public class LongOrderPlanTask {
                     created++;
                 }
             }
+          } catch (org.springframework.dao.DuplicateKeyException e) {
+              log.info("长嘱执行单与手工创建并发冲突，跳过 order={}", order.getId());
+          } catch (Exception e) {
+              log.error("长嘱执行单生成失败 order={}", order.getId(), e);
+          }
         }
         if (created > 0) {
             log.info("长期医嘱执行计划生成: {} 条 (日期 {})", created, today);

@@ -132,6 +132,16 @@ public class InpController {
         return R.ok(inpService.addManualFee(admissionId, req));
     }
 
+    /** 一百一十五轮 D-06：手工记账冲正（仅未结算的手工费行） */
+    @PostMapping("/daily-fees/{feeId}/void")
+    @PreAuthorize("@ss.hasPerm('inp:fee:create')")
+    @Idempotent
+    @AuditLog(module = "inp", action = "手工记账冲正", bizType = "inp_daily_fee")
+    public R<Void> voidManualFee(@PathVariable Long feeId) {
+        inpService.voidManualFee(feeId);
+        return R.ok();
+    }
+
     @PostMapping("/admissions/{id}/discharge")
     @PreAuthorize("@ss.hasPerm('inp:discharge:create')")
     @Idempotent

@@ -40,16 +40,25 @@ const router = createRouter({
 
 // 懒加载 chunk 失败兜底（九十五轮浏览器走查实锤：经营统计/区域上报首次导航白屏）：
 // 动态 import 网络抖动/发版后旧 hash 404 时整页白屏无提示。首次失败自动整页跳转目标路由
-// （绕过内存中的坏模块缓存），仅重试一次防循环。
-let chunkReloaded = false
+// （绕过内存中的坏模块缓存）。
+// 一百一十五轮 F3：重试计数改 sessionStorage——原内存标志被整页刷新重置，
+// 发版后旧 index.html 缓存导致 chunk 持续 404 时会无限 reload 循环；导航成功后清除。
+const CHUNK_RETRY_KEY = 'his_chunk_retry'
 router.onError((error, to) => {
   const msg = String(error?.message || '')
   const isChunkLoad = msg.includes('Failed to fetch dynamically imported module') ||
     msg.includes('Importing a module script failed')
-  if (isChunkLoad && !chunkReloaded) {
-    chunkReloaded = true
+  if (isChunkLoad) {
+    const n = Number(sessionStorage.getItem(CHUNK_RETRY_KEY) || 0)
+    if (n >= 2) {
+      return
+    }
+    sessionStorage.setItem(CHUNK_RETRY_KEY, String(n + 1))
     window.location.href = to.fullPath
   }
+})
+router.afterEach(() => {
+  sessionStorage.removeItem(CHUNK_RETRY_KEY)
 })
 
 /** 按菜单 component 字符串解析视图组件，解析失败回落到 NotFound */

@@ -301,6 +301,35 @@ public class InpService {
         return fee.getId();
     }
 
+    /** 手工记账冲正（一百一十五轮 D-06）：inp_daily_fee 原本"只进不出"——
+     *  误记费用只能全额随结算收走。仅限手工费(source_type=4)且未结算(charge_status=0)
+     *  的行作废（status=0），结算取数 listUnpaidDailyFees 天然过滤 */
+    @Transactional
+    public void voidManualFee(Long feeId) {
+        InpDailyFee fee = dailyFeeMapper.selectById(feeId);
+        if (fee == null) {
+            throw new BizException(ErrorCode.A0001, "费用记录不存在");
+        }
+        if (fee.getSourceType() == null || fee.getSourceType() != 4) {
+            throw new BizException(ErrorCode.A0001, "仅手工记账费用可冲正");
+        }
+        if (fee.getChargeStatus() != null && fee.getChargeStatus() != 0) {
+            throw new BizException(ErrorCode.B6003, "该费用已结算，不可冲正");
+        }
+        int updated = dailyFeeMapper.update(null, new LambdaUpdateWrapper<InpDailyFee>()
+                .eq(InpDailyFee::getId, feeId)
+                .eq(InpDailyFee::getSourceType, 4)
+                .eq(InpDailyFee::getChargeStatus, 0)
+                .eq(InpDailyFee::getStatus, 1)
+                .set(InpDailyFee::getStatus, 0)
+                .set(InpDailyFee::getUpdatedAt, LocalDateTime.now()));
+        if (updated != 1) {
+            throw new BizException(ErrorCode.A0008, "费用状态已变化，冲正失败，请刷新后重试");
+        }
+        pltService.recordEvent("inp.fee.voided", String.valueOf(feeId),
+                "{\"admissionId\":" + fee.getAdmissionId() + "}");
+    }
+
     /** 启用病区列表 */
     public List<InpWard> wards() {
         return wardMapper.selectList(new LambdaQueryWrapper<InpWard>()
@@ -335,7 +364,10 @@ public class InpService {
         return bed.getId();
     }
 
-    /** 床位状态调整（I-03）：占用中禁止直接改状态 */
+    /** 床位状态调整（I-03）：占用中禁止直接改状态。
+     *  一百一十五轮 D-02 P1：条件更新（空床守卫）——原快照读+裸 updateById 与并发占床
+     *  交错会产生"停用+占用"混合态：出院/转科 releaseBed 永远失败（患者卡死），
+     *  或重新启用后二次占床双份床位费 */
     @Transactional
     public void updateBedStatus(Long bedId, Integer target) {
         InpBed bed = bedMapper.selectById(bedId);
@@ -345,8 +377,14 @@ public class InpService {
         if (bed.getBedStatus() == 2) {
             throw new BizException(ErrorCode.B6001, "床位占用中，请先办理出院或转科");
         }
-        bed.setBedStatus(target);
-        bedMapper.updateById(bed);
+        int updated = bedMapper.update(null, new LambdaUpdateWrapper<InpBed>()
+                .eq(InpBed::getId, bedId)
+                .eq(InpBed::getBedStatus, 1)
+                .isNull(InpBed::getCurrentAdmissionId)
+                .set(InpBed::getBedStatus, target));
+        if (updated != 1) {
+            throw new BizException(ErrorCode.B6001, "床位状态已变化（可能已被占用），请刷新后重试");
+        }
     }
 
     /** 住院记录分页（I-05） */

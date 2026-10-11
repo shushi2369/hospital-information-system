@@ -90,10 +90,20 @@ export const useUserStore = defineStore('user', {
       this.permissions = me.permissions ?? []
     },
 
-    /** 拉取菜单树并补全完整路径 */
+    /** 拉取菜单树并补全完整路径（一百一十五轮 F7：in-flight 复用——导航竞态下双倍请求） */
+    _menusPromise: null as Promise<void> | null,
     async loadMenus() {
-      const tree = await getMenus()
-      this.menus = resolveFullPaths(tree ?? [])
+      if (this.menus.length > 0) return
+      if (this._menusPromise) return this._menusPromise
+      this._menusPromise = (async () => {
+        const tree = await getMenus()
+        this.menus = resolveFullPaths(tree ?? [])
+      })()
+      try {
+        await this._menusPromise
+      } finally {
+        this._menusPromise = null
+      }
     },
 
     /** 退出登录：调用后端销毁会话并清理本地状态 */

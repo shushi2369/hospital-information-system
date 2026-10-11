@@ -80,6 +80,9 @@ public class AdmissionFeeTask {
             if (exists != null && exists > 0) {
                 continue;
             }
+            // 一百一十五轮 D-07 口径声明：计费取任务时刻床位价（无价目/转床快照）——
+            // 转科当日整日按新床计价的简化口径，与《09》一日清"次日零点切日"一致；
+            // 如需精确过夜床口径须查 inp_transfer 判定当日实际床位（记录为已知简化）
             InpBed bed = bedMapper.selectById(admission.getBedId());
             if (bed == null) {
                 continue;

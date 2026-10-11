@@ -126,6 +126,16 @@ public class InpAppService {
                 .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
     }
 
+    /** 一百一十五轮 D-03：在院条件更新（兼作住院行锁）——返回 false 即已出院/结算，
+     *  供 doc 摆药/执行的事务尾断言，孤儿费用不再落库已结算住院 */
+    public boolean touchInHospital(Long admissionId) {
+        int updated = admissionMapper.update(null, new LambdaUpdateWrapper<InpAdmission>()
+                .eq(InpAdmission::getId, admissionId)
+                .eq(InpAdmission::getStatus, 10)
+                .set(InpAdmission::getUpdatedAt, java.time.LocalDateTime.now()));
+        return updated == 1;
+    }
+
     /** 该住院仍存在的未结费用数（结算收尾复查用，配合标记收窄防费用蒸发） */
     public long countUnpaidDailyFees(Long admissionId) {
         return dailyFeeMapper.selectCount(new LambdaQueryWrapper<InpDailyFee>()
@@ -141,8 +151,16 @@ public class InpAppService {
         if (admission.getStatus() != 20) {
             throw new BizException(ErrorCode.B6003, "住院非出院未结状态，不能结算");
         }
-        admission.setStatus(30);
-        admissionMapper.updateById(admission);
+        // 一百一十五轮 D-11：窄列条件更新（对齐 transfer/discharge 整改后的规范）——
+        // 全字段回写在押金操作状态口放宽时会造成"押金蒸发"复发面
+        int updated = admissionMapper.update(null, new LambdaUpdateWrapper<InpAdmission>()
+                .eq(InpAdmission::getId, admissionId)
+                .eq(InpAdmission::getStatus, 20)
+                .set(InpAdmission::getStatus, 30)
+                .set(InpAdmission::getUpdatedAt, java.time.LocalDateTime.now()));
+        if (updated != 1) {
+            throw new BizException(ErrorCode.A0008, "住院状态已变化，结算已回滚，请刷新后重试");
+        }
     }
 
     /** 患者当前床号（医嘱执行单快照用） */
