@@ -4,7 +4,7 @@ import { get, post, type PageResult } from './request'
  * 公卫上报模块（四期，《22》§7）。
  * 传染病卡状态机（对齐 PubService）：10 待上报（填卡）→ 20 已上报（待公卫科审核）→
  * 30 已审核（待回执）→ 40 已反馈（回执登记闭环）。
- * 院感病例：报告（POST /hai）→ 确认（后端按 targetStatus 推进，无列表查询接口，确认入口暂缺）。
+ * 院感病例：报告（POST /hai）→ 确认（GET /pub/hai 分页 + POST /hai/{id}/confirm 推进，一百一十轮补齐）。
  * 权限：pub:card:query / pub:card:report（上报登记+审核）/ pub:card:receipt / pub:hai:confirm。
  */
 export interface PubCard {

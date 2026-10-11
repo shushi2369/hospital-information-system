@@ -133,10 +133,19 @@ public class HrService {
     private void applyUpsert(HrStaff staff, StaffUpsertRequest req) {
         staff.setName(req.getName());
         staff.setDeptId(req.getDeptId());
+        // 一百一十二轮 B04：职称变更必须走 H-06 留痕通道（titleChange），
+        // 普通档案编辑旁路改职称会让 HrTitleChange 审计链形同虚设（新建时 title 允许赋初值）
+        if (staff.getId() != null && req.getTitle() != null
+                && !req.getTitle().equals(staff.getTitle())) {
+            throw new BizException(ErrorCode.A0001, "职称变更须走「职称变更」流程留痕，普通编辑不可修改");
+        }
         staff.setTitle(req.getTitle());
         staff.setLicenseNo(req.getLicenseNo());
         staff.setPhone(req.getPhone());
         staff.setEntryDate(req.getEntryDate());
-        staff.setUserId(req.getUserId());
+        // 一百一十二轮 B15：前端从不传 userId，无条件覆盖会把员工-账号关联清空——null 时保留原值
+        if (req.getUserId() != null) {
+            staff.setUserId(req.getUserId());
+        }
     }
 }

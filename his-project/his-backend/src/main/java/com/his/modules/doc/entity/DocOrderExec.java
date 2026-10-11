@@ -10,7 +10,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @TableName("doc_order_exec")
-public class DocOrderExec extends BaseEntity {
+public class DocOrderExec extends BaseEntity implements com.his.infrastructure.util.PatientNameBackfill.PatientIdCarrier {
     private Long orderId;
     private Long itemId;
     private java.time.LocalDate execDate;
@@ -24,6 +24,17 @@ public class DocOrderExec extends BaseEntity {
     private String result;
     private Long chargeDetailId;
     private Integer status;
+    /** 展示字段（不入库）：一百一十二轮 B03 护理待执行单回填——防"床号重复时盲执行到错误患者" */
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private Long patientId;
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private String patientName;
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private String itemName;
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private String dosage;
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private String frequency;
     @Version
     private Integer version;
 }

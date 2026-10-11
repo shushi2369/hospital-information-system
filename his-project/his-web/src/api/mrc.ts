@@ -77,9 +77,9 @@ export const qcHomepage = (admissionId: number, pass: boolean) =>
 export const archiveMrc = (admissionId: number) =>
   post<void>(`/mrc/admissions/${admissionId}/archive`)
 
-/** 病案借阅 */
+/** 病案借阅（后端返回借阅单 ID） */
 export const borrowMrc = (admissionId: number, expectReturnDays?: number, borrowerId?: number) =>
-  post<void>(`/mrc/admissions/${admissionId}/borrow`, { expectReturnDays, borrowerId })
+  post<number>(`/mrc/admissions/${admissionId}/borrow`, { expectReturnDays, borrowerId })
 
 /** 病案归还 */
 export const returnMrc = (admissionId: number) =>

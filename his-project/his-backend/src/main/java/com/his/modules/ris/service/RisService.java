@@ -315,8 +315,14 @@ public class RisService {
             throw new BizException(ErrorCode.A0001, "报告不在书写中状态");
         }
         if (!Boolean.TRUE.equals(req.getApproved())) {
+            // 一百一十二轮 B09：驳回理由必填（原落成 "reason":"null" 留痕失真）+ 行数断言对齐通过分支
+            if (req.getReason() == null || req.getReason().isBlank()) {
+                throw new BizException(ErrorCode.A0001, "驳回必须填写理由");
+            }
             report.setStatus(30);
-            reportMapper.updateById(report);
+            if (reportMapper.updateById(report) != 1) {
+                throw new BizException(ErrorCode.A0008, "报告状态已变化，请刷新后重试");
+            }
             pltService.recordEvent("ris.report.rejected", report.getReportNo(),
                     "{\"reason\":\"" + escapeJson(req.getReason()) + "\"}");
             return;

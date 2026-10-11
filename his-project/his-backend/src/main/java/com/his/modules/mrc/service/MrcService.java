@@ -264,9 +264,7 @@ public class MrcService {
                 java.util.Map.of("admissionId", record.getAdmissionId())));
     }
 
-    /** 借阅（M-06）：仅已归档病案可借 */
-    @Transactional
-    /** 借阅台账（一百一十轮 M4）：分页 + 病案/借阅人/患者信息批量回填 */
+    /** 借阅台账（一百一十轮 M4）：分页 + 病案/借阅人/患者信息批量回填（只读） */
     public PageResult<MrcBorrow> borrowPage(com.his.common.PageQuery query, Integer status) {
         Page<MrcBorrow> page = borrowMapper.selectPage(query.toPage(),
                 new LambdaQueryWrapper<MrcBorrow>()
@@ -294,7 +292,10 @@ public class MrcService {
         return PageResult.of(page);
     }
 
-    /** 借阅（M-07） */
+    /** 借阅（M-07）：仅已归档病案可借。一百一十一轮子代理 A2：@Transactional 曾错挂在
+     *  borrowPage 上导致本写方法裸奔——insert 借阅单自动提交后，条件更新失败抛异常
+     *  会残留 status=1 的孤儿借阅单且无法自清 */
+    @Transactional
     public Long borrow(Long admissionId, BorrowRequest req) {
         MrcRecord record = requireRecord(admissionId);
         if (record.getArchiveStatus() == 10) {

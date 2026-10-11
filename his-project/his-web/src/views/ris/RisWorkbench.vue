@@ -56,6 +56,8 @@
           <el-button v-if="row.status === 30" v-perm="'ris:exam:execute'" link type="primary" @click="handleFinish(row)">完成检查</el-button>
           <el-button v-if="row.status === 30" v-perm="'ris:report:write'" link type="warning" @click="openWrite(row)">书写报告</el-button>
           <el-button v-if="row.status === 30" v-perm="'ris:report:review'" link type="success" @click="handleReview(row)">审核发布</el-button>
+          <!-- 一百一十二轮 B02：补驳回入口（后端驳回分支一直存在但 UI 不可达，写错的报告无法退回重写） -->
+          <el-button v-if="row.status === 30" v-perm="'ris:report:review'" link type="danger" @click="handleReject(row)">驳回</el-button>
           <el-button v-if="row.status === 40" v-perm="'ris:report:query'" link type="primary" @click="openReport(row)">查看报告</el-button>
         </template>
       </el-table-column>
@@ -279,6 +281,39 @@ async function handleReview(row: RisRequest) {
     fetchList()
   } catch {
     /* 用户取消 */
+  }
+}
+
+/** 一百一十二轮 B02：驳回报告退回重写（须填理由，后端 B09 同步校验） */
+async function handleReject(row: RisRequest) {
+  const detail = await getRisDetail(row.id)
+  const report = detail.report as RisReport | null
+  if (!report) {
+    ElMessage.warning('报告尚未书写')
+    return
+  }
+  let reason = ''
+  try {
+    const { value } = await ElMessageBox.prompt('驳回后报告退回书写中状态，技师可修改重报。请填写驳回理由：', '驳回报告', {
+      type: 'warning',
+      confirmButtonText: '确认驳回',
+      cancelButtonText: '取消',
+      inputPlaceholder: '驳回理由（必填）',
+    })
+    reason = (value ?? '').trim()
+  } catch {
+    return
+  }
+  if (!reason) {
+    ElMessage.warning('请填写驳回理由')
+    return
+  }
+  try {
+    await reviewReport(report.id, { approved: false, reason })
+    ElMessage.success('报告已驳回，待技师重写')
+    fetchList()
+  } catch {
+    // 拦截器已统一提示
   }
 }
 

@@ -29,15 +29,20 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class NurService {
+    private final com.his.modules.system.app.SystemAppService systemAppService;
     private final NurScheduleMapper scheduleMapper;
     private final NurVitalSignMapper vitalSignMapper;
     private final PatientAppService patientAppService;
     private final InpAppService inpAppService;
-    private final com.his.modules.system.app.SystemAppService systemAppService;
 
     /** 排班（N-01）：同护士同日唯一 */
     @Transactional
     public Long schedule(ScheduleRequest req) {
+        // 一百一十二轮 B15b：排班对象须为真实存在的护理账号（原任意 ID 可入排班表）
+        if (req.getNurseId() == null
+                || systemAppService.getUsernameMap(java.util.List.of(req.getNurseId())).isEmpty()) {
+            throw new BizException(ErrorCode.A0001, "排班对象不存在");
+        }
         Long dup = scheduleMapper.selectCount(new LambdaQueryWrapper<NurSchedule>()
                 .eq(NurSchedule::getNurseId, req.getNurseId())
                 .eq(NurSchedule::getShiftDate, req.getShiftDate()));

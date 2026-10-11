@@ -53,7 +53,13 @@
       <el-form :model="form" label-width="90px">
         <el-form-item label="姓名" required><el-input v-model="form.name" /></el-form-item>
         <el-form-item label="科室ID" required><el-input-number v-model="form.deptId" :min="1" :precision="0" style="width: 100%" /></el-form-item>
-        <el-form-item label="职称" required><el-input v-model="form.title" placeholder="如 主治医师" /></el-form-item>
+        <el-form-item label="职称" required>
+          <!-- 一百一十二轮 B04：编辑时职称锁定（变更须走职称变更流程留痕），仅新建可填初值 -->
+          <el-input v-if="!form.id" v-model="form.title" placeholder="如 主治医师" />
+          <el-input v-else :model-value="form.title" disabled>
+            <template #append>走「职称变更」</template>
+          </el-input>
+        </el-form-item>
         <el-form-item label="执业证号"><el-input v-model="form.licenseNo" /></el-form-item>
         <el-form-item label="电话"><el-input v-model="form.phone" /></el-form-item>
         <el-form-item label="入职日期" required><el-date-picker v-model="form.entryDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" /></el-form-item>

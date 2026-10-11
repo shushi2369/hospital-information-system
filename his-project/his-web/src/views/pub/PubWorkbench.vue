@@ -31,8 +31,10 @@
       <span class="status-legend">
         闭环流程：填卡 → 上报登记（公卫科）→ 审核 → 回执登记（反馈）
       </span>
+      <!-- 一百一十二轮 A9：后端 haiReport 允许 pub:hai:confirm OR clinic:exam:create，
+           按钮双权限放行（v-perm 仅支持单码，改 v-if+canReportHai） -->
       <el-button
-        v-perm="'pub:hai:confirm'"
+        v-if="canReportHai"
         type="warning"
         plain
         size="small"
@@ -146,7 +148,7 @@
         <span class="toolbar-title">院感病例</span>
         <span class="status-legend">闭环流程：报告 → 确认（整改中）→ 整改完成（闭环）</span>
         <el-button
-          v-perm="'pub:hai:confirm'"
+          v-if="canReportHai"
           type="warning"
           plain
           size="small"
@@ -278,7 +280,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import {
@@ -299,6 +301,16 @@ import {
   type PubHaiCase,
 } from '@/api/pub'
 import { getAdmissionPage, type Admission } from '@/api/inp'
+import { useUserStore } from '@/stores/user'
+
+// 一百一十二轮 A9：院感上报入口双权限码（公卫确认权 或 临床开单权）
+const userStore = useUserStore()
+const canReportHai = computed(
+  () =>
+    (userStore.userInfo?.permissions ?? []).includes('*') ||
+    (userStore.userInfo?.permissions ?? []).includes('pub:hai:confirm') ||
+    (userStore.userInfo?.permissions ?? []).includes('clinic:exam:create')
+)
 
 const HAI_TYPE_OPTIONS = [
   { value: 1, label: '呼吸道' },
@@ -329,7 +341,10 @@ const haiQuery = reactive({
   status: 10 as number | undefined, // 活跃态默认过滤：打开即看待上报
 })
 
+let haiFetchSeq = 0 // 一百一十二轮 A10：列表 GET 竞态守卫（对齐 CntWorkbench C5）
+
 async function fetchHaiList() {
+  const seq = ++haiFetchSeq
   haiLoading.value = true
   try {
     const res = await getPubHaiPage({
@@ -337,10 +352,11 @@ async function fetchHaiList() {
       pageSize: haiQuery.pageSize,
       status: haiQuery.status,
     })
+    if (seq !== haiFetchSeq) return
     haiList.value = res.list ?? []
     haiTotal.value = res.total ?? 0
   } finally {
-    haiLoading.value = false
+    if (seq === haiFetchSeq) haiLoading.value = false
   }
 }
 
@@ -373,7 +389,7 @@ async function handleHaiConfirm(row: PubHaiCase, targetStatus: number) {
     const { value } = await ElMessageBox.prompt(
       `${action}院感病例 ${row.caseNo}（${row.patientName || row.patientId}）？可填写备注。`,
       `院感${action}`,
-      { type: 'warning', confirmButtonText: action, cancelButtonText: '取消', inputPlaceholder: '备注（选填）' }
+      { type: 'warning', confirmButtonText: action, cancelButtonText: '取消', inputPlaceholder: '备注（选填，512 字内）', inputPattern: /^.{0,512}$/, inputErrorMessage: '备注最长 512 字' }
     )
     note = (value ?? '').trim()
   } catch {

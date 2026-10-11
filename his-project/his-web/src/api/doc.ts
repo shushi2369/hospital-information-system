@@ -91,8 +91,12 @@ export interface ExecItem {
   /** 1 核对 2 执行 3 皮试 */
   execType: number
   bedNo?: string | null
+  patientId?: number | null
   patientName?: string | null
   itemName?: string | null
+  /** 一百一十二轮 B03：待执行单回填用药信息，执行前可核对 */
+  dosage?: string | null
+  frequency?: string | null
   /** 1 待执行 2 已执行 3 跳过 */
   status: number
 }

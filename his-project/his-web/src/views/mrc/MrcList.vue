@@ -242,7 +242,9 @@
       <div v-if="borrowRow" class="mrc-line">病案号：{{ borrowRow.mrcNo }}｜患者：{{ borrowRow.patientName || '-' }}</div>
       <el-form label-width="110px">
         <el-form-item label="借阅人">
-          <!-- 一百零九轮 M4：补借阅人选择，缺省视为当前登录人（后端兜底） -->
+          <!-- 一百零九轮 M4：补借阅人选择，缺省视为当前登录人（后端兜底）。
+               一百一十二轮 A3：value 用 userId 与 borrowerName 回填的 getUsernameMap 同空间，
+               doctor.id 是医生表主键，两套 ID 错位会张冠李戴 -->
           <el-select
             v-model="borrowerId"
             filterable
@@ -250,7 +252,7 @@
             placeholder="默认当前登录人"
             style="width: 220px"
           >
-            <el-option v-for="d in doctorOptions" :key="d.id" :label="d.doctorName" :value="d.id" />
+            <el-option v-for="d in doctorOptions" :key="d.id" :label="d.doctorName" :value="d.userId" />
           </el-select>
         </el-form-item>
         <el-form-item label="预计归还天数">
@@ -358,7 +360,10 @@ const borrowQuery = reactive({
   status: undefined as number | undefined,
 })
 
+let borrowFetchSeq = 0 // 一百一十二轮 A10：列表 GET 竞态守卫（对齐 CntWorkbench C5）
+
 async function fetchBorrowLedger() {
+  const seq = ++borrowFetchSeq
   borrowLedgerLoading.value = true
   try {
     const res = await getMrcBorrowPage({
@@ -366,10 +371,11 @@ async function fetchBorrowLedger() {
       pageSize: borrowQuery.pageSize,
       status: borrowQuery.status,
     })
+    if (seq !== borrowFetchSeq) return
     borrowLedger.value = res.list ?? []
     borrowTotal.value = res.total ?? 0
   } finally {
-    borrowLedgerLoading.value = false
+    if (seq === borrowFetchSeq) borrowLedgerLoading.value = false
   }
 }
 

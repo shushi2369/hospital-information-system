@@ -178,8 +178,12 @@ public class PubService {
         if (targetStatus != 20 && targetStatus != 30) {
             throw new BizException(ErrorCode.A0001, "目标状态非法");
         }
-        if (c.getStatus() >= targetStatus) {
-            throw new BizException(ErrorCode.A0001, "病例状态已推进");
+        // 一百一十二轮 A11：合法迁移仅 10→20、20→30（原 status>=target 只防回退，10→30 可越级跳过整改中态）
+        if (!(c.getStatus() == 10 && targetStatus == 20) && !(c.getStatus() == 20 && targetStatus == 30)) {
+            throw new BizException(ErrorCode.A0001, "病例状态已推进或不允许的迁移");
+        }
+        if (note != null && note.length() > 512) {
+            throw new BizException(ErrorCode.A0001, "确认备注最长 512 字");
         }
         c.setStatus(targetStatus);
         c.setConfirmNote(note);

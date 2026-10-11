@@ -288,7 +288,8 @@ const formRules: FormRules = {
   realName: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
   password: [
     { required: true, message: '请输入初始密码', trigger: 'blur' },
-    { min: 6, max: 32, message: '密码长度为 6-32 位', trigger: 'blur' },
+    { min: 8, max: 32, message: '密码须 8~32 位且同时包含字母与数字', trigger: 'blur' },
+    { pattern: /^(?=.*[A-Za-z])(?=.*\d).+$/, message: '密码须同时包含字母与数字', trigger: 'blur' },
   ],
   phone: [{ pattern: /^1[3-9]\d{9}$/, message: '手机号格式不正确', trigger: 'blur' }],
   roleIds: [{ required: true, type: 'array', message: '请至少选择一个角色', trigger: 'change' }],
@@ -348,6 +349,20 @@ async function handleSubmit() {
 // ---------------- 启用 / 禁用 ----------------
 async function handleToggleStatus(row: SystemUser) {
   const target = row.status === 1 ? 0 : 1
+  // 一百一十二轮 B13：禁用即踢下线，属高危操作加二次确认；内置超管前端先拦（后端 B01 兜底）
+  if (row.id === 1 || row.username === 'admin') {
+    ElMessage.warning('内置超级管理员账号受保护，不可停用')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      target === 0 ? `确认禁用账号 ${row.username}？该账号将立即下线。` : `确认启用账号 ${row.username}？`,
+      '账号启停',
+      { type: 'warning', confirmButtonText: '确认', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
   try {
     await updateUserStatus(row.id, target)
     row.status = target
@@ -370,7 +385,8 @@ const resetForm = reactive({
 const resetRules: FormRules = {
   newPassword: [
     { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 6, max: 32, message: '密码长度为 6-32 位', trigger: 'blur' },
+    { min: 8, max: 32, message: '密码须 8~32 位且同时包含字母与数字', trigger: 'blur' },
+    { pattern: /^(?=.*[A-Za-z])(?=.*\d).+$/, message: '密码须同时包含字母与数字', trigger: 'blur' },
   ],
   confirmPassword: [
     { required: true, message: '请再次输入新密码', trigger: 'blur' },

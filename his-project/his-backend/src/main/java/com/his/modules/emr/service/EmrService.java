@@ -143,8 +143,23 @@ public class EmrService {
         record.setStatus(Boolean.TRUE.equals(req.getPass()) ? 30 : 40);
         record.setQcBy(CurrentUser.id());
         record.setQcTime(LocalDateTime.now());
+        // 一百一十二轮 B14c：合并而非覆盖——qcIssues 里可能已有系统自动打标（如"入院记录超24小时"），
+        // 质控以空 issues 覆盖会把自动标记冲掉（质控痕迹丢失）
+        java.util.LinkedHashSet<String> merged = new java.util.LinkedHashSet<>();
+        if (record.getQcIssues() != null) {
+            try {
+                for (Object o : objectMapper.readValue(record.getQcIssues(), java.util.List.class)) {
+                    merged.add(String.valueOf(o));
+                }
+            } catch (Exception ignored) {
+                // 历史内容非 JSON 数组时按空处理
+            }
+        }
+        if (req.getIssues() != null) {
+            merged.addAll(req.getIssues());
+        }
         try {
-            record.setQcIssues(objectMapper.writeValueAsString(req.getIssues() == null ? List.of() : req.getIssues()));
+            record.setQcIssues(objectMapper.writeValueAsString(new java.util.ArrayList<>(merged)));
         } catch (Exception ignored) {
             record.setQcIssues("[]");
         }

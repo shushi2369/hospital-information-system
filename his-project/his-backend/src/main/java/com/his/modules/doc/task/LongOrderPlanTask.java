@@ -51,13 +51,13 @@ public class LongOrderPlanTask {
      *  改为回补最近 7 天；幂等：执行单唯一索引 + 先查后插，重复生成安全 */
     @EventListener(ApplicationReadyEvent.class)
     public void catchUpOnStartup() {
-        try {
-            for (int i = 7; i >= 0; i--) {
+        for (int i = 7; i >= 0; i--) {
+            // 一百一十二轮 A12：逐日 try——某天失败不中断剩余天的补生成；补偿失败降级为"待补"，不得阻断启动
+            try {
                 generatePlanFor(LocalDate.now().minusDays(i));
+            } catch (Exception e) {
+                log.error("长嘱执行计划启动补偿失败 date={}（待下次 cron/重启补生成）", LocalDate.now().minusDays(i), e);
             }
-        } catch (Exception e) {
-            // 补偿失败降级为"待补"，不得阻断启动
-            log.error("长嘱执行计划启动补偿失败（待下次 cron/重启补生成）", e);
         }
     }
 
@@ -70,6 +70,18 @@ public class LongOrderPlanTask {
             var admission = inpAppService.getAdmission(order.getAdmissionId());
             if (admission == null || admission.getStatus() != 10) {
                 continue; // 非在院不生成（理论上出院前已停嘱，防御性跳过）
+            }
+            // 一百一十二轮 A8：回补下限——为早于"开单日/入院日"的过去日期生成执行单
+            // 会制造系统性虚假漏执行（护士照单补执行=伪造给药记录）
+            java.time.LocalDate earliest = order.getCreatedAt() == null
+                    ? LocalDate.MIN
+                    : order.getCreatedAt().toLocalDate();
+            if (admission.getAdmissionTime() != null
+                    && admission.getAdmissionTime().toLocalDate().isAfter(earliest)) {
+                earliest = admission.getAdmissionTime().toLocalDate();
+            }
+            if (today.isBefore(earliest)) {
+                continue;
             }
             String bedNo = inpAppService.getBedNo(order.getAdmissionId());
             List<String> slots = FREQUENCY_SLOTS.getOrDefault(

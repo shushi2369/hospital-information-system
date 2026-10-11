@@ -56,9 +56,14 @@
 
     <el-dialog v-model="resultVisible" title="分项结果录入（覆盖式）" width="520px" destroy-on-close>
       <el-form :model="resultForm" label-width="90px">
-        <el-form-item label="待录项目">
-          <el-select v-model="resultForm.chargeItemId" style="width: 100%" placeholder="选择未录入的套餐项目">
-            <el-option v-for="p in pendingItems" :key="p.chargeItemId" :value="p.chargeItemId" :label="p.itemName" />
+        <el-form-item label="项目" required>
+          <el-select v-model="resultForm.chargeItemId" style="width: 100%" placeholder="选择套餐项目（含已录，可覆盖修正）" @change="onResultItemPicked">
+            <el-option
+              v-for="p in allItems"
+              :key="p.chargeItemId"
+              :value="p.chargeItemId"
+              :label="`${savedResults.some((r) => r.chargeItemId === p.chargeItemId) ? '【已录·重开覆盖】' : ''}${p.itemName}`"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="结果值" required><el-input v-model="resultForm.resultValue" /></el-form-item>
@@ -194,12 +199,17 @@ async function handleStart(row: PeRecord) {
 
 let currentRow: PeRecord | null = null
 const pendingItems = ref<Array<Record<string, unknown>>>([])
+// 一百一十二轮 B05：全量项目 + 已录结果——支持"已录项目重开覆盖修正"（原录错即永久）
+const allItems = ref<Array<Record<string, unknown>>>([])
+const savedResults = ref<Array<Record<string, unknown>>>([])
 const resultVisible = ref(false)
 const resultForm = reactive<{ chargeItemId?: number; resultValue: string; abnormal: boolean; note: string }>({ chargeItemId: undefined, resultValue: '', abnormal: false, note: '' })
 
 async function openResult(row: PeRecord) {
   currentRow = row
   const detail = await getRecordDetail(row.id)
+  allItems.value = (detail.allItems as Array<Record<string, unknown>>) ?? []
+  savedResults.value = (detail.results as Array<Record<string, unknown>>) ?? []
   pendingItems.value = (detail.pendingItems as Array<Record<string, unknown>>) ?? []
   resultForm.chargeItemId = undefined
   resultForm.resultValue = ''
@@ -208,12 +218,27 @@ async function openResult(row: PeRecord) {
   resultVisible.value = true
 }
 
+/** 选中项目时回显已录值（覆盖修正的可见性） */
+function onResultItemPicked() {
+  const saved = savedResults.value.find((r) => r.chargeItemId === resultForm.chargeItemId)
+  if (saved) {
+    resultForm.resultValue = String(saved.resultValue ?? '')
+    resultForm.abnormal = Number(saved.abnormalFlag) === 1
+    resultForm.note = String(saved.note ?? '')
+  } else {
+    resultForm.resultValue = ''
+    resultForm.abnormal = false
+    resultForm.note = ''
+  }
+}
+
 async function handleSaveResult() {
   if (!currentRow || !resultForm.chargeItemId || !resultForm.resultValue) {
     ElMessage.warning('请选择项目并填写结果')
     return
   }
-  const item = pendingItems.value.find((p) => p.chargeItemId === resultForm.chargeItemId)
+  const item = allItems.value.find((p) => p.chargeItemId === resultForm.chargeItemId)
+  const isRetake = savedResults.value.some((r) => r.chargeItemId === resultForm.chargeItemId)
   await savePeResult(currentRow.id, {
     chargeItemId: resultForm.chargeItemId,
     itemName: String(item?.itemName ?? ''),
@@ -221,7 +246,7 @@ async function handleSaveResult() {
     abnormalFlag: resultForm.abnormal ? 1 : 0,
     note: resultForm.note || undefined,
   })
-  ElMessage.success('分项已保存')
+  ElMessage.success(isRetake ? '分项已覆盖更新' : '分项已保存')
   resultVisible.value = false
   fetchList()
 }

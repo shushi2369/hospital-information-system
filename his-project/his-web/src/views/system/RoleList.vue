@@ -214,9 +214,24 @@ async function openAuth(row: Role) {
 
 async function handleSaveAuth() {
   if (!currentRole.value) return
+  // 一百一十二轮 B13：授权全量重写且权限即时生效（在线会话全部失效），高危操作加二次确认；
+  // 内置 ADMIN 角色前端先拦（后端 B01 兜底）
+  if (currentRole.value.id === 1) {
+    ElMessage.warning('内置管理员角色权限集受保护，不可修改')
+    return
+  }
   const checked = (treeRef.value?.getCheckedKeys() ?? []) as number[]
   const halfChecked = (treeRef.value?.getHalfCheckedKeys() ?? []) as number[]
   const menuIds = [...halfChecked, ...checked]
+  try {
+    await ElMessageBox.confirm(
+      `确认保存角色「${currentRole.value.roleName}」的权限？将全量重写 ${menuIds.length} 项并使其在线会话全部下线重登。`,
+      '角色授权',
+      { type: 'warning', confirmButtonText: '确认保存', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
   authSubmitting.value = true
   try {
     await updateRoleMenus(currentRole.value.id, menuIds)

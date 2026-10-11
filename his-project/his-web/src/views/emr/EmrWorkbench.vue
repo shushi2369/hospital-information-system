@@ -116,7 +116,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="标题" prop="title">
-          <el-input v-model="createForm.title" placeholder="请输入文书标题" maxlength="128" />
+          <el-input v-model="createForm.title" placeholder="请输入文书标题" maxlength="64" />
         </el-form-item>
         <el-form-item label="套用模板">
           <el-select
@@ -169,7 +169,7 @@
 
         <el-form label-width="90px" class="editor-form">
           <el-form-item label="标题">
-            <el-input v-model="editTitle" maxlength="128" :disabled="editorReadonly" />
+            <el-input v-model="editTitle" maxlength="64" :disabled="editorReadonly" />
           </el-form-item>
         </el-form>
 

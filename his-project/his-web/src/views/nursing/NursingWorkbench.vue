@@ -23,6 +23,16 @@
           <el-table-column prop="bedNo" label="床号" width="80" align="center">
             <template #default="{ row }">{{ row.bedNo || '-' }}</template>
           </el-table-column>
+          <!-- 一百一十二轮 B03：补患者与内容列——防床号重复时盲执行到错误患者 -->
+          <el-table-column prop="patientName" label="患者" width="100" align="center" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.patientName || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="itemName" label="项目/药品" min-width="150" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.itemName || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="dosage" label="剂量/频次" width="120" align="center" show-overflow-tooltip>
+            <template #default="{ row }">{{ [row.dosage, row.frequency].filter(Boolean).join(' / ') || '-' }}</template>
+          </el-table-column>
           <el-table-column prop="execDate" label="日期" width="110" align="center" />
           <el-table-column prop="execSlot" label="时段" width="110" align="center">
             <template #default="{ row }">{{ row.execSlot || '-' }}</template>
@@ -376,11 +386,18 @@ async function fetchPending() {
 }
 
 function handleExec(row: ExecItem) {
-  ElMessageBox.confirm(`确认执行床号 ${row.bedNo || '-'} 的${execTypeLabel(row.execType)}单？`, '执行确认', {
-    type: 'warning',
-    confirmButtonText: '确认执行',
-    cancelButtonText: '取消',
-  })
+  // 一百一十二轮 B03：执行确认必须带患者与内容——"床号 XX"在跨病区床号重复时不可辨识
+  const who = [row.patientName, row.bedNo ? row.bedNo + ' 床' : ''].filter(Boolean).join('｜')
+  const what = [row.itemName, row.dosage, row.frequency].filter(Boolean).join('｜')
+  ElMessageBox.confirm(
+    `确认执行 ${who || '该患者'} 的${execTypeLabel(row.execType)}单？${what ? '｜内容：' + what : ''}`,
+    '执行确认（请核对患者身份）',
+    {
+      type: 'warning',
+      confirmButtonText: '确认执行',
+      cancelButtonText: '取消',
+    }
+  )
     .then(async () => {
       await doExecution(row.id)
       ElMessage.success('执行成功')

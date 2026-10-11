@@ -72,6 +72,14 @@ public class PeService {
         if (req.getItems().isEmpty()) {
             throw new BizException(ErrorCode.A0001, "套餐至少包含一个项目");
         }
+        // 一百一十二轮 B10：登记只存 packageId 无项目快照，套餐修改会直接改写在途登记的
+        // 齐全口径（已录被删项目成孤儿、新增项目要求在途者补录）——存在未完成登记时禁止修改
+        Long inFlight = recordMapper.selectCount(new LambdaQueryWrapper<PeRecord>()
+                .eq(PeRecord::getPackageId, id).lt(PeRecord::getStatus, 30));
+        if (inFlight != null && inFlight > 0) {
+            throw new BizException(ErrorCode.A0001, "存在未完成的体检登记（" + inFlight
+                    + " 单）引用该套餐，须待其完成后方可修改项目集");
+        }
         pkg.setName(req.getName());
         pkg.setPrice(req.getPrice());
         pkg.setItems(writeItems(req.getItems()));
@@ -105,7 +113,10 @@ public class PeService {
         List<Map<String, Object>> pending = new ArrayList<>();
         if (pkg != null) {
             Set<Long> done = results.stream().map(PeResult::getChargeItemId).collect(Collectors.toSet());
-            for (Map<String, Object> item : readItems(pkg)) {
+            List<Map<String, Object>> all = readItems(pkg);
+            // 一百一十二轮 B05：全量项目一并返回——前端分项录入弹窗要支持"已录项目重开覆盖修正"
+            result.put("allItems", all);
+            for (Map<String, Object> item : all) {
                 Object cid = item.get("chargeItemId");
                 if (cid != null && !done.contains(((Number) cid).longValue())) {
                     pending.add(item);
@@ -189,7 +200,10 @@ public class PeService {
                 throw new BizException(ErrorCode.A0008, "该项目已录入，请刷新后重试");
             }
         } else {
-            resultMapper.updateById(result);
+            // 一百一十二轮 B08：乐观锁断言——并发覆盖时静默丢更新（与"覆盖式"语义相反）
+            if (resultMapper.updateById(result) != 1) {
+                throw new BizException(ErrorCode.A0008, "该分项已被他人修改，请刷新后重试");
+            }
         }
         return result.getId();
     }

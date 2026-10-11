@@ -20,7 +20,9 @@ public class ReportWriteRequest {
     private String conclusion;
     @jakarta.validation.constraints.Size(max = 128, message = "危急征象描述过长")
     private String criticalSign;
-    /** 1 纳入互认(HR标识) */
+    /** 1 纳入互认(HR标识)；一百一十二轮 B14：收紧取值 0/1（原任意整数可入库） */
+    @jakarta.validation.constraints.Min(value = 0, message = "互认标识取值 0/1")
+    @jakarta.validation.constraints.Max(value = 1, message = "互认标识取值 0/1")
     private Integer mutualFlag;
     @Size(max = 128, message = "互认备注过长")
     private String mutualNote;

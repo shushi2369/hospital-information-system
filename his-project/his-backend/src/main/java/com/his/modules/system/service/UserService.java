@@ -103,6 +103,8 @@ public class UserService {
 
     @Transactional
     public Long create(UserCreateRequest req) {
+        // 一百一十二轮 B06：与重置同口径（DTO 只有 @Size(min=8)，纯数字弱口令可建档）
+        validatePasswordStrength(req.getPassword());
         if (userMapper.selectByUsername(req.getUsername()) != null) {
             throw new BizException(ErrorCode.B5003);
         }
@@ -123,6 +125,7 @@ public class UserService {
 
     @Transactional
     public void update(Long id, UserUpdateRequest req) {
+        requireNotProtected(id, "修改内置超级管理员账号");
         SysUser user = requireUser(id);
         user.setRealName(req.getRealName());
         user.setPhone(req.getPhone());
@@ -130,6 +133,11 @@ public class UserService {
             throw new BizException(ErrorCode.A0008, "账号已被他人修改，请刷新后重试");
         }
         if (req.getRoleIds() != null) {
+            // 一百一十二轮子代理 B01：非管理员不得授予/收回 ADMIN 角色（防自我提权）
+            boolean grantAdmin = req.getRoleIds().contains(1L);
+            if (grantAdmin && !com.his.infrastructure.security.CurrentUser.get().getRoleCodes().contains("ADMIN")) {
+                throw new BizException(ErrorCode.A0003, "仅管理员可分配管理员角色");
+            }
             userRoleMapper.delete(new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getUserId, id));
             bindRoles(id, req.getRoleIds());
             sessionService.remove(id);
@@ -137,6 +145,10 @@ public class UserService {
     }
 
     public void updateStatus(Long id, Integer status) {
+        if (status != null && status != 0 && status != 1) {
+            throw new BizException(ErrorCode.A0001, "状态取值 0 停用 / 1 启用");
+        }
+        requireNotProtected(id, "内置超级管理员账号不可停用");
         SysUser user = requireUser(id);
         user.setStatus(status);
         userMapper.updateById(user);
@@ -147,11 +159,21 @@ public class UserService {
     }
 
     public void resetPassword(Long id, String newPassword) {
+        requireNotProtected(id, "内置超级管理员密码不可经管理端重置");
         validatePasswordStrength(newPassword);
         SysUser user = requireUser(id);
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userMapper.updateById(user);
         sessionService.remove(id);
+    }
+
+    /** 内置超管保护（一百一十二轮子代理 B01 P0）：id=1 / username=admin 的账号
+     *  禁止经管理端修改/停用/重置密码，防锁死真超管后被接管 */
+    private void requireNotProtected(Long id, String message) {
+        SysUser user = userMapper.selectById(id);
+        if (user != null && (user.getId() == 1L || "admin".equals(user.getUsername()))) {
+            throw new BizException(ErrorCode.A0003, message);
+        }
     }
 
     /** 密码强度（等保基线）：≥8 位且同时含字母与数字 */

@@ -61,6 +61,10 @@ public class RoleService {
 
     @Transactional
     public void updateMenus(Long roleId, Set<Long> menuIds) {
+        // 一百一十二轮子代理 B01 P0：内置 ADMIN 角色权限集禁改（改写即全局提权/降权）
+        if (roleId == 1L) {
+            throw new BizException(ErrorCode.A0003, "内置管理员角色权限集不可修改");
+        }
         roleMenuMapper.delete(new LambdaQueryWrapper<SysRoleMenu>().eq(SysRoleMenu::getRoleId, roleId));
         for (Long menuId : menuIds) {
             SysRoleMenu rm = new SysRoleMenu();

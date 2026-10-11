@@ -408,12 +408,46 @@ public class DocOrderService {
         }
     }
 
-    /** 护士待执行单（O-10）：当日未执行，按床号分组快照展示 */
+    /** 护士待执行单（O-10）：当日未执行，按床号分组快照展示。
+     *  一百一十二轮 B03：回填患者/项目信息——原裸实体（仅床号）在不同病区床号重复时
+     *  存在盲执行到错误患者的风险，执行前必须能核对"谁、用什么药" */
     public List<DocOrderExec> todo(LocalDate execDate) {
-        return execMapper.selectList(new LambdaQueryWrapper<DocOrderExec>()
+        List<DocOrderExec> execs = execMapper.selectList(new LambdaQueryWrapper<DocOrderExec>()
                 .eq(DocOrderExec::getExecDate, execDate)
                 .eq(DocOrderExec::getStatus, 1)
                 .orderByAsc(DocOrderExec::getBedNo));
+        if (!execs.isEmpty()) {
+            java.util.Set<Long> orderIds = new java.util.HashSet<>();
+            java.util.Set<Long> itemIds = new java.util.HashSet<>();
+            for (DocOrderExec e : execs) {
+                if (e.getOrderId() != null) orderIds.add(e.getOrderId());
+                if (e.getItemId() != null) itemIds.add(e.getItemId());
+            }
+            Map<Long, DocOrder> orders = orderIds.isEmpty() ? Map.of()
+                    : orderMapper.selectList(new LambdaQueryWrapper<DocOrder>()
+                            .in(DocOrder::getId, orderIds)).stream()
+                            .collect(java.util.stream.Collectors.toMap(DocOrder::getId, o -> o));
+            Map<Long, DocOrderItem> items = itemIds.isEmpty() ? Map.of()
+                    : itemMapper.selectList(new LambdaQueryWrapper<DocOrderItem>()
+                            .in(DocOrderItem::getId, itemIds)).stream()
+                            .collect(java.util.stream.Collectors.toMap(DocOrderItem::getId, i -> i));
+            for (DocOrderExec e : execs) {
+                DocOrder o = orders.get(e.getOrderId());
+                if (o != null) {
+                    e.setPatientId(o.getPatientId());
+                }
+                DocOrderItem it = items.get(e.getItemId());
+                if (it != null) {
+                    e.setItemName(it.getItemName());
+                    e.setDosage(it.getDosage());
+                    e.setFrequency(it.getFrequency());
+                }
+            }
+            com.his.infrastructure.util.PatientNameBackfill.fill(
+                    execs.stream().filter(e -> e.getPatientId() != null).toList(),
+                    patientAppService);
+        }
+        return execs;
     }
 
     /** 药师审核队列（药品类待审核） */

@@ -134,9 +134,17 @@
           </el-select>
           <el-input-number v-else v-model="createForm.targetId" :min="1" :controls="false" class="num-input" />
         </el-form-item>
-        <el-form-item label="患者">
-          <span class="c8-patient">{{ createForm.patientId || '-' }}</span>
-          <span v-if="createForm.target === 'outpatient'" class="form-tip">门诊就诊请手输患者ID</span>
+        <el-form-item label="患者" required>
+          <!-- 一百一十二轮子代理 A5：门诊分支恢复患者ID手输（住院分支由住院单自动带出） -->
+          <el-input-number
+            v-if="createForm.target === 'outpatient'"
+            v-model="createForm.patientId"
+            :min="1"
+            :controls="false"
+            class="num-input"
+            placeholder="门诊就诊对应的患者ID"
+          />
+          <span v-else class="c8-patient">{{ createForm.patientId || '-' }}</span>
         </el-form-item>
         <el-form-item label="申请科室" required>
           <!-- 一百零七轮 C8：裸科室ID改下拉 -->
@@ -145,14 +153,15 @@
           </el-select>
         </el-form-item>
         <el-form-item label="受邀会诊医师" required>
-          <!-- 一百零七轮 C7/C8：裸ID改下拉；文案对齐口径——实际会诊人以接受人为准 -->
+          <!-- 一百零七轮 C7/C8：裸ID改下拉；一百一十二轮 A4：value 用 userId（与 accept 落库的
+               CurrentUser.id() 同空间，doctor.id 是医生表主键，两套 ID 错位会张冠李戴） -->
           <el-select
             v-model="createForm.consultDoctorId"
             filterable
             style="width: 100%"
             placeholder="选择拟邀请医师（实际会诊人以接受人为准）"
           >
-            <el-option v-for="doc in doctorOptions" :key="doc.id" :value="doc.id" :label="doc.doctorName" />
+            <el-option v-for="doc in doctorOptions" :key="doc.id" :value="doc.userId" :label="doc.doctorName" />
           </el-select>
         </el-form-item>
         <el-form-item label="缓急">
