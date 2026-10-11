@@ -192,12 +192,13 @@ public class LisService {
                 alertService.create(request, result.getId(), row.getItemName(), row.getResultValue());
             }
         }
-        // 一百一十四轮 #5：entry 与 publish 并发时序守卫——录入全程申请须停留在检验中(30)，
-        // 期间被发布(40)则本事务整体回滚（已发布报告的结果集不得再被删改）
-        Long stillActive = requestMapper.selectCount(new LambdaQueryWrapper<LisRequest>()
+        // 一百一十四轮 #5：entry 与 publish 并发时序守卫——录入全程申请须停留在检验中(30)。
+        // 一百一十六轮复核【4】：改锁读——RR 快照下 selectCount 恒见旧值 30（守卫失效），
+        // FOR UPDATE 读到最新已提交行并与 publish 的条件更新串行化
+        LisRequest fresh = requestMapper.selectOne(new LambdaQueryWrapper<LisRequest>()
                 .eq(LisRequest::getId, req.getRequestId())
-                .eq(LisRequest::getStatus, 30));
-        if (stillActive == null || stillActive == 0) {
+                .last("FOR UPDATE"));
+        if (fresh == null || fresh.getStatus() != 30) {
             throw new BizException(ErrorCode.A0008, "申请单已发布报告，录入已回滚，请刷新后重试");
         }
         return criticalCount;

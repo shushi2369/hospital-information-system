@@ -1,6 +1,7 @@
 package com.his.modules.cdss.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.his.common.BizException;
 import com.his.common.ErrorCode;
@@ -36,6 +37,7 @@ import java.util.List;
 public class CdssService {
     private final CdssRuleMapper ruleMapper;
     private final CdssHitMapper hitMapper;
+    private final com.his.modules.doc.mapper.DocOrderMapper orderMapper;
     private final com.his.modules.basedata.app.BasedataAppService basedataAppService;
     private final com.his.modules.patient.app.PatientAppService patientAppService;
     private final PltService pltService;
@@ -55,6 +57,7 @@ public class CdssService {
         if (rule.getRuleType() == null || rule.getRuleType() < 1 || rule.getRuleType() > 4) {
             throw new BizException(ErrorCode.A0001, "规则类型取值 1~4");
         }
+        validateRuleFields(rule);
         rule.setId(null);
         rule.setStatus(1);
         try {
@@ -73,6 +76,7 @@ public class CdssService {
         if (req.getStatus() != null && (req.getStatus() < 0 || req.getStatus() > 1)) {
             throw new BizException(ErrorCode.A0001, "状态取值 0 停用 / 1 启用");
         }
+        validateRuleFields(req);
         if (req.getLevel() != null && req.getLevel() < 1) {
             throw new BizException(ErrorCode.A0001, "提示级别须为正整数（当前口径 1=提示）");
         }
@@ -80,17 +84,52 @@ public class CdssService {
         if (rule == null) {
             throw new BizException(ErrorCode.A0001, "规则不存在");
         }
-        rule.setRuleType(req.getRuleType());
-        rule.setRefAId(req.getRefAId());
-        rule.setRefBId(req.getRefBId());
-        rule.setAllergyKeyword(req.getAllergyKeyword());
-        rule.setAgeMin(req.getAgeMin());
-        rule.setAgeMax(req.getAgeMax());
-        rule.setLevel(req.getLevel() == null ? 1 : req.getLevel());
-        rule.setMessage(req.getMessage());
-        rule.setStatus(req.getStatus() == null ? 1 : req.getStatus());
+        // 一百一十六轮 cdss【1】P1：null 语义改"跳过该字段"——原缺省重置为默认值
+        // 会让局部修改（如只改文案）把已停用规则静默重新启用（CDSS 命中复活）
+        if (req.getRuleType() != null) {
+            rule.setRuleType(req.getRuleType());
+        }
+        if (req.getRefAId() != null) {
+            rule.setRefAId(req.getRefAId());
+        }
+        if (req.getRefBId() != null) {
+            rule.setRefBId(req.getRefBId());
+        }
+        if (req.getAllergyKeyword() != null) {
+            rule.setAllergyKeyword(req.getAllergyKeyword());
+        }
+        if (req.getAgeMin() != null) {
+            rule.setAgeMin(req.getAgeMin());
+        }
+        if (req.getAgeMax() != null) {
+            rule.setAgeMax(req.getAgeMax());
+        }
+        if (req.getLevel() != null) {
+            rule.setLevel(req.getLevel());
+        }
+        if (req.getMessage() != null) {
+            rule.setMessage(req.getMessage());
+        }
+        if (req.getStatus() != null) {
+            rule.setStatus(req.getStatus());
+        }
         if (ruleMapper.updateById(rule) != 1) {
             throw new BizException(ErrorCode.A0008, "规则已变化，请刷新后重试");
+        }
+    }
+
+    /** 一百一十六轮 cdss【8】：类型依赖字段校验——防"静默死规则"（启用却永不命中） */
+    private void validateRuleFields(CdssRule req) {
+        if (req.getRuleType() != null && req.getRuleType() == 1
+                && (req.getRefBId() == null || req.getRefBId().equals(req.getRefAId()))) {
+            throw new BizException(ErrorCode.A0001, "配伍规则必须指定参照B且不得与参照A相同");
+        }
+        if (req.getRuleType() != null && req.getRuleType() == 3 && req.getRefBId() == null) {
+            throw new BizException(ErrorCode.A0001, "年龄规则必须指定参照B（年龄段上限口径）");
+        }
+        if (req.getRuleType() != null && req.getRuleType() == 4
+                && (req.getAllergyKeyword() == null || req.getAllergyKeyword().isBlank())) {
+            throw new BizException(ErrorCode.A0001, "过敏史规则必须填写关键词");
         }
     }
 
@@ -107,6 +146,27 @@ public class CdssService {
             for (CdssHit h : page.getRecords()) {
                 if (d.getId().equals(h.getDoctorId())) h.setDoctorName(d.getDoctorName());
             }
+        }
+    }
+
+    /** 一百一十六轮 cdss【10】：命中处置回写——ignored 0=提示后放弃（原全系统无写入路径，
+     *  schema 承诺的处置语义是死代码）。仅本人医嘱的命中可回写。 */
+    @Transactional
+    public void acknowledge(Long hitId, boolean ignored) {
+        CdssHit hit = hitMapper.selectById(hitId);
+        if (hit == null) {
+            throw new BizException(ErrorCode.A0001, "CDSS 命中记录不存在");
+        }
+        var order = orderMapper.selectById(hit.getOrderId());
+        boolean admin = CurrentUser.get().getRoleCodes().contains("ADMIN");
+        if (!admin && (order == null || !CurrentUser.id().equals(order.getDoctorId()))) {
+            throw new BizException(ErrorCode.A0003, "仅开单医生本人可处置该命中");
+        }
+        int updated = hitMapper.update(null, new LambdaUpdateWrapper<CdssHit>()
+                .eq(CdssHit::getId, hitId)
+                .set(CdssHit::getIgnored, ignored ? 1 : 0));
+        if (updated != 1) {
+            throw new BizException(ErrorCode.A0008, "命中记录已变化，请刷新后重试");
         }
     }
 
@@ -171,6 +231,7 @@ public class CdssService {
                 }
             }
             for (CdssRule rule : rules) {
+            try {
                 // 四期 type=4：过敏原-药品精确映射（患者过敏史包含关键字 且 医嘱含目标药品）
                 if (rule.getRuleType() != null && rule.getRuleType() == 4) {
                     String hit = matchAllergy(rule, items, allergyHistory);
@@ -208,7 +269,13 @@ public class CdssService {
                     hitMapper.insert(record);
                     hitIds.add(record.getId());
                 }
+            } catch (Exception e) {
+                // 一百一十六轮 cdss【9】：单条规则异常只跳过本条并留痕——原整循环被
+                // 外层 catch 连坐，一条脏规则让该医嘱其余所有 CDSS 校验静默失效
+                pltService.recordEvent("cdss.rule.error", order.getOrderNo(),
+                        "{\"ruleId\":" + rule.getId() + "}");
             }
+        }
             if (!hitIds.isEmpty()) {
                 pltService.recordEvent("cdss.hit", order.getOrderNo(),
                         "{\"hits\":" + hitIds.size() + "}");

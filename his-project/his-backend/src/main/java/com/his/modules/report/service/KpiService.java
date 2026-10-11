@@ -141,11 +141,12 @@ public class KpiService {
         m.put("alertCloseRate", alertTotal == 0 ? 0 : BigDecimal.valueOf(alertClosed * 100.0 / alertTotal)
                 .setScale(1, RoundingMode.HALF_UP));
         // 手术核查率：完成手术中三张核查单齐备占比（一次 in 查询批量计数，避免 N+1）
+        // 一百一十六轮 cdss【2】：去掉 LIMIT 500——区间完成手术超 500 台时核查率被
+        // 截断系统性偏高，且与无上限的 surgeriesCompleted 口径矛盾（教学库全量查无压力）
         List<OrsSurgeryRequest> done = surgeryMapper.selectList(new LambdaQueryWrapper<OrsSurgeryRequest>()
                 .eq(OrsSurgeryRequest::getStatus, 60)
                 .ge(from != null, OrsSurgeryRequest::getUpdatedAt, from)
-                .le(to != null, OrsSurgeryRequest::getUpdatedAt, to)
-                .last("LIMIT 500"));
+                .le(to != null, OrsSurgeryRequest::getUpdatedAt, to));
         long checked = 0;
         if (!done.isEmpty()) {
             List<OrsCheckRecord> checks = checkMapper.selectList(new LambdaQueryWrapper<OrsCheckRecord>()

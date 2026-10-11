@@ -42,6 +42,16 @@ public class CdssController {
         return R.ok();
     }
 
+    /** 一百一十六轮 cdss【10】：命中处置回写（本人医嘱；ignored=false 表示提示后放弃开立） */
+    @PostMapping("/hits/{id}/acknowledge")
+    @PreAuthorize("@ss.hasPerm('cdss:query')")
+    @Idempotent
+    public R<Void> acknowledge(@PathVariable Long id,
+            @org.springframework.web.bind.annotation.RequestParam boolean ignored) {
+        cdssService.acknowledge(id, ignored);
+        return R.ok();
+    }
+
     @GetMapping("/hits")
     @PreAuthorize("@ss.hasPerm('cdss:hit:query')")
     public R<PageResult<CdssHit>> hits(CdssQuery query) {

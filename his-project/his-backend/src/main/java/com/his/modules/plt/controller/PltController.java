@@ -59,7 +59,13 @@ public class PltController {
             matchedIds = patientAppService.searchIdsByName(query.getName());
         }
         if (query.getPatientNo() != null && !query.getPatientNo().isBlank()) {
-            matchedIds = patientAppService.searchIdsByPatientNo(query.getPatientNo());
+            var noIds = patientAppService.searchIdsByPatientNo(query.getPatientNo());
+            // 一百一十六轮 cdss【11b】：双条件求交集——原直接覆盖让姓名过滤静默失效
+            if (matchedIds == null) {
+                matchedIds = noIds;
+            } else {
+                matchedIds.retainAll(noIds);
+            }
         }
         if (matchedIds != null) {
             if (matchedIds.isEmpty()) {
@@ -129,13 +135,15 @@ public class PltController {
 
     @GetMapping("/events")
     @PreAuthorize("@ss.hasPerm('plt:event:query')")
-    public R<List<PltEventLog>> events(
+    public R<PageResult<PltEventLog>> events(
             @RequestParam(required = false) String eventType,
             @RequestParam(required = false) String bizNo,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(defaultValue = "1") long pageNum,
+            @RequestParam(defaultValue = "50") long pageSize) {
         return R.ok(pltAppService.listEvents(eventType, bizNo,
                 startDate == null ? null : startDate.atStartOfDay(),
-                endDate == null ? null : endDate.plusDays(1).atStartOfDay()));
+                endDate == null ? null : endDate.plusDays(1).atStartOfDay(), pageNum, pageSize));
     }
 }

@@ -254,12 +254,13 @@ const eventQuery = reactive({
 async function fetchEvents() {
   eventLoading.value = true
   try {
-    events.value = await getPltEvents({
+    const page = await getPltEvents({
       eventType: eventQuery.eventType.trim() || undefined,
       bizNo: eventQuery.bizNo.trim() || undefined,
       startDate: eventRange.value?.[0] || undefined,
       endDate: eventRange.value?.[1] || undefined,
     })
+    events.value = page.list ?? []
   } catch {
     events.value = []
   } finally {

@@ -78,9 +78,9 @@ public class AuthService {
             try {
                 String ipKey = "login:ipfail:" + ip;
                 Long ipFails = redis.opsForValue().increment(ipKey);
-                if (ipFails != null && ipFails == 1) {
-                    redis.expire(ipKey, Duration.ofSeconds(60));
-                }
+                // 一百一十六轮复核【5】：expire 无条件补设（首次设置若异常被吞，键永无 TTL
+                // → 该 IP 累计 20 次后被永久锁死）；幂等重设代价可忽略
+                redis.expire(ipKey, Duration.ofSeconds(60));
                 if (ipFails != null && ipFails > LOGIN_IP_FAIL_LIMIT) {
                     saveLoginLog(req.getUsername(), ip, ua, false, "同 IP 登录失败过于频繁");
                     throw new BizException(ErrorCode.A0007);

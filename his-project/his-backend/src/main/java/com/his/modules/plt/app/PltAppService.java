@@ -1,6 +1,7 @@
 package com.his.modules.plt.app;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.his.common.PageResult;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.his.modules.plt.entity.PltEventLog;
 import com.his.modules.plt.entity.PltMasterIndex;
@@ -42,14 +43,19 @@ public class PltAppService {
         return masterIndexMapper.selectPage(page, wrapper);
     }
 
-    public List<PltEventLog> listEvents(String eventType, String bizNo,
-                                        LocalDateTime start, LocalDateTime end) {
-        return eventLogMapper.selectList(new LambdaQueryWrapper<PltEventLog>()
-                .eq(eventType != null && !eventType.isBlank(), PltEventLog::getEventType, eventType)
-                .eq(bizNo != null && !bizNo.isBlank(), PltEventLog::getBizNo, bizNo)
-                .ge(start != null, PltEventLog::getCreatedAt, start)
-                .lt(end != null, PltEventLog::getCreatedAt, end)
-                .orderByDesc(PltEventLog::getId)
-                .last("LIMIT 500"));
+    public PageResult<PltEventLog> listEvents(String eventType, String bizNo,
+                                              LocalDateTime start, LocalDateTime end,
+                                              long pageNum, long pageSize) {
+        // 一百一十六轮 cdss【11】：硬 LIMIT 500 改真分页——事件审计超 500 条时旧数据不可见
+        Page<PltEventLog> page = eventLogMapper.selectPage(
+                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(
+                        Math.max(pageNum, 1), Math.min(Math.max(pageSize, 1), 200)),
+                new LambdaQueryWrapper<PltEventLog>()
+                        .eq(eventType != null && !eventType.isBlank(), PltEventLog::getEventType, eventType)
+                        .eq(bizNo != null && !bizNo.isBlank(), PltEventLog::getBizNo, bizNo)
+                        .ge(start != null, PltEventLog::getCreatedAt, start)
+                        .lt(end != null, PltEventLog::getCreatedAt, end)
+                        .orderByDesc(PltEventLog::getId));
+        return PageResult.of(page);
     }
 }

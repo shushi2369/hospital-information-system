@@ -64,7 +64,9 @@ export const searchMpiIndex = (params: MpiIndexQuery) =>
 
 export const getMpiDetail = (mpiNo: string) => get<MpiDetail>(`/plt/index/${mpiNo}`)
 
-export const getPltEvents = (params: PltEventQuery = {}) => get<PltEvent[]>('/plt/events', params)
+/** 一百一十六轮 cdss【11】：后端改真分页（PageResult），前端适配 */
+export const getPltEvents = (params: PltEventQuery = {}) =>
+  get<PageResult<PltEvent>>('/plt/events', params)
 
 // ---------------- 展示辅助 ----------------
 

@@ -377,9 +377,15 @@ public class InpService {
         if (bed.getBedStatus() == 2) {
             throw new BizException(ErrorCode.B6001, "床位占用中，请先办理出院或转科");
         }
+        // 一百一十六轮复核【1】P1：前态按 target 分派——停用(1→4)要求空闲、启用(4→1)要求停用；
+        // 原修复硬编码 .eq(status,1) 把启用路径堵死（被停用床位永远无法重新启用）
+        if (target == null || (target != 1 && target != 4)) {
+            throw new BizException(ErrorCode.A0001, "床位目标状态仅允许 1 启用 / 4 停用");
+        }
+        Integer expect = target == 4 ? 1 : 4;
         int updated = bedMapper.update(null, new LambdaUpdateWrapper<InpBed>()
                 .eq(InpBed::getId, bedId)
-                .eq(InpBed::getBedStatus, 1)
+                .eq(InpBed::getBedStatus, expect)
                 .isNull(InpBed::getCurrentAdmissionId)
                 .set(InpBed::getBedStatus, target));
         if (updated != 1) {

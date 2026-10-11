@@ -38,7 +38,9 @@ public class PatientService {
     public String create(PatientCreateRequest req) {
         // 一百一十四轮 S-02：新写入统一 HMAC（存量 SHA-256 由补偿任务重算，查询双候选兼容）
         String hash = cryptoUtil.hmacSha256Hex(req.getIdCardNo());
-        PatPatient existing = patientMapper.selectByIdCardHash(hash);
+        // 一百一十六轮复核【2】P1：预检查必须同检索口径双候选——原只查 HMAC 单值，
+        // 存量 SHA-256 行不命中且唯一索引也拦不住（新 HMAC≠存量 SHA-256）→ 同证双档
+        PatPatient existing = patientMapper.selectByIdCardHashes(cryptoUtil.idCardHashCandidates(req.getIdCardNo()));
         if (existing != null) {
             // 一百一十四轮 S-03：不回显姓名/建档号——持建档权无查询权的账号可借此做 PII 枚举
             throw new BizException(ErrorCode.B1001, "该身份证已建档");

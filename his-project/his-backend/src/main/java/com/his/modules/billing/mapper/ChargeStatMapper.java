@@ -28,12 +28,12 @@ public interface ChargeStatMapper {
     // tieKey：pay_time 截到秒后同秒多行是常态，缺唯一排序键会让 LIMIT/OFFSET 翻页重行/漏行（八十七轮 SQL 审计）
     @Select("SELECT t.* FROM ("
             + "SELECT b.pay_time AS payTime, b.bill_no AS billNo, b.patient_id AS patientId, "
-            + "d.item_name AS itemName, d.fee_type AS feeType, d.quantity, d.unit_price AS unitPrice, d.amount, NULL AS reason, b.id AS tieKey "
+            + "d.item_name AS itemName, d.fee_type AS feeType, d.quantity, d.unit_price AS unitPrice, d.amount, NULL AS reason, CONCAT('C', b.id) AS tieKey "
             + "FROM bil_charge_detail d JOIN bil_charge_bill b ON d.bill_id = b.id "
             + "WHERE b.pay_time >= #{s} AND b.pay_time < #{e} "
             + "UNION ALL "
             + "SELECT r.refund_time, r.refund_no, r.patient_id, CONCAT('退费：', r.reason), "
-            + "NULL, NULL, NULL, r.refund_amount, r.reason, r.id AS tieKey "
+            + "NULL, NULL, NULL, r.refund_amount, r.reason, CONCAT('R', r.id) AS tieKey "
             + "FROM bil_refund_bill r WHERE r.refund_time >= #{s} AND r.refund_time < #{e}"
             + ") t ORDER BY t.payTime DESC, t.tieKey DESC LIMIT #{offset}, #{limit}")
     List<Map<String, Object>> detailRowsPage(LocalDateTime s, LocalDateTime e, long offset, long limit);

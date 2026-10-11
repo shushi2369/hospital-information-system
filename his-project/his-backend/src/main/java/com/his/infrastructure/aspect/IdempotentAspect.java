@@ -76,9 +76,15 @@ public class IdempotentAspect {
             log.warn("幂等组件不可用，降级为进程内短期锁（数据库唯一约束仍为最终兜底）: {}", e.getMessage());
             long now = System.currentTimeMillis();
             Long prev = LOCAL_LOCKS.putIfAbsent(redisKey, now + LOCAL_LOCK_TTL_MS);
-            boolean acquired = prev == null || prev < now;
-            if (acquired) {
-                LOCAL_LOCKS.put(redisKey, now + LOCAL_LOCK_TTL_MS);
+            boolean acquired;
+            if (prev == null) {
+                acquired = true;
+            } else if (prev < now) {
+                // 一百一十六轮复核【6】：过期抢占用 CAS（replace）——原 check-then-act 的
+                // put 覆盖让两线程可同时判定 acquired 均放行
+                acquired = LOCAL_LOCKS.replace(redisKey, prev, now + LOCAL_LOCK_TTL_MS);
+            } else {
+                acquired = false;
             }
             if (!acquired) {
                 throw new BizException(ErrorCode.A0005, "相同请求正在处理中，请勿重复提交（降级模式）");

@@ -175,10 +175,13 @@ public class AlertService {
         }
     }
 
-    /** 一百一十四轮 #7b：危急值闭环率（口径：闭环(40) / 全部），按天维度由前端过滤 createdAt */
+    /** 一百一十四轮 #7b：危急值闭环率（口径：人工闭环(40) / 全部），按天维度由前端过滤 createdAt。
+     *  一百一十六轮复核【7】：排除"结果重录，本危急值随重录作废"的系统关闭行——
+     *  自动关断计入分子会让重录越多闭环率越好看 */
     public java.util.Map<String, Object> stats() {
         long closed = alertMapper.selectCount(new LambdaQueryWrapper<AlertCritical>()
-                .eq(AlertCritical::getStatus, 40));
+                .eq(AlertCritical::getStatus, 40)
+                .notLike(AlertCritical::getHandleNote, "结果重录，本危急值随重录作废"));
         long total = alertMapper.selectCount(new LambdaQueryWrapper<AlertCritical>());
         java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
         result.put("total", total);

@@ -40,6 +40,7 @@ public class ReportController {
     public R<List<com.his.modules.registration.app.DailyStatDTO>> registrationsDaily(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        requireRange(startDate, endDate);
         return R.ok(reportService.dailyRegistrations(startDate, endDate));
     }
 
@@ -48,6 +49,7 @@ public class ReportController {
     public R<List<com.his.modules.registration.app.DailyStatDTO>> registrationsDept(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        requireRange(startDate, endDate);
         return R.ok(reportService.deptRegistrationRanking(startDate, endDate));
     }
 
@@ -56,6 +58,7 @@ public class ReportController {
     public R<List<com.his.modules.clinic.app.VisitStatDTO>> visitsDaily(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        requireRange(startDate, endDate);
         return R.ok(reportService.dailyVisits(startDate, endDate));
     }
 
@@ -64,6 +67,7 @@ public class ReportController {
     public R<List<com.his.modules.billing.app.DailyRevenueDTO>> revenueDaily(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        requireRange(startDate, endDate);
         return R.ok(reportService.dailyRevenue(startDate, endDate));
     }
 
@@ -89,6 +93,8 @@ public class ReportController {
 
     /** 收入明细导出 CSV（UTF-8 BOM，Excel 可直接打开；§8 交付物"数据导出"）。
      *  流式写出：每次拉 500 行分批查询、边查边写，长区间也不积压堆内存 */
+    // 一百一十六轮 cdss【3】：批量 PHI 出域必须留痕（对齐 RptController 手动重报的口径）
+    @com.his.common.AuditLog(module = "report", action = "导出收入明细CSV", bizType = "bil_charge_bill")
     @GetMapping("/revenue/detail/export")
     @PreAuthorize("@ss.hasPerm('report:query')")
     public void exportRevenueDetail(
@@ -135,8 +141,9 @@ public class ReportController {
         if (value == null) {
             return "";
         }
-        // CSV formula injection guard: prefix ' for =+-@ leading cells
-        if (value.startsWith("=") || value.startsWith("+") || value.startsWith("-") || value.startsWith("@")) {
+        // CSV formula injection guard: = + - @ 及制表符/回车前导一律加前缀（一百一十六轮 cdss【7】）
+        if (value.startsWith("=") || value.startsWith("+") || value.startsWith("-")
+                || value.startsWith("\t") || value.startsWith("\r") || value.startsWith("@")) {
             value = "'" + value;
         }
         if (value.contains(",") || value.contains("\"") || value.contains("\n")) {

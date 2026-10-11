@@ -154,7 +154,8 @@ function handle401Once(): boolean {
   return true
 }
 
-/** 一百一十五轮 F8：401 时同步清 Pinia 状态——消除对整页刷新重建 store 的隐式依赖 */
+/** 一百一十五轮 F8：401 时清本地凭证（一百一十六轮复核【9】注释修正：Pinia 内存态
+ *  由整页跳转后的重新引导重建，此处仅清持久化层——引入 store 会造成 api↔store 循环依赖） */
 function resetAuthState() {
   try {
     localStorage.removeItem(TOKEN_KEY)

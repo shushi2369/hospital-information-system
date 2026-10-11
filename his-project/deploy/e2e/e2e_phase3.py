@@ -197,7 +197,8 @@ def main():
 
     # 事件查询
     st, r = call("GET", "/plt/events?eventType=alert.created&startDate=%s&endDate=%s" % (today, today), admin)
-    check("26. 集成事件可查询", r["code"] == "OK" and isinstance(r["data"], list), r)
+    check("26. 集成事件可查询", r["code"] == "OK" and isinstance(r["data"], dict)
+          and isinstance(r["data"].get("list"), list), r)  # 一百一十六轮：events 改真分页
 
     # 越权
     st, r = call("POST", "/lis/results/entry", cashier,

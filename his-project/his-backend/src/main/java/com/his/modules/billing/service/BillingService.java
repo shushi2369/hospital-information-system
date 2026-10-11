@@ -418,8 +418,10 @@ public class BillingService {
         }
     }
 
-    /** 日结（B-07）：按收费员+日期汇总并锁定，重复日结拒绝（B3006） */
-    @Transactional
+    /** 日结（B-07）：按收费员+日期汇总并锁定，重复日结拒绝（B3006）。
+     *  一百一十六轮复核【3】：READ_COMMITTED——RR 一致性快照下"汇总后复查计数"永远相等（死代码），
+     *  改读已提交隔离后复查才能看到窗口期新交易 */
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public BilDailySettlement settle(SettlementRequest req) {
         // 只允许日结"今天"：传未来日期会预生成空日结锁死次日收费，传历史日期产生对不上的垃圾日结
         if (!java.time.LocalDate.now().equals(req.getSettleDate())) {
