@@ -127,6 +127,8 @@ public class InventoryService {
         Map<Long, List<InvInventoryBatch>> batchesByDrug = batchMapper.selectList(
                         new LambdaQueryWrapper<InvInventoryBatch>()
                                 .eq(InvInventoryBatch::getStatus, 1)
+                                // 一百一十三轮 A-P2-1：可用口径=状态可用且未过期（与 selectPickable 对齐）
+                                .gt(InvInventoryBatch::getExpiryDate, java.time.LocalDate.now())
                                 .orderByAsc(InvInventoryBatch::getExpiryDate))
                 .stream().collect(java.util.stream.Collectors.groupingBy(InvInventoryBatch::getDrugId));
         for (DrugDTO drug : drugs) {
@@ -161,7 +163,9 @@ public class InventoryService {
         for (DrugDTO drug : drugs) {
             List<InvInventoryBatch> batches = allBatchesByDrug.getOrDefault(drug.getId(), List.of());
             BigDecimal available = batches.stream()
-                    .filter(b -> b.getStatus() == 1)
+                    // 一百一十三轮 A-P2-1：汇总可用量同样剔除过期批次
+                    .filter(b -> b.getStatus() == 1 && b.getExpiryDate() != null
+                            && b.getExpiryDate().isAfter(java.time.LocalDate.now()))
                     .map(InvInventoryBatch::getQuantity)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             WarningDTO dto = new WarningDTO();

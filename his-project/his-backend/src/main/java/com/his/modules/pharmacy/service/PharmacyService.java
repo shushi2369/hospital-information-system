@@ -202,7 +202,14 @@ public class PharmacyService {
             BigDecimal after = before.add(d.getQuantity());
             batch.setQuantity(after);
             if (batch.getStatus() == 4 && after.compareTo(BigDecimal.ZERO) > 0) {
-                batch.setStatus(1);
+                // 一百一十三轮 A-P2-1：回补要看效期——发药后已过期的批次回补为"停用过期(3)"
+                // 而非"可用(1)"，否则过期库存计入可用量误导采购（selectPickable 有效期兜底不出，
+                // 但 warnings/summary 只看 status，最长 24h 脏窗口）
+                if (batch.getExpiryDate() != null && !batch.getExpiryDate().isAfter(java.time.LocalDate.now())) {
+                    batch.setStatus(3);
+                } else {
+                    batch.setStatus(1);
+                }
             }
             batchMapper.updateById(batch);
             saveMovement(batch, 3, d.getQuantity(), before, after, 3, returnNo);
@@ -238,6 +245,12 @@ public class PharmacyService {
                 rxNoById.put(rxId, rx.getRxNo());
             }
         }
+        // 一百一十三轮 A-P3-1：批量判定已退药发药单（返回处方状态 50 = 整方退药完成）
+        java.util.Set<Long> returnedRxIds = rxIds.isEmpty() ? java.util.Set.of()
+                : clinicAppService.prescriptionStatusByIds(rxIds).entrySet().stream()
+                        .filter(e -> e.getValue() != null && e.getValue() == 50)
+                        .map(java.util.Map.Entry::getKey)
+                        .collect(java.util.stream.Collectors.toSet());
         return PageResult.of(page, order -> {
             DispenseOrderVO vo = new DispenseOrderVO();
             vo.setId(order.getId());
@@ -249,6 +262,7 @@ public class PharmacyService {
             vo.setDispenserName(systemAppService.getUsername(order.getDispenserId()));
             vo.setTotalQuantity(order.getTotalQuantity());
             vo.setDispenseTime(order.getDispenseTime());
+            vo.setReturned(returnedRxIds.contains(order.getPrescriptionId()));
             return vo;
         });
     }

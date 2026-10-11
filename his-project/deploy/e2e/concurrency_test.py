@@ -18,12 +18,23 @@ PASSWORD = "His@2026"
 results = []
 
 # 开跑前清理：E10/verify_course 等会以 cashier.li 日结，当日锁会拦本套件结算步
-# （B3006 是按(收费员,当日)的全局锁，测试基建惯例：套件自带解锁）
+# （B3006 是按(收费员,当日)的全局锁，测试基建惯例：套件自带解锁）。
+# 一百一十三轮 B-1：兜底降级——本套件在 CI（ubuntu）也要跑，作者本机的 mysql.exe
+# 全路径不存在时不得在 import 阶段崩掉（否则前 3 套 e2e 白跑）；仅跳过解锁。
 import subprocess as _sp
+import shutil as _shutil
 _mysql_exe = "C:/his-runtime/mysql-8.0.36-winx64/bin/mysql.exe"
-_sp.run([_mysql_exe, "-uroot", "-proot123", "his", "-e",
-         "DELETE FROM bil_daily_settlement WHERE settle_date=CURDATE() AND cashier_id=5"],
-        capture_output=True)
+try:
+    _sp.run([_mysql_exe, "-uroot", "-proot123", "his", "-e",
+             "DELETE FROM bil_daily_settlement WHERE settle_date=CURDATE() AND cashier_id=5"],
+            capture_output=True, timeout=30)
+except (OSError, _sp.TimeoutExpired):
+    try:
+        _sp.run(["mysql", "-uroot", "-proot123", "his", "-e",
+                 "DELETE FROM bil_daily_settlement WHERE settle_date=CURDATE() AND cashier_id=5"],
+                capture_output=True, timeout=30)
+    except (OSError, _sp.TimeoutExpired) as _e:
+        print(f"[warn] 日结解锁跳过（无可用 mysql 客户端: {_e}）——结算步可能被 B3006 拦截")
 
 
 

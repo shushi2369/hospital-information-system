@@ -18,4 +18,6 @@ public class DispenseOrderVO {
     private String dispenserName;
     private BigDecimal totalQuantity;
     private LocalDateTime dispenseTime;
+    /** 一百一十三轮 A-P3-1：已整方退药标志（前端隐藏退药按钮，避免填完弹窗才被 B4006 拦） */
+    private Boolean returned;
 }

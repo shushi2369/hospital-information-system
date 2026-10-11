@@ -433,7 +433,9 @@
             <el-input-number
               v-if="row.refundStatus !== 2"
               v-model="row.refundQty"
-              :min="1"
+              :min="0.01"
+              :step="0.01"
+              :precision="2"
               :max="(Number(row.quantity) || 0) - (Number(row.refundedQty) || 0)"
               size="small"
               controls-position="right"
@@ -605,7 +607,9 @@ const billQuery = reactive({
   patientId: '',
 })
 
+let _fetchBillsSeq = 0 // 一百一十三轮 A-P3-2：列表 GET 竞态守卫（对齐 handleSelectVisit 的乱序守卫标准）
 async function fetchBills() {
+  const _seq = ++_fetchBillsSeq
   billLoading.value = true
   try {
     const pid = Number(billQuery.patientId)
@@ -617,6 +621,7 @@ async function fetchBills() {
       startDate: billDateRange.value?.[0] || undefined,
       endDate: billDateRange.value?.[1] || undefined,
     })
+    if (_seq !== _fetchBillsSeq) return
     billList.value = res.list ?? []
     billTotal.value = res.total ?? 0
   } finally {
@@ -755,7 +760,9 @@ const settleQuery = reactive({
   cashierId: '',
 })
 
+let _fetchSettlementsSeq = 0 // 一百一十三轮 A-P3-2：列表 GET 竞态守卫
 async function fetchSettlements() {
+  const _seq = ++_fetchSettlementsSeq
   settleLoading.value = true
   try {
     const cid = Number(settleQuery.cashierId)
@@ -765,6 +772,7 @@ async function fetchSettlements() {
       settleDate: settleQuery.settleDate || undefined,
       cashierId: Number.isFinite(cid) && cid > 0 ? cid : undefined,
     })
+    if (_seq !== _fetchSettlementsSeq) return
     settleList.value = res.list ?? []
     settleTotal.value = res.total ?? 0
   } finally {

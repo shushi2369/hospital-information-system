@@ -8,7 +8,7 @@ on:
 
 jobs:
   backend-test:
-    name: 后端编译与单测（70 项）
+    name: 后端编译与单测
     runs-on: ubuntu-latest
     services:
       mysql:
@@ -34,7 +34,7 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: maven
-      - name: Run backend tests (70 unit tests + Flyway migration)
+      - name: Run backend tests (unit tests + Flyway migration)
         working-directory: his-project/his-backend
         run: mvn -B test
         env:
@@ -62,7 +62,7 @@ jobs:
         run: npm run build
 
   consistency-check:
-    name: 数据一致性巡检（27 段孤儿引用）
+    name: 数据一致性巡检（75 段，应 0 行）
     runs-on: ubuntu-latest
     needs: backend-test
     services:
@@ -112,7 +112,7 @@ jobs:
           MYSQL_PWD: root123
 
   api-e2e:
-    name: API e2e（九套 318 断言）+ 单测 70
+    name: API e2e（十套）+ 单测
     runs-on: ubuntu-latest
     needs: backend-test
     services:
@@ -158,7 +158,7 @@ jobs:
       - name: Run API e2e suites (318 assertions, fail-fast)
         run: |
           cd his-project/deploy/e2e
-          for s in e2e_acceptance e2e_phase2 e2e_phase3 e2e_phase3b e2e_phase3c e2e_phase4 e2e_phase4b concurrency_test fix_regression; do
+          for s in e2e_acceptance e2e_phase2 e2e_phase3 e2e_phase3b e2e_phase3c e2e_phase4 e2e_phase4b e2e_phase5 concurrency_test fix_regression; do
             echo "::group::$s"
             python3 "$s.py" || exit 1
             echo "::endgroup::"

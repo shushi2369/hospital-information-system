@@ -254,7 +254,10 @@ public class ClinicService {
         return new PrescriptionCreateResult(prescription.getId(), prescription.getRxNo(), total);
     }
 
-    /** 作废处方（C-08，《05》R16：仅未审核或审核通过未收费未发药可作废） */
+    /** 作废处方（C-08，《05》R16：仅未审核或审核通过未收费未发药可作废）。
+     *  一百一十三轮 A-P1-2：条件更新把前态+收费态放进 WHERE——原快照读校验与并发
+     *  收费+发药交叠时，已发药处方会被打成 50 作废：退药被 B4007 拦、退费因 status!=30
+     *  放行 → 药已出门、库存流失、钱照退（三输） */
     @Transactional
     public void voidPrescription(Long prescriptionId, PrescriptionVoidRequest req) {
         CliPrescription prescription = prescriptionMapper.selectById(prescriptionId);
@@ -267,9 +270,17 @@ public class ClinicService {
         if (!voidable) {
             throw new BizException(ErrorCode.B2006);
         }
-        prescription.setStatus(50);
-        prescription.setVoidReason(req == null ? null : req.getReason());
-        prescriptionMapper.updateById(prescription);
+        int updated = prescriptionMapper.update(null,
+                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<CliPrescription>()
+                        .eq(CliPrescription::getId, prescriptionId)
+                        .and(w -> w.eq(CliPrescription::getStatus, 10)
+                                .or(w2 -> w2.eq(CliPrescription::getStatus, 20)
+                                        .eq(CliPrescription::getChargeStatus, 0)))
+                        .set(CliPrescription::getStatus, 50)
+                        .set(CliPrescription::getVoidReason, req == null ? null : req.getReason()));
+        if (updated != 1) {
+            throw new BizException(ErrorCode.B2006);
+        }
     }
 
     /** 门诊检查/检验申请列表（四期二批：回写状态验证） */

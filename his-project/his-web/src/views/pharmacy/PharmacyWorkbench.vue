@@ -189,9 +189,11 @@
           </el-table-column>
           <el-table-column label="操作" width="90" align="center" fixed="right">
             <template #default="{ row }">
-              <el-button v-perm="'pharmacy:return:do'" link type="danger" @click="openReturnDialog(row)">
+              <!-- 一百一十三轮 A-P3-1：已整方退药的发药单隐藏退药入口（后端 B4006 兜底） -->
+              <el-button v-if="!row.returned" v-perm="'pharmacy:return:do'" link type="danger" @click="openReturnDialog(row)">
                 退药
               </el-button>
+              <el-tag v-else size="small" type="info">已退药</el-tag>
             </template>
           </el-table-column>
         </el-table>
@@ -450,7 +452,9 @@ const dispenseQuery = reactive({
   dispenseNo: '',
 })
 
+let _fetchDispenseOrdersSeq = 0 // 一百一十三轮 A-P3-2：列表 GET 竞态守卫
 async function fetchDispenseOrders() {
+  const _seq = ++_fetchDispenseOrdersSeq
   dispenseLoading.value = true
   try {
     const res = await getDispenseOrderPage({
@@ -460,6 +464,7 @@ async function fetchDispenseOrders() {
       startDate: dispenseDateRange.value?.[0] || undefined,
       endDate: dispenseDateRange.value?.[1] || undefined,
     })
+    if (_fetchDispenseOrdersSeq !== _seq) return
     dispenseList.value = res.list ?? []
     dispenseTotal.value = res.total ?? 0
   } finally {
@@ -528,7 +533,9 @@ const returnQuery = reactive({
   returnNo: '',
 })
 
+let _fetchReturnsSeq = 0 // 一百一十三轮 A-P3-2：列表 GET 竞态守卫
 async function fetchReturns() {
+  const _seq = ++_fetchReturnsSeq
   returnLoading.value = true
   try {
     const res = await getReturnPage({
@@ -536,6 +543,7 @@ async function fetchReturns() {
       pageSize: returnQuery.pageSize,
       returnNo: returnQuery.returnNo.trim() || undefined,
     })
+    if (_fetchReturnsSeq !== _seq) return
     returnList.value = res.list ?? []
     returnTotal.value = res.total ?? 0
   } finally {

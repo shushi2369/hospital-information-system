@@ -325,6 +325,15 @@ public class BillingService {
                 throw new BizException(ErrorCode.B3003,
                         "退费数量超过可退数量: " + detail.getItemName() + "（可退 " + available + "）");
             }
+            // 一百一十三轮 A-P0：同一明细在本次请求中出现多行时，校验后立即把本行计入累计——
+            // 原 available 只查库内已退，重复行每行单独通过 → 退费额双倍于实收（资金口子）
+            refundedQty.merge(detail.getId(), qty, BigDecimal::add);
+            // 一百一十三轮 A-P2：数量恒为 1 的挂号费/诊查费(sourceType=1)与检查/检验申请费(sourceType=3)
+            // 必须整行退——部分退会让服务照常提供而钱退一半，且 refundStatus=1 不触发任何联动
+            if ((detail.getSourceType() == 1 || detail.getSourceType() == 3)
+                    && qty.compareTo(available) != 0) {
+                throw new BizException(ErrorCode.B3003, detail.getItemName() + " 须整行退费，不支持部分退");
+            }
             if (detail.getFeeType() == 7) {
                 Integer rxStatus = rxStatusByItemId.get(detail.getSourceDetailId());
                 if (rxStatus != null && rxStatus == 30) {
@@ -353,6 +362,13 @@ public class BillingService {
             refundDetails.add(rd);
         }
 
+        // 一百一十三轮 A-P0：账单级兜底——累计退款不得超过应收（行级校验之外的最后一道闸）
+        if (bill.getPayableAmount() != null
+                && bill.getRefundAmount().add(refundTotal).compareTo(bill.getPayableAmount()) > 0) {
+            throw new BizException(ErrorCode.B3003, "累计退费超过账单应收金额（剩余可退 "
+                    + bill.getPayableAmount().subtract(bill.getRefundAmount()) + "）");
+        }
+
         BilRefundBill refundBill = new BilRefundBill();
         refundBill.setRefundNo(idGenerator.next("TF"));
         refundBill.setBillId(bill.getId());
@@ -369,7 +385,8 @@ public class BillingService {
             rd.setRefundBillId(refundBill.getId());
             refundDetailMapper.insert(rd);
             BilChargeDetail detail = detailById.get(rd.getChargeDetailId());
-            BigDecimal refunded = refundedQty.getOrDefault(detail.getId(), BigDecimal.ZERO).add(rd.getRefundQuantity());
+            // 一百一十三轮 A-P0：refundedQty 已在校验循环内累计本请求量，此处直接取用（再 add 会双倍）
+            BigDecimal refunded = refundedQty.getOrDefault(detail.getId(), BigDecimal.ZERO);
             detail.setRefundStatus(refunded.compareTo(detail.getQuantity()) >= 0 ? 2 : 1);
             chargeDetailMapper.updateById(detail);
         }
@@ -426,6 +443,18 @@ public class BillingService {
                 .ge(BilRefundBill::getRefundTime, start).lt(BilRefundBill::getRefundTime, end));
         BigDecimal chargeTotal = bills.stream().map(BilChargeBill::getPayableAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal refundTotal = refunds.stream().map(BilRefundBill::getRefundAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        // 一百一十三轮 A-P1-3：汇总→INSERT 之间并发收费/退费会落在所有日结之外（对账永久失真）。
+        // 复查计数：INSERT 前后数量不一致即说明窗口内有新交易，让出纳重试（根治需锁口径，
+        // 如对收费员当日账单 SELECT FOR UPDATE——教学库取复查式，把永久漏账降为可重试错误）
+        Long billsAfter = billMapper.selectCount(new LambdaQueryWrapper<BilChargeBill>()
+                .eq(BilChargeBill::getCashierId, cashierId)
+                .ge(BilChargeBill::getPayTime, start).lt(BilChargeBill::getPayTime, end));
+        Long refundsAfter = refundBillMapper.selectCount(new LambdaQueryWrapper<BilRefundBill>()
+                .eq(BilRefundBill::getOperatorId, cashierId)
+                .ge(BilRefundBill::getRefundTime, start).lt(BilRefundBill::getRefundTime, end));
+        if (!billsAfter.equals((long) bills.size()) || !refundsAfter.equals((long) refunds.size())) {
+            throw new BizException(ErrorCode.A0008, "日结汇总期间有新收费/退费发生，请重新执行日结");
+        }
 
         BilDailySettlement settlement = new BilDailySettlement();
         settlement.setSettlementNo(idGenerator.next("RJ"));

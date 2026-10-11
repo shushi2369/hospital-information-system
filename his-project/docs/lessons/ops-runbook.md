@@ -31,7 +31,7 @@ Windows 服务：HIS-MySQL / HIS-Redis / HIS-Backend(WinSW) / HIS-Nginx(schtasks
 | e2e 回归 | `python deploy/e2e/e2e_phaseX.py`（九套 318 断言） |
 | UI 冒烟 | `python deploy/e2e/ui_smoke.py`（Playwright 全菜单 404 猎手） |
 | UI 链路 | `python deploy/e2e/ui_chain_smoke.py`（Playwright 七链 25 断言：PHI/收费/接诊/角色/住院/手术/EMC） |
-| CI | push 触发：单测 65 → 前端构建 → 一致性巡检 → API e2e 全量（fail-fast） |
+| CI | push 触发：单测（数量以 mvn test 实际输出为准，约 70+）→ 前端构建 → 一致性巡检 → API e2e 全量（fail-fast） |
 
 ## 3. 备份与恢复（含异地）
 

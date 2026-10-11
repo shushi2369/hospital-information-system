@@ -234,6 +234,18 @@ public class ClinicAppService {
         return result;
     }
 
+    /** 处方 ID → 处方状态（一百一十三轮 A-P3-1：发药单列表批量判定已整方退药 status=50） */
+    public Map<Long, Integer> prescriptionStatusByIds(Collection<Long> rxIds) {
+        Map<Long, Integer> result = new HashMap<>();
+        if (rxIds == null || rxIds.isEmpty()) {
+            return result;
+        }
+        for (CliPrescription rx : prescriptionMapper.selectBatchIds(rxIds)) {
+            result.put(rx.getId(), rx.getStatus());
+        }
+        return result;
+    }
+
     /** 处方明细 → 所属处方 ID */
     public Map<Long, Long> prescriptionIdByItemIds(Collection<Long> itemIds) {
         Map<Long, Long> result = new HashMap<>();
@@ -289,7 +301,9 @@ public class ClinicAppService {
         return listPrescriptionsByStatus(20, 1);
     }
 
-    /** 药师审核（状态 10→20/40，写审核字段；重复审核抛 B4008） */
+    /** 药师审核（状态 10→20/40，写审核字段；重复审核抛 B4008）。
+     *  一百一十三轮 A-P1-1：条件更新断言——原"快照读校验+无条件 updateById"下，
+     *  双药师并发双留痕，且与发药并发时会把已发药(30)处方改回 20/40（状态机错乱） */
     @Transactional
     public void reviewPrescription(Long rxId, boolean pass, Long reviewerId, String comment) {
         CliPrescription rx = prescriptionMapper.selectById(rxId);
@@ -303,7 +317,17 @@ public class ClinicAppService {
         rx.setReviewBy(reviewerId);
         rx.setReviewAt(java.time.LocalDateTime.now());
         rx.setReviewComment(comment);
-        prescriptionMapper.updateById(rx);
+        int updated = prescriptionMapper.update(rx,
+                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<CliPrescription>()
+                        .eq(CliPrescription::getId, rxId)
+                        .eq(CliPrescription::getStatus, 10)
+                        .set(CliPrescription::getStatus, rx.getStatus())
+                        .set(CliPrescription::getReviewBy, reviewerId)
+                        .set(CliPrescription::getReviewAt, rx.getReviewAt())
+                        .set(CliPrescription::getReviewComment, comment));
+        if (updated != 1) {
+            throw new BizException(ErrorCode.B4008);
+        }
     }
 
     /** 只读处方视图（分页展示用，无行锁——展示查询不加 FOR UPDATE） */

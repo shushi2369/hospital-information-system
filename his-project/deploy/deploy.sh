@@ -66,7 +66,9 @@ done
 
 if [ "$HTTP_CODE" != "200" ]; then
     echo "[ERROR] 服务未就绪！查看日志: tail -50 $LOG"
-    echo "  回滚: cp $BACKUP_DIR/app_*.jar $RUNTIME_DIR/app.jar && net start HIS-Backend"
+    # 一百一十三轮 B-9：原提示 cp app_*.jar 在多份备份时 glob 展开按字母序覆盖，
+    # 生效的是最旧备份且服务未停时 net start 报错——改为取最新一份 + 先停后启
+    echo "  回滚: net stop HIS-Backend && cp \"\$(ls -t $BACKUP_DIR/app_*.jar | head -1)\" $RUNTIME_DIR/app.jar && net start HIS-Backend"
     exit 1
 fi
 
