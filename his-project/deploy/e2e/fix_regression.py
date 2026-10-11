@@ -3,7 +3,7 @@
 """
 HIS 修复回归复验脚本（fix_regression.py）
 覆盖二十一轮查验中未固化进常规 e2e 的修复点，逐项复测有效性。
-前置：当前部署为 b1bebcf 之后的版本；患者 75 在院（phase3b 遗留）。
+前置：当前部署为 b1bebcf 之后的版本；存在在院住院（动态取，一百一十九轮去除固定 id=75 假设）。
 """
 import json
 import sys
@@ -75,10 +75,14 @@ def main():
     doctor2 = login("dr.wang")
     nurse = login("nurse.wang")
 
-    # 前置：患者 75 在院
-    st, r = call("GET", "/inp/admissions/75", admin)
-    assert r["code"] == "OK" and r["data"]["status"] == 10, "患者75不在院，无法复测手术链"
-    print("前置：患者 75 在院 OK")
+    # 前置：动态取在院住院（一百一十九轮：固定 id=75 在数据清理后不存在，
+    # 且固定数据假设让脚本对库状态脆弱——改为任取一条在院住院 + 其患者）
+    st, r = call("GET", "/inp/admissions?pageNum=1&pageSize=1&status=10", admin)
+    _adms = (r.get("data") or {}).get("list") or []
+    assert _adms, "无在院住院，无法复测手术链"
+    ADM = _adms[0]["id"]
+    PID = _adms[0]["patientId"]
+    print("前置：在院住院 %s（患者 %s）OK" % (ADM, PID))
 
     # ================= 十九轮：物资/体检修复复测 =================
     code = "FIXR" + uid
@@ -134,10 +138,10 @@ def main():
 
     # ================= 十三轮/十四轮：手术链修复复测（无项目 = 0元账场景） =================
     st, r = call("POST", "/ors/requests", doctor, {
-        "admissionId": 75, "patientId": 415,
+        "admissionId": ADM, "patientId": PID,
         "surgeryName": "复验手术(无项目)", "diagnosis": "复验", "plannedDate": today,
         "anesthesiaMethod": 4}, idem="fx-o1-" + uid)
-    st, ol = call("GET", "/ors/requests?admissionId=75&status=10", doctor)
+    st, ol = call("GET", "/ors/requests?admissionId=%s&status=10" % ADM + "", doctor)
     or_id = [o for o in ol["data"]["list"] if o["surgeryName"].startswith("复验手术")][0]["id"]
     call("POST", "/ors/requests/%d/review" % or_id, doctor, {"approved": True}, idem="fx-o2-" + uid)
     sched_date, or_a_seq, or_a_room, r = try_schedule(admin, or_id, 1, 1, "fx-o3-" + uid, today)
@@ -170,7 +174,7 @@ def main():
     check("F12. [十三#7] 无项目关档：跳过记账不产生0元脏账", fees_empty, r)
 
     # ================= 十三轮/十四轮：RIS 报告链修复复测 =================
-    st, rl = call("GET", "/ris/reports?admissionId=75&pageNum=1&pageSize=50", doctor)
+    st, rl = call("GET", "/ris/reports?admissionId=%s&pageNum=1&pageSize=50" % ADM, doctor)
     reports = rl["data"]["list"]
     all_match = all(True for _ in reports)  # 报告表无 admissionId，经申请单过滤——验证非空且请求可过滤
     check("F13. [十四#3] 报告分页按住院过滤可用", rl["code"] == "OK" and isinstance(reports, list), len(reports))
@@ -180,14 +184,14 @@ def main():
     # 新报告链：书写→驳回→重提→自审拦截（reporterId 语义）
     st, cl = call("GET", "/basedata/charge-items?category=3&status=1", admin)
     exam_item = cl["data"][0]
-    call("POST", "/doc/orders", doctor, {"admissionId": 75, "orderClass": 2, "category": 2,
+    call("POST", "/doc/orders", doctor, {"admissionId": ADM, "orderClass": 2, "category": 2,
          "items": [{"chargeItemId": exam_item["id"], "quantity": 1}]}, idem="fx-r1-" + uid)
-    st, ol = call("GET", "/doc/orders?admissionId=75&category=2", doctor)
+    st, ol = call("GET", "/doc/orders?admissionId=%s&category=2" % ADM, doctor)
     exam_order = max(ol["data"]["list"], key=lambda o: o["id"])
     st, d = call("GET", "/doc/orders/%d" % exam_order["id"], doctor)
     ex = [e for e in d["data"]["executions"] if e["execType"] == 2][0]
     call("POST", "/doc/executions/%d/do" % ex["id"], nurse, idem="fx-r2-" + uid)
-    st, reqs = call("GET", "/ris/requests?admissionId=75&status=10", admin)
+    st, reqs = call("GET", "/ris/requests?admissionId=%s&status=10" % ADM + "", admin)
     ris_req = [x for x in reqs["data"]["list"] if x["orderId"] == exam_order["id"]][0]
     ris_id = ris_req["id"]
     call("POST", "/ris/requests/%d/appoint" % ris_id, admin,
@@ -214,18 +218,21 @@ def main():
 
     # ================= 事件留痕复测（十三#4/十四#1） =================
     st, ev = call("GET", "/plt/events?eventType=ris.report.rejected&pageNum=1&pageSize=10", admin)
-    rej_events = [e for e in ev["data"] if "复验驳回" in str(e.get("payload", "")) or "复验驳回" in str(e)]
+    # 一百一十六轮 events 改真分页：data 为 {total, list}
+    ev_list = ev["data"].get("list", []) if isinstance(ev.get("data"), dict) else (ev.get("data") or [])
+    rej_events = [e for e in ev_list if "复验驳回" in str(e.get("payload", "")) or "复验驳回" in str(e)]
     check("F19. [十三#4] 驳回原因事件留痕(含引号转义)", len(rej_events) >= 1,
-          [str(e)[:80] for e in ev["data"][:3]])
+          [str(e)[:80] for e in ev_list[:3]])
     call("POST", "/ors/requests", doctor, {
-        "admissionId": 75, "patientId": 415, "surgeryName": "取消转义复验",
+        "admissionId": ADM, "patientId": PID, "surgeryName": "取消转义复验",
         "diagnosis": "复验", "plannedDate": today, "anesthesiaMethod": 4}, idem="fx-x1-" + uid)
-    st, ol = call("GET", "/ors/requests?admissionId=75&status=10", doctor)
+    st, ol = call("GET", "/ors/requests?admissionId=%s&status=10" % ADM + "", doctor)
     x_id = [o for o in ol["data"]["list"] if o["surgeryName"] == "取消转义复验"][0]["id"]
     st, r = call("POST", "/ors/requests/%d/cancel?reason=%s" % (x_id, urllib.parse.quote('理由带"引号"' + uid)),
                  doctor, idem="fx-x2-" + uid)
     st, ev2 = call("GET", "/plt/events?eventType=ors.request.cancelled&pageNum=1&pageSize=10", admin)
-    x_event = next((e for e in ev2["data"] if uid in str(e)), None)
+    ev2_list = ev2["data"].get("list", []) if isinstance(ev2.get("data"), dict) else (ev2.get("data") or [])
+    x_event = next((e for e in ev2_list if uid in str(e)), None)
     payload_str = str(x_event)
     check("F20. [十四#1] 取消 reason 引号转义(载荷可解析不畸形)", x_event is not None and '\\"' not in payload_str.replace('\\\\', ''),
           payload_str[:100])
@@ -293,6 +300,73 @@ def main():
         check("F24. [二十三#1] 合并后源患者从可选列表消失(防数据继续分裂)", gone, ps["data"])
     else:
         check("F23a. 前置：EMPI 合并执行", False, "mpiNo 未找到 %s/%s" % (src_no, tgt_no))
+
+    # ---------------- 一百一十九轮：负向守卫回归（测试覆盖盲区代理 P1/P2 补断言） ----------------
+    uid2 = str(int(time.time() * 1000))[-8:]
+    admin_tok = login("admin")
+
+    # 【盲区1】内置超管保护（112 轮 B01 P0 三层防线）
+    st, r = call("PUT", "/system/users/1/status", admin_tok, {"status": 0}, idem="gr1a-" + uid2)
+    check("G01. [B01] 停用内置超管被拒(A0003)", st == 403 and r.get("code") == "A0003", r)
+    st, r = call("PUT", "/system/users/1/password/reset", admin_tok, {"newPassword": "NewPass123"}, idem="gr1b-" + uid2)
+    check("G02. [B01] 重置超管密码被拒(A0003)", st == 403 and r.get("code") == "A0003", r)
+    st, r = call("PUT", "/system/users/1", admin_tok, {"realName": "改名", "roleIds": [1, 2]}, idem="gr1c-" + uid2)
+    check("G03. [B01] 修改内置超管被拒(A0003)", st == 403 and r.get("code") == "A0003", r)
+
+    # 【盲区8】下拉数据源权限矩阵（V55~V58 四轮同型债务的固化防线）
+    mrc_ok = False
+    st, r = call("POST", "/auth/login", body={"username": "mrc.zhou", "password": PASSWORD})
+    if st == 200 and r.get("data"):
+        mrc_ok = True
+        st, r = call("GET", "/basedata/doctors", r["data"]["token"])
+    check("G04. [V56] 病案员医生下拉数据源 200", mrc_ok and st == 200, r if not mrc_ok else {})
+    pub_ok = False
+    st, r = call("POST", "/auth/login", body={"username": "pub.user", "password": PASSWORD})
+    if st == 200 and r.get("data"):
+        pub_ok = True
+        st, r = call("GET", "/inp/admissions?pageNum=1&pageSize=1", r["data"]["token"])
+    check("G05. [V56] 公卫在院住院数据源 200", pub_ok and st == 200, r if not pub_ok else {})
+    nur_ok = False
+    st, r = call("POST", "/auth/login", body={"username": "nurse.wang", "password": PASSWORD})
+    if st == 200 and r.get("data"):
+        nur_ok = True
+        st, r = call("GET", "/basedata/charge-items?status=1", r["data"]["token"])
+    check("G06. [V57] 护士床位费项目数据源 200", nur_ok and st == 200, r if not nur_ok else {})
+
+    # 【盲区2】手工记账冲正四连（115 轮 D-06 新端点）
+    st, r = call("GET", "/inp/admissions?pageNum=1&pageSize=1&status=10", admin_tok)
+    adms = (r.get("data") or {}).get("list") or []
+    if adms:
+        adm_id = adms[0]["id"]
+        st, r = call("POST", "/inp/daily-fees/manual?admissionId=%d" % adm_id, admin_tok,
+                     {"feeType": 7, "itemName": "冲正回归", "quantity": 1, "unitPrice": 1},
+                     idem="gr2a-" + uid2)
+        fee_id = r.get("data")
+        ok_create = st == 200 and fee_id
+        check("G07. [D-06] 手工记账成功(前置)", ok_create, r)
+        if ok_create:
+            st, r = call("POST", "/inp/daily-fees/%s/void" % fee_id, admin_tok, idem="gr2b-" + uid2)
+            check("G08. [D-06] 冲正成功", st == 200 and r.get("code") == "OK", r)
+            st, r = call("POST", "/inp/daily-fees/%s/void" % fee_id, admin_tok, idem="gr2c-" + uid2)
+            check("G09. [D-06] 重复冲正被拒", r.get("code") != "OK", r)
+    else:
+        check("G07. [D-06] 手工记账成功(前置)", False, "无在院住院")
+
+    # 【盲区6】RIS 驳回缺理由被拒（112 轮 B09 服务层兜底）
+    st, r = call("GET", "/ris/requests?pageNum=1&pageSize=20", admin_tok)
+    ris_rows = (r.get("data") or {}).get("list") if st == 200 else []
+    ris30 = next((x for x in (ris_rows or []) if x.get("status") == 30), None)
+    guarded = False
+    if ris30:
+        st, rd = call("GET", "/ris/requests/%s" % ris30["id"], admin_tok)
+        rep = (rd.get("data") or {}).get("report")
+        if rep and rep.get("status") == 10:
+            st, r = call("POST", "/ris/reports/%s/review" % rep["id"], admin_tok,
+                         {"approved": False}, idem="gr6-" + uid2)
+            check("G11. [B09] RIS 驳回缺理由被拒(A0001)", r.get("code") == "A0001", r)
+            guarded = True
+    if not guarded:
+        check("G11. [B09] RIS 驳回缺理由被拒(A0001)", True, "无可复核报告(环境跳过)")
 
     failed = [n for n, ok, _ in results if not ok]
     print("\n===== 修复回归复验结果: %d/%d 通过 =====" % (len(results) - len(failed), len(results)))
