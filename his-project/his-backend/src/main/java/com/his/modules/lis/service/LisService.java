@@ -44,6 +44,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class LisService {
     private final LisRequestMapper requestMapper;
+    private final com.his.modules.alert.mapper.AlertCriticalMapper alertMapper;
     private final LisSpecimenMapper specimenMapper;
     private final LisResultMapper resultMapper;
     private final LisReportMapper reportMapper;
@@ -162,6 +163,13 @@ public class LisService {
             }
             rows = req.getRows();
         }
+        // 一百一十四轮 #4：全删重插前关断该申请未闭环的旧危急值——重录后旧 alert 的
+        // resultId 悬空（指向已删结果行），同一危急项并行两条待处理会稀释闭环率、重复骚扰医生
+        alertMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<com.his.modules.alert.entity.AlertCritical>()
+                .eq(com.his.modules.alert.entity.AlertCritical::getRequestId, req.getRequestId())
+                .lt(com.his.modules.alert.entity.AlertCritical::getStatus, 40)
+                .set(com.his.modules.alert.entity.AlertCritical::getStatus, 40)
+                .set(com.his.modules.alert.entity.AlertCritical::getHandleNote, "结果重录，本危急值随重录作废"));
         resultMapper.delete(new LambdaQueryWrapper<LisResult>()
                 .eq(LisResult::getRequestId, req.getRequestId()));
         int criticalCount = 0;
@@ -183,6 +191,14 @@ public class LisService {
                 criticalCount++;
                 alertService.create(request, result.getId(), row.getItemName(), row.getResultValue());
             }
+        }
+        // 一百一十四轮 #5：entry 与 publish 并发时序守卫——录入全程申请须停留在检验中(30)，
+        // 期间被发布(40)则本事务整体回滚（已发布报告的结果集不得再被删改）
+        Long stillActive = requestMapper.selectCount(new LambdaQueryWrapper<LisRequest>()
+                .eq(LisRequest::getId, req.getRequestId())
+                .eq(LisRequest::getStatus, 30));
+        if (stillActive == null || stillActive == 0) {
+            throw new BizException(ErrorCode.A0008, "申请单已发布报告，录入已回滚，请刷新后重试");
         }
         return criticalCount;
     }
@@ -332,7 +348,12 @@ public class LisService {
         threshold.setHighValue(req.getHighValue());
         threshold.setStatus(1);
         if (threshold.getId() == null) {
-            thresholdMapper.insert(threshold);
+            try {
+                thresholdMapper.insert(threshold);
+            } catch (org.springframework.dao.DuplicateKeyException e) {
+                // 一百一十四轮 #9：并发建同项目阈值撞 uk_thresh_item，语义化兜底
+                throw new BizException(ErrorCode.A0001, "该检验项目已存在阈值，请直接修改");
+            }
         } else {
             thresholdMapper.updateById(threshold);
         }

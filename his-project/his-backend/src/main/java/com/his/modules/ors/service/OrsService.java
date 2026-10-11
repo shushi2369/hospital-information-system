@@ -110,6 +110,15 @@ public class OrsService {
         return request.getRequestNo();
     }
 
+    /** 一百一十四轮 #1：状态迁移条件更新（旧值守卫）——ors 全模块从"读-判-整实体 updateById"
+     *  收敛到此范式，杜绝并发交错覆写（cancel 覆写已切皮手术、start 复活已取消手术等） */
+    private int transition(Long id, Integer expect, Integer target) {
+        return requestMapper.update(null, new LambdaUpdateWrapper<OrsSurgeryRequest>()
+                .eq(OrsSurgeryRequest::getId, id)
+                .eq(OrsSurgeryRequest::getStatus, expect)
+                .set(OrsSurgeryRequest::getStatus, target));
+    }
+
     /** 审核（OR-04）：10 → 20 通过 ｜ 10 → 70 驳回（原因留痕） */
     @Transactional
     public void review(Long id, ReviewRequest req) {
@@ -120,8 +129,7 @@ public class OrsService {
         // 自审防禁（八十八轮 IDOR 审计 P1-4）：V18 把 create/review 同时绑给 DOCTOR，
         // 生产化时应拆分权限码禁自审；演示/教学流程依赖 doctor 自审，暂不启用（挂账五期）
         boolean approved = Boolean.TRUE.equals(req.getApproved());
-        request.setStatus(approved ? 20 : 70);
-        if (requestMapper.updateById(request) != 1) {
+        if (transition(id, 10, approved ? 20 : 70) != 1) {
             throw new BizException(ErrorCode.A0008, "申请状态已变化，请刷新后重试");
         }
         if (!approved) {
@@ -182,8 +190,10 @@ public class OrsService {
     public Long submitCheck(Long id, CheckSubmitRequest req) {
         OrsSurgeryRequest request = requireRequest(id);
         if (req.getCheckType() <= 2) {
-            if (request.getStatus() != 30 && request.getStatus() != 40) {
-                throw new BizException(ErrorCode.A0001, "麻醉前/切皮前核查须在排台后或术中提交");
+            // 一百一十四轮 #8：术前核查（1/2）收口在排台后~切皮前——术中(status=40)补录会
+            // 产生 checkedAt 晚于 incisionTime 的"术前已核查"伪造审计链
+            if (request.getStatus() != 30) {
+                throw new BizException(ErrorCode.A0001, "麻醉前/切皮前核查须在排台后、切皮前提交（术中不得补录术前核查）");
             }
         } else if (request.getStatus() != 50) {
             throw new BizException(ErrorCode.A0001, "离室前核查须在复苏中提交");
@@ -228,9 +238,12 @@ public class OrsService {
         }
         requireCheck(id, 1, "麻醉前核查未完成，禁止开始手术");
         requireCheck(id, 2, "切皮前核查未完成，禁止开始手术");
-        request.setStatus(40);
-        request.setIncisionTime(LocalDateTime.now());
-        if (requestMapper.updateById(request) != 1) {
+        int updated = requestMapper.update(null, new LambdaUpdateWrapper<OrsSurgeryRequest>()
+                .eq(OrsSurgeryRequest::getId, id)
+                .eq(OrsSurgeryRequest::getStatus, 30)
+                .set(OrsSurgeryRequest::getStatus, 40)
+                .set(OrsSurgeryRequest::getIncisionTime, LocalDateTime.now()));
+        if (updated != 1) {
             throw new BizException(ErrorCode.A0008, "手术状态已变化，请刷新后重试");
         }
         OrsSchedule schedule = scheduleMapper.selectOne(new LambdaQueryWrapper<OrsSchedule>()
@@ -293,9 +306,12 @@ public class OrsService {
         if (record == null) {
             throw new BizException(ErrorCode.A0001, "结束手术前须保存麻醉记录");
         }
-        request.setStatus(50);
-        request.setEndTime(LocalDateTime.now());
-        if (requestMapper.updateById(request) != 1) {
+        int updated = requestMapper.update(null, new LambdaUpdateWrapper<OrsSurgeryRequest>()
+                .eq(OrsSurgeryRequest::getId, id)
+                .eq(OrsSurgeryRequest::getStatus, 40)
+                .set(OrsSurgeryRequest::getStatus, 50)
+                .set(OrsSurgeryRequest::getEndTime, LocalDateTime.now()));
+        if (updated != 1) {
             throw new BizException(ErrorCode.A0008, "手术状态已变化，请刷新后重试");
         }
         if (record.getEndTime() == null) {
@@ -336,8 +352,7 @@ public class OrsService {
         postop.setFollowupNote(req.getFollowupNote());
         postop.setStatus(1);
         postopMapper.insert(postop);
-        request.setStatus(60);
-        if (requestMapper.updateById(request) != 1) {
+        if (transition(id, 50, 60) != 1) {
             throw new BizException(ErrorCode.A0008, "手术状态已变化，请刷新后重试");
         }
     }
@@ -402,11 +417,16 @@ public class OrsService {
                 && !com.his.infrastructure.security.CurrentUser.get().getRoleCodes().contains("ADMIN")) {
             throw new BizException(ErrorCode.A0003, "仅手术申请人可取消");
         }
-        request.setStatus(70);
-        if (requestMapper.updateById(request) != 1) {
+        int updated = requestMapper.update(null, new LambdaUpdateWrapper<OrsSurgeryRequest>()
+                .eq(OrsSurgeryRequest::getId, id)
+                .in(OrsSurgeryRequest::getStatus, 10, 20, 30)
+                .set(OrsSurgeryRequest::getStatus, 70));
+        if (updated != 1) {
             throw new BizException(ErrorCode.A0008, "申请状态已变化，请刷新后重试");
         }
-        if (request.getStatus() == 70) {
+        pltService.recordEvent("ors.request.cancelled", request.getRequestNo(),
+                "{\"reason\":\"" + escapeJson(reason) + "\"}");
+        {
             OrsSchedule schedule = scheduleMapper.selectOne(new LambdaQueryWrapper<OrsSchedule>()
                     .eq(OrsSchedule::getRequestId, id).last("LIMIT 1"));
             if (schedule != null && schedule.getStatus() == 1) {

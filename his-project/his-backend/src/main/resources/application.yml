@@ -55,9 +55,12 @@ his:
   crypto:
     # 身份证 AES-256-GCM 密钥(Base64, 32字节)；仅开发默认值，生产必须通过 AES_KEY 注入
     aes-key: ${AES_KEY:QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUE=}
-  # 接口文档开关：生产必须设为 false（或环境变量 SWAGGER_ENABLED=false）
+    # 一百一十四轮 S-02：id_card_hash 的 HMAC pepper（与 AES 密钥独立存放/轮换）；生产必须注入
+    hash-pepper: ${HASH_PEPPER:dev-only-hash-pepper-change-me-32bytes-ok}
+  # 接口文档开关：一百一十四轮 S-05 默认关闭（漏配环境变量时不再匿名暴露 API 地图）；
+  # 本机开发看文档显式设 SWAGGER_ENABLED=true
   swagger:
-    enabled: ${SWAGGER_ENABLED:true}
+    enabled: ${SWAGGER_ENABLED:false}
   registration:
     # 诊查费收费项目编码（挂号时取价快照；演示数据为 ITEM001/ITEM002）
     consult-item-normal: ${CONSULT_ITEM_NORMAL:ITEM001}

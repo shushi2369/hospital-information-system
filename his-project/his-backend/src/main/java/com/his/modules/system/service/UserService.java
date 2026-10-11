@@ -140,7 +140,7 @@ public class UserService {
             }
             userRoleMapper.delete(new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getUserId, id));
             bindRoles(id, req.getRoleIds());
-            sessionService.remove(id);
+            sessionService.removeStrict(id);
         }
     }
 
@@ -153,8 +153,8 @@ public class UserService {
         user.setStatus(status);
         userMapper.updateById(user);
         if (status == 0) {
-            // 禁用即时踢下线（《04》§5）
-            sessionService.remove(id);
+            // 禁用即时踢下线（《04》§5）；一百一十四轮 S-04：强一致版，删除失败显式报错
+            sessionService.removeStrict(id);
         }
     }
 
@@ -164,7 +164,7 @@ public class UserService {
         SysUser user = requireUser(id);
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userMapper.updateById(user);
-        sessionService.remove(id);
+        sessionService.removeStrict(id);
     }
 
     /** 内置超管保护（一百一十二轮子代理 B01 P0）：id=1 / username=admin 的账号

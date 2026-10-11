@@ -26,6 +26,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class AlertController {
     private final AlertService alertService;
 
+    /** 一百一十四轮 #7b：闭环率统计 */
+    @GetMapping("/stats")
+    @PreAuthorize("@ss.hasPerm('alert:query')")
+    public R<java.util.Map<String, Object>> stats() {
+        return R.ok(alertService.stats());
+    }
+
     @GetMapping
     @PreAuthorize("@ss.hasPerm('alert:query')")
     public R<PageResult<AlertCritical>> page(

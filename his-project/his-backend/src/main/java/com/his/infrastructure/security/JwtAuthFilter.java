@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
  */
 @Component
 @RequiredArgsConstructor
+@lombok.extern.slf4j.Slf4j
 public class JwtAuthFilter extends OncePerRequestFilter {
     private final JwtUtil jwtUtil;
     private final SessionService sessionService;
@@ -40,8 +41,15 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                     var auth = new UsernamePasswordAuthenticationToken(user, null, authorities);
                     SecurityContextHolder.getContext().setAuthentication(auth);
                 }
-            } catch (Exception ignore) {
-                // 无效令牌按未登录处理，由授权入口点统一返回 401
+            } catch (Exception e) {
+                // 无效令牌按未登录处理，由授权入口点统一返回 401。
+                // 一百一十四轮 S-10：分类打点——Redis 故障期的"幻影 401"与攻击流量/伪造令牌
+                // 在监控上不可区分曾造成排障困难（SessionService 历史注释）
+                if (e instanceof org.springframework.dao.DataAccessException) {
+                    log.warn("认证链路基础设施异常（Redis）: {}", e.getMessage());
+                } else {
+                    log.debug("无效令牌按未登录处理: {}", e.getMessage());
+                }
                 SecurityContextHolder.clearContext();
             }
         }

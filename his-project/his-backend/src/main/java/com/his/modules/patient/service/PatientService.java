@@ -36,11 +36,12 @@ public class PatientService {
 
     @Transactional
     public String create(PatientCreateRequest req) {
-        String hash = cryptoUtil.sha256Hex(req.getIdCardNo());
+        // 一百一十四轮 S-02：新写入统一 HMAC（存量 SHA-256 由补偿任务重算，查询双候选兼容）
+        String hash = cryptoUtil.hmacSha256Hex(req.getIdCardNo());
         PatPatient existing = patientMapper.selectByIdCardHash(hash);
         if (existing != null) {
-            throw new BizException(ErrorCode.B1001,
-                    "该身份证已建档（建档号 " + existing.getPatientNo() + "，患者 " + existing.getName() + "）");
+            // 一百一十四轮 S-03：不回显姓名/建档号——持建档权无查询权的账号可借此做 PII 枚举
+            throw new BizException(ErrorCode.B1001, "该身份证已建档");
         }
         PatPatient patient = new PatPatient();
         patient.setPatientNo(idGenerator.next("P"));
@@ -59,10 +60,8 @@ public class PatientService {
             // EMPI：建档即注册患者主索引（平台层）
             pltAppService.registerMpi(patient.getId());
         } catch (org.springframework.dao.DuplicateKeyException e) {
-            // 并发建档撞 id_card_hash 唯一索引：预检查窗口兜底（existing 必为 null，重新查取建档号）
-            PatPatient winner = patientMapper.selectByIdCardHash(hash);
-            throw new BizException(ErrorCode.B1001,
-                    "该身份证已建档（建档号 " + (winner != null ? winner.getPatientNo() : "未知") + "）");
+            // 并发建档撞 id_card_hash 唯一索引：预检查窗口兜底
+            throw new BizException(ErrorCode.B1001, "该身份证已建档");
         }
         return patient.getPatientNo();
     }
@@ -78,7 +77,8 @@ public class PatientService {
                 .orderByDesc(PatPatient::getId);
         String idCardNo = query.getIdCardNo();
         if (idCardNo != null && !idCardNo.isBlank()) {
-            wrapper.eq(PatPatient::getIdCardHash, cryptoUtil.sha256Hex(idCardNo.trim()));
+            // 一百一十四轮 S-02：双哈希候选兼容存量（HMAC 新写入 + SHA-256 存量）
+            wrapper.in(PatPatient::getIdCardHash, cryptoUtil.idCardHashCandidates(idCardNo.trim()));
         }
         if (query.getCardNo() != null && !query.getCardNo().isBlank()) {
             PatMedicalCard card = cardMapper.selectOne(new LambdaQueryWrapper<PatMedicalCard>()

@@ -40,6 +40,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class AuthService {
     private static final int LOGIN_FAIL_LIMIT = 5;
+    private static final int LOGIN_IP_FAIL_LIMIT = 20;
 
     private final SysUserMapper userMapper;
     private final SysUserRoleMapper userRoleMapper;
@@ -72,6 +73,23 @@ public class AuthService {
 
         SysUser user = userMapper.selectByUsername(req.getUsername());
         if (user == null || !passwordEncoder.matches(req.getPassword(), user.getPasswordHash())) {
+            // 一百一十四轮 S-01：per-IP 失败计数——原仅"用户名+IP"维度，单 IP 换用户名字典
+            // 可无限速撞库（每用户名各 5 次/分钟）；只计失败不计成功，正常用户与 e2e 不受影响
+            try {
+                String ipKey = "login:ipfail:" + ip;
+                Long ipFails = redis.opsForValue().increment(ipKey);
+                if (ipFails != null && ipFails == 1) {
+                    redis.expire(ipKey, Duration.ofSeconds(60));
+                }
+                if (ipFails != null && ipFails > LOGIN_IP_FAIL_LIMIT) {
+                    saveLoginLog(req.getUsername(), ip, ua, false, "同 IP 登录失败过于频繁");
+                    throw new BizException(ErrorCode.A0007);
+                }
+            } catch (BizException e) {
+                throw e;
+            } catch (Exception e) {
+                log.warn("登录限流计数不可用: {}", e.getMessage());
+            }
             saveLoginLog(req.getUsername(), ip, ua, false, "用户名或密码错误");
             throw new BizException(ErrorCode.A0002, "用户名或密码错误");
         }

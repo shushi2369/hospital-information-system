@@ -139,6 +139,13 @@ public class AlertService {
     /** 处置闭环（W-04）：30 → 40 */
     @Transactional
     public void close(Long alertId, String handleNote) {
+        // 一百一十四轮 #11：闭环处置意见必填（与 bb_adverse NOT NULL 口径对齐，闭环留痕不缺失）
+        if (handleNote == null || handleNote.isBlank()) {
+            throw new BizException(ErrorCode.A0001, "请填写处置意见后再闭环");
+        }
+        if (handleNote.length() > 256) {
+            throw new BizException(ErrorCode.A0001, "处置意见最长 256 字");
+        }
         AlertCritical alert = requireAlert(alertId);
         if (alert.getStatus() != 30) {
             throw new BizException(ErrorCode.A0001, "危急值未确认，不能闭环");
@@ -166,6 +173,21 @@ public class AlertService {
                 || !admission.getDoctorId().equals(doctor.getId())) {
             throw new BizException(ErrorCode.A0003, "仅责任医生可确认本人管床患者的危急值");
         }
+    }
+
+    /** 一百一十四轮 #7b：危急值闭环率（口径：闭环(40) / 全部），按天维度由前端过滤 createdAt */
+    public java.util.Map<String, Object> stats() {
+        long closed = alertMapper.selectCount(new LambdaQueryWrapper<AlertCritical>()
+                .eq(AlertCritical::getStatus, 40));
+        long total = alertMapper.selectCount(new LambdaQueryWrapper<AlertCritical>());
+        java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("total", total);
+        result.put("closed", closed);
+        result.put("inFlight", total - closed);
+        result.put("closureRate", total == 0 ? "0%" :
+                java.math.BigDecimal.valueOf(closed * 100).divide(java.math.BigDecimal.valueOf(total), 1,
+                        java.math.RoundingMode.HALF_UP) + "%");
+        return result;
     }
 
     private AlertCritical requireAlert(Long alertId) {

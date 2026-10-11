@@ -95,9 +95,13 @@ public class BbService {
         if (bag.getStatus() != 1) {
             throw new BizException(ErrorCode.A0001, "仅在线血袋可报废");
         }
-        bag.setStatus(3);
-        if (bagMapper.updateById(bag) != 1) {
-            throw new BizException(ErrorCode.A0008, "血袋状态已变化，请刷新后重试");
+        // 一百一十四轮 #6b：条件更新 .eq(status,1)——并发发血提交后报废不得覆写已发血袋
+        int scrapped = bagMapper.update(null, new LambdaUpdateWrapper<BbBloodBag>()
+                .eq(BbBloodBag::getId, bagId)
+                .eq(BbBloodBag::getStatus, 1)
+                .set(BbBloodBag::getStatus, 3));
+        if (scrapped != 1) {
+            throw new BizException(ErrorCode.A0008, "血袋状态已变化，报废失败，请刷新后重试");
         }
     }
 
@@ -171,10 +175,13 @@ public class BbService {
         if (request.getStatus() != 10) {
             throw new BizException(ErrorCode.A0001, "申请不在待审核状态");
         }
-        request.setStatus(approved ? 20 : 80);
-        request.setReviewerId(CurrentUser.id());
-        request.setReviewNote(note);
-        if (requestMapper.updateById(request) != 1) {
+        int updated = requestMapper.update(null, new LambdaUpdateWrapper<BbRequest>()
+                .eq(BbRequest::getId, id)
+                .eq(BbRequest::getStatus, 10)
+                .set(BbRequest::getStatus, approved ? 20 : 80)
+                .set(BbRequest::getReviewerId, CurrentUser.id())
+                .set(BbRequest::getReviewNote, note));
+        if (updated != 1) {
             throw new BizException(ErrorCode.A0008, "申请状态已变化，请刷新后重试");
         }
         pltService.recordEvent("bb.request.reviewed", request.getReqNo(),
@@ -188,8 +195,12 @@ public class BbService {
         if (request.getStatus() != 10 && request.getStatus() != 20) {
             throw new BizException(ErrorCode.A0001, "待审核/配血中状态才可取消");
         }
-        request.setStatus(70);
-        if (requestMapper.updateById(request) != 1) {
+        // 一百一十四轮 #2：条件更新——并发配血/发血提交后取消不得覆写（血已发出申请却是"已取消"）
+        int updated = requestMapper.update(null, new LambdaUpdateWrapper<BbRequest>()
+                .eq(BbRequest::getId, id)
+                .in(BbRequest::getStatus, 10, 20)
+                .set(BbRequest::getStatus, 70));
+        if (updated != 1) {
             throw new BizException(ErrorCode.A0008, "申请状态已变化，请刷新后重试");
         }
     }
@@ -225,8 +236,11 @@ public class BbService {
         record.setNote(req.getNote());
         crossMapper.insert(record);
         if (req.getCrossResult() == 1) {
-            request.setStatus(30);
-            if (requestMapper.updateById(request) != 1) {
+            int updated = requestMapper.update(null, new LambdaUpdateWrapper<BbRequest>()
+                    .eq(BbRequest::getId, id)
+                    .eq(BbRequest::getStatus, 20)
+                    .set(BbRequest::getStatus, 30));
+            if (updated != 1) {
                 throw new BizException(ErrorCode.A0008, "申请状态已变化，请刷新后重试");
             }
         }
@@ -291,8 +305,11 @@ public class BbService {
         if (occupied != 1) {
             throw new BizException(ErrorCode.A0008, "血袋已被并发发血，请刷新后重试");
         }
-        request.setStatus(40);
-        if (requestMapper.updateById(request) != 1) {
+        int reqUpdated = requestMapper.update(null, new LambdaUpdateWrapper<BbRequest>()
+                .eq(BbRequest::getId, id)
+                .eq(BbRequest::getStatus, 30)
+                .set(BbRequest::getStatus, 40));
+        if (reqUpdated != 1) {
             throw new BizException(ErrorCode.A0008, "申请状态已变化，请刷新后重试");
         }
         pltService.recordEvent("bb.request.issued", request.getReqNo(),
@@ -323,6 +340,14 @@ public class BbService {
                 .eq(BbIssue::getBagId, req.getBagId()));
         if (issued == null || issued == 0) {
             throw new BizException(ErrorCode.A0001, "该血袋未发血至本申请，禁止开始输注");
+        }
+        // 一百一十四轮 #6a：输注前复核血袋当前态与效期——发血与输注间血袋过期/报废应拦截
+        BbBloodBag issueBag = bagMapper.selectById(req.getBagId());
+        if (issueBag == null || issueBag.getStatus() == null || issueBag.getStatus() != 2) {
+            throw new BizException(ErrorCode.A0001, "血袋当前状态不可输注（可能已报废）");
+        }
+        if (issueBag.getExpireDate() != null && !issueBag.getExpireDate().isAfter(java.time.LocalDate.now())) {
+            throw new BizException(ErrorCode.A0001, "血袋已过期，禁止输注，请走报废流程");
         }
         BbTransfusion tf = new BbTransfusion();
         tf.setRequestId(id);

@@ -70,4 +70,19 @@ public class SessionService {
             log.error("会话删除失败", e);
         }
     }
+
+    /** 一百一十四轮 S-04：管理端强一致版——禁用/重置密码时若会话删除失败且静默成功，
+     *  Redis 恢复后旧会话最长 30 分钟复活窗口无人兜底；此处上抛让操作显式失败可重试 */
+    public void removeStrict(Long userId) {
+        try {
+            Boolean deleted = redis.delete(KEY_PREFIX + userId);
+            if (!Boolean.TRUE.equals(deleted)) {
+                // 键不存在=本来无会话，属正常
+                log.info("会话删除: userId={} 无在途会话", userId);
+            }
+        } catch (Exception e) {
+            throw new com.his.common.BizException(com.his.common.ErrorCode.C9001,
+                    "会话下线操作失败（Redis 异常），请稍后重试");
+        }
+    }
 }

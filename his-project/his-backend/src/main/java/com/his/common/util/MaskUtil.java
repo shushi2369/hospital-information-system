@@ -22,7 +22,7 @@ public final class MaskUtil {
         return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4);
     }
 
-    /** 审计日志参数 JSON 打码：password/idCardNo/phone 等字段 */
+    /** 审计日志参数 JSON 打码：password/idCardNo/phone/address 等字段 */
     public static String maskJson(String json) {
         if (json == null) {
             return null;
@@ -30,9 +30,12 @@ public final class MaskUtil {
         if (json.length() > 2000) {
             json = json.substring(0, 2000) + "...(truncated)";
         }
+        // 一百一十四轮 S-07：扩敏感键（address/allergyHistory/pastHistory 是第二份 PHI 源，
+        // 原 phone 正则只匹配 3+4+4 纯数字，带分隔符/非 11 位号码原文落审计表）
         return json
                 .replaceAll("(\"(password|pwd|newPassword|oldPassword)\"\\s*:\\s*\")(.*?)(\")", "$1***$4")
                 .replaceAll("(\"(idCardNo|idCard)\"\\s*:\\s*\")(.*?)(\")", "$1***$4")
-                .replaceAll("(\"(phone|mobile)\"\\s*:\\s*\")(\\d{3})\\d{4}(\\d{4}\")", "$1$3****$4");
+                .replaceAll("(\"(phone|mobile|tel)\"\\s*:\\s*\")([^\"]*\\d[^\"]*)(\")", "$1***$3")
+                .replaceAll("(\"(address|allergyHistory|pastHistory)\"\\s*:\\s*\")(.*?)(\")", "$1***$4");
     }
 }
