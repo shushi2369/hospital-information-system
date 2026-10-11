@@ -14,6 +14,8 @@ import java.time.LocalDate;
 public class RegistrationDTO {
     private Long id;
     private String regNo;
+    /** 一百一十七轮 F-03：进行中就诊 id（已接诊挂号单反查回填，前端"继续接诊"依赖） */
+    private Long visitId;
     private Long patientId;
     private String patientName;
     private String patientNo;

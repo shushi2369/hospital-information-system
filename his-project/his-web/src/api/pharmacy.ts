@@ -51,6 +51,8 @@ export interface DispenseOrder {
   dispenserName?: string | null
   totalQuantity: number
   dispenseTime?: string | null
+  /** 一百一十四轮 returned 标志：已整方退药（后端 DispenseOrderVO 回填） */
+  returned?: boolean
 }
 
 /** 退药单 */

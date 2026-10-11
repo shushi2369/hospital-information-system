@@ -24,6 +24,7 @@ import java.util.List;
 public class RegistrationAppService {
     private final RegRegistrationMapper registrationMapper;
     private final PatientAppService patientAppService;
+    private final com.his.modules.clinic.mapper.CliVisitMapper visitMapper;
     private final BasedataAppService basedataAppService;
 
     public RegistrationDTO getById(Long registrationId) {
@@ -51,14 +52,19 @@ public class RegistrationAppService {
         return toDTO(reg);
     }
 
-    /** 医生当日候诊列表（status=10，排队号升序） */
+    /** 医生当日候诊列表（status=10，排队号升序）。
+     *  一百一十七轮 F-03：放行"status=30 且就诊进行中"的行——原接诊后挂号单即 30、
+     *  队列只查 10，接诊中的患者刷新后从 UI 失联（误点他人接诊会替换 URL 丢工作现场）。
+     *  visitId 由 toDTO 按挂号单反查进行中就诊回填 */
     public List<RegistrationDTO> listQueueByDoctor(Long doctorId, LocalDate regDate) {
-        return registrationMapper.selectList(new LambdaQueryWrapper<RegRegistration>()
-                        .eq(RegRegistration::getDoctorId, doctorId)
-                        .eq(RegRegistration::getRegDate, regDate)
-                        .eq(RegRegistration::getStatus, 10)
-                        .orderByAsc(RegRegistration::getQueueNo))
-                .stream().map(this::toDTO).toList();
+        List<RegRegistration> regs = registrationMapper.selectList(new LambdaQueryWrapper<RegRegistration>()
+                .eq(RegRegistration::getDoctorId, doctorId)
+                .eq(RegRegistration::getRegDate, regDate)
+                .in(RegRegistration::getStatus, 10, 30)
+                .orderByAsc(RegRegistration::getQueueNo));
+        return regs.stream().map(this::toDTO)
+                .filter(dto -> dto.getStatus() == 10 || dto.getVisitId() != null)
+                .toList();
     }
 
     /** 收费联动：挂号费+诊查费标记已收费（charge_status 0→1） */
@@ -132,6 +138,19 @@ public class RegistrationAppService {
         var dept = basedataAppService.getDepartment(reg.getDeptId());
         if (dept != null) {
             dto.setDeptName(dept.getDeptName());
+        }
+        // 一百一十七轮 F-03：已接诊（30）的挂号单反查进行中就诊回填 visitId——
+        // 前端"继续接诊"分支依赖它（F-03 前该列恒 null）
+        if (reg.getStatus() != null && reg.getStatus() == 30 && visitMapper != null) {
+            com.his.modules.clinic.entity.CliVisit visit = visitMapper.selectOne(
+                    new LambdaQueryWrapper<com.his.modules.clinic.entity.CliVisit>()
+                            .eq(com.his.modules.clinic.entity.CliVisit::getRegistrationId, reg.getId())
+                            .eq(com.his.modules.clinic.entity.CliVisit::getStatus, 20)
+                            .orderByDesc(com.his.modules.clinic.entity.CliVisit::getId)
+                            .last("LIMIT 1"));
+            if (visit != null) {
+                dto.setVisitId(visit.getId());
+            }
         }
         return dto;
     }

@@ -80,6 +80,8 @@ export interface ChargeDetail {
   amount: string | number
   /** 0 未退 1 部分退 2 全退 */
   refundStatus: number
+  /** 八十七轮剩余可退预填：库内已退累计（后端 BillResponse 回填） */
+  refundedQty?: number | string
 }
 
 /** 支付记录 */

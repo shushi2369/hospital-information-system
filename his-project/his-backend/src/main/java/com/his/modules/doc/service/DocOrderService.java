@@ -544,6 +544,17 @@ public class DocOrderService {
         for (DocOrderExec e : execs) {
             e.setNurseName(nurseNames.get(e.getNurseId()));
         }
+        // 一百一十七轮 F-07：执行单回填项目/药品——多明细医嘱的多行执行记录方可区分
+        for (DocOrderExec e : execs) {
+            DocOrderItem it = items.stream()
+                    .filter(i -> i.getId().equals(e.getItemId()))
+                    .findFirst().orElse(null);
+            if (it != null) {
+                e.setItemName(it.getItemName());
+                e.setDosage(it.getDosage());
+                e.setFrequency(it.getFrequency());
+            }
+        }
         return Map.of("order", order, "items", items, "executions", execs);
     }
 

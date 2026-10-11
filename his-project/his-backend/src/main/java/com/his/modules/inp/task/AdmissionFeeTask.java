@@ -106,7 +106,7 @@ public class AdmissionFeeTask {
             try {
                 dailyFeeMapper.insert(fee);
             } catch (org.springframework.dao.DuplicateKeyException e) {
-                // uk_df_source（V52）：启动补偿与 cron 竞态窗口的唯一索引兜底
+                // uk_df_bed_fee（V52）：启动补偿与 cron 竞态窗口的唯一索引兜底
                 continue;
             }
             count++;

@@ -181,8 +181,9 @@
                   {{ chargeStatusLabel(rx.chargeStatus) }}
                 </el-tag>
                 <span class="rx-amount">金额：¥{{ fmtMoney(rx.totalAmount) }}</span>
+                <!-- 一百一十七轮 F-02：门禁对齐后端（已收费处方作废必得 B2006 死按钮） -->
                 <el-button
-                  v-if="!readonly && (rx.status === 10 || rx.status === 20)"
+                  v-if="!readonly && (rx.status === 10 || (rx.status === 20 && rx.chargeStatus === 0))"
                   link
                   type="danger"
                   size="small"

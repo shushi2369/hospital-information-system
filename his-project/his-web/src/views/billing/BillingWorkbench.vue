@@ -210,7 +210,8 @@
               type="date"
               value-format="YYYY-MM-DD"
               :clearable="false"
-              placeholder="日结日期"
+              placeholder="日结日期（仅当日）"
+              :disabled-date="(d: Date) => d.getTime() !== new Date(new Date().toDateString()).getTime()"
               style="width: 140px"
             />
             <el-button
@@ -505,6 +506,7 @@ import {
   type UnpaidVisit,
 } from '@/api/billing'
 import { fmtMoney, todayStr } from '@/api/registration'
+import { useUserStore } from '@/stores/user'
 import { toList } from '@/api/request'
 
 // ---------------- 左侧未收费就诊 ----------------
@@ -785,6 +787,29 @@ function handleSettleSearch() {
   fetchSettlements()
 }
 
+// 一百一十七轮 F-06：日结锁定感知——本人当日已日结后，收费/退费每次必被 B3006 拒，
+// 前端提前禁用并提示（进页面/执行日结后各检测一次）
+const settleLockedToday = ref(false)
+const mySettleListSeq = ++_fetchSettlementsSeq
+async function checkMySettleLock() {
+  try {
+    const res = await getSettlementPage({
+      pageNum: 1,
+      pageSize: 1,
+      settleDate: todayStr(),
+      cashierId: String(useUserStore().userInfo?.userId ?? ''),
+    })
+    settleLockedToday.value = (res.list ?? []).length > 0
+  } catch {
+    settleLockedToday.value = false
+  }
+}
+
+function handleSettleSuccess() {
+  settleLockedToday.value = true
+  ElMessage.warning('今日已日结，本收费员今日不能再收费或退费')
+}
+
 function handleSettleReset() {
   settleQuery.settleDate = ''
   settleQuery.cashierId = ''
@@ -797,6 +822,11 @@ function handleSettleSizeChange() {
 }
 
 function handleSettle() {
+  // 一百一十七轮 F-06：锁定态前置拦截（后端 B3006 兜底）
+  if (settleLockedToday.value) {
+    ElMessage.warning('今日已日结，本收费员今日不能再收费或退费')
+    return
+  }
   ElMessageBox.confirm(
     `确认执行 ${settleDate.value} 的收费日结？日结按当前登录收费员汇总当日收费与退费。`,
     '执行日结',
@@ -817,6 +847,7 @@ function handleSettle() {
           '日结成功',
           { type: 'success', confirmButtonText: '知道了' }
         ).catch(() => {})
+        handleSettleSuccess()
         fetchSettlements()
       } catch {
         // B3006 已日结等已在拦截器统一提示
@@ -835,6 +866,7 @@ watch(activeTab, (tab) => {
 })
 
 onMounted(() => {
+  checkMySettleLock() // 一百一十七轮 F-06：进页面即感知日结锁定
   fetchUnpaid()
   fetchBills()
 })

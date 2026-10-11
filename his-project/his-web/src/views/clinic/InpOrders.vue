@@ -428,6 +428,10 @@
 
           <div class="drawer-section">执行记录</div>
           <el-table :data="detail.executions" border size="small" empty-text="暂无执行记录">
+            <!-- 一百一十七轮 F-07：补项目列——多明细医嘱的多行执行记录此前不可区分 -->
+            <el-table-column prop="itemName" label="项目/药品" min-width="130" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.itemName || '-' }}</template>
+            </el-table-column>
             <el-table-column prop="execDate" label="执行日期" width="110" align="center">
               <template #default="{ row }">{{ row.execDate || '-' }}</template>
             </el-table-column>
@@ -659,6 +663,9 @@ function handleCategoryChange() {
   needSkinTest.value = false
   if (orderForm.category !== 1) {
     orderForm.frequency = ''
+    // 一百一十七轮 F-01 P1：非药品强制临时嘱——原只隐藏"长期"选项不复位模型值，
+    // 药品+长期切换到非药品后提交仍发 orderClass=1，100% 被频次白名单拦截且单选框空白误导
+    orderForm.orderClass = 2
     fetchItems(orderForm.category)
   }
 }

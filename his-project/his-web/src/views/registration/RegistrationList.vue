@@ -285,7 +285,7 @@ const feePreview = computed(() => {
   const d = selectedDoctor.value
   if (!d) return ''
   const fee = Number(regForm.regType === 2 ? d.expertFee : d.normalFee)
-  return Number.isFinite(fee) ? `预计费用：¥${fee.toFixed(2)}` : ''
+  return Number.isFinite(fee) ? `预计挂号费：¥${fee.toFixed(2)}（另收诊查费，合计以挂号成功弹窗为准）` : ''
 })
 
 /** 远程搜索患者：纯数字按手机号查，否则按姓名查 */

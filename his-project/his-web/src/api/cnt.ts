@@ -24,7 +24,7 @@ export interface CntRequest {
 
 export const CNT_STATUS_OPTIONS = [
   { value: 10, label: '待接受' },
-  { value: 20, label: '会诊中' },
+  { value: 20, label: '已接受' },
   { value: 30, label: '已完成' },
 ]
 

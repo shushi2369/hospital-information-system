@@ -114,3 +114,17 @@ Windows 服务：HIS-MySQL / HIS-Redis / HIS-Backend(WinSW) / HIS-Nginx(schtasks
 1. 迁移文件只增不改（V38、V39……）；已执行迁移的 checksum 不可触碰。
 2. 迁移尽量幂等（INSERT IGNORE / 条件更新），防部分失败后的重放残留。
 3. 每轮查验/优化的教训同步进《bug-patterns.md》——经验不入库等于没有。
+
+## 失败迁移恢复（一百一十七轮迁移专项【4】固化）
+
+MySQL 8.0 无 `CREATE INDEX IF NOT EXISTS`，多语句迁移（V49/V51/V52 等）失败半程时：
+已建索引残留 + flyway_schema_history 记 failed，直接重跑报 "Duplicate key name"。
+
+恢复三步：
+1. `mysql -uroot -proot123 his -e "SELECT version,success FROM flyway_schema_history WHERE success=0;"`
+   确认失败版本；
+2. 手工清掉半程产物（残留索引按报错的 Duplicate key name 逐个 DROP INDEX），
+   脏数据类迁移先跑预检（例：V52 唯一索引上线前查存量重复床位费——
+   `SELECT admission_id,fee_date,source_type,COUNT(*) FROM inp_daily_fee WHERE source_type=1 AND status=1 GROUP BY 1,2,3 HAVING COUNT(*)>1;`
+   有行则先按最小 id 保留、其余置 status=0——与 voidManualFee 冲正语义一致）；
+3. `flyway -community... repair`（或删除 flyway_schema_history 中 failed 行）后重启应用自动重放。

@@ -7,5 +7,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class ReconcileRequest {
+    /** 一百一十七轮迁移专项【8】：200 上限——diff_reason 列宽 256，固定前缀 14 字 + 备注超长会 500 */
+    @jakarta.validation.constraints.Size(max = 200, message = "对账备注最长 200 字")
     private String remark;
 }
