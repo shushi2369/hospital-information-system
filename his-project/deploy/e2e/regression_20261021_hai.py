@@ -118,6 +118,16 @@ def main():
           rule is not None and rule.get("id") != 987654324 and rule.get("status") == 1
           and rule.get("version") == 0 and rule.get("createdBy") != 999, rule)
 
+    # ============ 危急值列表医生数据范围（W-01 "待我确认"） ============
+    chen = login("dr.chen")
+    st, r = call("GET", "/alerts?pageNum=1&pageSize=200", chen)
+    check("W1. 无管床/开单的医生看不到他人危急值",
+          st == 200 and r.get("data") is not None and not r["data"]["list"], r)
+    li = login("dr.li")
+    st, r = call("GET", "/alerts?pageNum=1&pageSize=200", li)
+    check("W2. 责任医生仍可看到本人危急值",
+          st == 200 and len((r.get("data") or {}).get("list") or []) > 0, r)
+
     failed = [x for x in RESULTS if not x[1]]
     print("\nhai audit regression: %d/%d passed, %d failed"
           % (len(RESULTS) - len(failed), len(RESULTS), len(failed)))

@@ -80,12 +80,34 @@ public class AlertService {
                 "{\"source\":2,\"item\":\"" + com.his.infrastructure.util.JsonEscapeUtil.escape(itemName) + "\"}");
     }
 
-    /** 危急值分页（W-01） */
+    /** 危急值分页（W-01）：医生站"待我确认"——医生仅见本人管床/开单患者的危急值；
+     *  检验/影像/护理/管理员/审计员保留全院工作台视图。 */
     public PageResult<AlertCritical> page(Integer status, PageQuery query) {
-        Page<AlertCritical> page = alertMapper.selectPage(query.toPage(),
-                new LambdaQueryWrapper<AlertCritical>()
-                        .eq(status != null, AlertCritical::getStatus, status)
-                        .orderByAsc(AlertCritical::getStatus).orderByDesc(AlertCritical::getId));
+        LambdaQueryWrapper<AlertCritical> wrapper = new LambdaQueryWrapper<AlertCritical>()
+                .eq(status != null, AlertCritical::getStatus, status)
+                .orderByAsc(AlertCritical::getStatus).orderByDesc(AlertCritical::getId);
+        var roles = CurrentUser.get().getRoleCodes();
+        boolean worklist = roles.contains("ADMIN") || roles.contains("AUDITOR")
+                || roles.contains("NURSE") || roles.contains("LIS_USER") || roles.contains("RIS_USER");
+        if (!worklist && roles.contains("DOCTOR")) {
+            DoctorDTO doctor = basedataAppService.getDoctorByUserId(CurrentUser.id());
+            if (doctor == null) {
+                return PageResult.of(new Page<>(query.getPageNum(), query.getPageSize()));
+            }
+            Long did = doctor.getId();
+            // 住院按责任医生；门诊按来源申请单开单医生（lis/ris 请求 doctor_id = bas_doctor.id）
+            wrapper.and(w -> w
+                    .inSql(AlertCritical::getAdmissionId,
+                            "SELECT id FROM inp_admission WHERE doctor_id = " + did)
+                    .or(x -> x.isNull(AlertCritical::getAdmissionId)
+                            .and(y -> y.nested(z -> z.eq(AlertCritical::getSource, 1)
+                                            .inSql(AlertCritical::getRequestId,
+                                                    "SELECT id FROM lis_request WHERE doctor_id = " + did))
+                                    .or(z -> z.eq(AlertCritical::getSource, 2)
+                                            .inSql(AlertCritical::getRequestId,
+                                                    "SELECT id FROM ris_request WHERE doctor_id = " + did)))));
+        }
+        Page<AlertCritical> page = alertMapper.selectPage(query.toPage(), wrapper);
         // 通知人/确认人姓名回填（一百零二轮裸 ID 清查 #1）
         java.util.Set<Long> userIds = new java.util.HashSet<>();
         for (AlertCritical a : page.getRecords()) {
