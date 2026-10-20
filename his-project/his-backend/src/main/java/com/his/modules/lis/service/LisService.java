@@ -52,7 +52,7 @@ public class LisService {
     private final LabInstrumentGateway instrumentGateway;
     private final AlertService alertService;
     private final com.his.modules.plt.service.PltService pltService;
-    private final com.his.modules.system.app.SystemAppService systemAppService;
+    private final com.his.modules.basedata.app.BasedataAppService basedataAppService;
     private final com.his.modules.patient.app.PatientAppService patientAppService;
     private final IdGenerator idGenerator;
 
@@ -327,9 +327,12 @@ public class LisService {
         for (LisRequest r : page.getRecords()) {
             if (r.getDoctorId() != null) doctorIds.add(r.getDoctorId());
         }
-        Map<Long, String> doctors = systemAppService.getUsernameMap(doctorIds);
+        // lis_request.doctor_id 是 bas_doctor.id，须按医生表回填（sys_user.id 同号不同人）
+        Map<Long, ? extends com.his.modules.basedata.app.DoctorDTO> doctors =
+                basedataAppService.listDoctorsByIds(doctorIds);
         for (LisRequest r : page.getRecords()) {
-            r.setDoctorName(doctors.get(r.getDoctorId()));
+            var doctor = doctors.get(r.getDoctorId());
+            r.setDoctorName(doctor == null ? null : doctor.getDoctorName());
         }
         com.his.infrastructure.util.PatientNameBackfill.fill(page.getRecords(), patientAppService);
         return PageResult.of(page);

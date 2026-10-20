@@ -106,7 +106,7 @@ public class ClinicController {
     @Idempotent
     @AuditLog(module = "clinic", action = "作废处方", bizType = "cli_prescription")
     public R<Void> voidPrescription(@PathVariable Long id,
-                                    @RequestBody(required = false) PrescriptionVoidRequest req) {
+                                    @Valid @RequestBody(required = false) PrescriptionVoidRequest req) {
         clinicService.voidPrescription(id, req);
         return R.ok();
     }

@@ -524,11 +524,14 @@ public class DocOrderService {
         Map<Long, com.his.modules.patient.app.PatientDTO> patients = patientAppService
                 .listByIds(new java.util.ArrayList<>(patientIds)).stream()
                 .collect(Collectors.toMap(com.his.modules.patient.app.PatientDTO::getId, p -> p));
-        Map<Long, String> doctors = systemAppService.getUsernameMap(doctorIds);
+        // order.doctor_id 是 bas_doctor.id，不能拿 sys_user.id 映射姓名（会串成同名不同人）
+        Map<Long, ? extends com.his.modules.basedata.app.DoctorDTO> doctors =
+                basedataAppService.listDoctorsByIds(doctorIds);
         for (DocOrder o : orders) {
             com.his.modules.patient.app.PatientDTO p = patients.get(o.getPatientId());
             o.setPatientName(p == null ? null : p.getName());
-            o.setDoctorName(doctors.get(o.getDoctorId()));
+            var doctor = doctors.get(o.getDoctorId());
+            o.setDoctorName(doctor == null ? null : doctor.getDoctorName());
         }
     }
 

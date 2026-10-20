@@ -35,9 +35,31 @@ public class AeService {
         if (event.getSeverity() == null || event.getSeverity() < 1 || event.getSeverity() > 4) {
             throw new BizException(ErrorCode.A0001, "严重程度取值 1~4");
         }
+        if (event.getDepartmentId() == null) {
+            throw new BizException(ErrorCode.A0001, "发生科室不能为空");
+        }
+        if (event.getEventTime() == null) {
+            throw new BizException(ErrorCode.A0001, "事件发生时间不能为空");
+        }
+        if (event.getDescription() == null || event.getDescription().isBlank()) {
+            throw new BizException(ErrorCode.A0001, "事件描述不能为空");
+        }
+        if (event.getDescription().length() > 1024) {
+            throw new BizException(ErrorCode.A0001, "事件描述最长 1024 字");
+        }
+        // 裸实体入参：主键与流程字段必须由服务端生成，否则可伪造质控/整改/闭环留痕
+        event.setId(null);
         event.setEventNo(idGenerator.next("AE"));
         event.setReporterId(CurrentUser.id());
+        event.setQcId(null);
+        event.setHandlerNote(null);
+        event.setHandlerId(null);
+        event.setClosedTime(null);
         event.setStatus(10);
+        event.setVersion(0);
+        event.setCreatedBy(null);
+        event.setCreatedAt(null);
+        event.setUpdatedAt(null);
         eventMapper.insert(event);
         pltService.recordEvent("ae.reported", event.getEventNo(),
                 "{\"type\":" + event.getEventType() + ",\"severity\":" + event.getSeverity() + "}");
@@ -79,6 +101,12 @@ public class AeService {
     /** 整改（AE-03）：20 → 30 */
     @Transactional
     public void rectify(Long id, String handlerNote) {
+        if (handlerNote == null || handlerNote.isBlank()) {
+            throw new BizException(ErrorCode.A0001, "整改说明不能为空");
+        }
+        if (handlerNote.length() > 512) {
+            throw new BizException(ErrorCode.A0001, "整改说明最长 512 字");
+        }
         AeEvent event = requireEvent(id);
         if (event.getStatus() != 20) {
             throw new BizException(ErrorCode.A0001, "事件未分派，不能整改");

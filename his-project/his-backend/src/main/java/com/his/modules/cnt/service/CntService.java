@@ -37,6 +37,28 @@ public class CntService {
         if (req.getAdmissionId() == null && req.getVisitId() == null) {
             throw new BizException(ErrorCode.A0001, "住院或门诊就诊至少关联一项");
         }
+        if (req.getDeptId() == null) {
+            throw new BizException(ErrorCode.A0001, "受邀科室不能为空");
+        }
+        if (req.getReason() == null || req.getReason().isBlank()) {
+            throw new BizException(ErrorCode.A0001, "会诊目的不能为空");
+        }
+        if (req.getReason().length() > 512) {
+            throw new BizException(ErrorCode.A0001, "会诊目的最长 512 字");
+        }
+        if (req.getUrgent() != null && (req.getUrgent() < 0 || req.getUrgent() > 1)) {
+            throw new BizException(ErrorCode.A0001, "急会诊标识取值 0/1");
+        }
+        // 裸实体入参：主键与流程字段必须由服务端维护，避免伪造接受/意见留痕
+        req.setId(null);
+        req.setConsultDoctorId(null);
+        req.setAcceptTime(null);
+        req.setOpinion(null);
+        req.setOpinionTime(null);
+        req.setVersion(0);
+        req.setCreatedBy(null);
+        req.setCreatedAt(null);
+        req.setUpdatedAt(null);
         if (req.getAdmissionId() != null) {
             var adm = inpAppService.requireInHospital(req.getAdmissionId());
             // C3（一百零七轮走查）：患者与住院登记一致性校验——防跨患者挂会诊
@@ -124,6 +146,9 @@ public class CntService {
         // 一百零七轮 C7：空意见兜底拦截（Controller 已有 @RequestParam 前置校验）
         if (opinion == null || opinion.isBlank()) {
             throw new BizException(ErrorCode.A0001, "会诊意见不能为空");
+        }
+        if (opinion.length() > 1024) {
+            throw new BizException(ErrorCode.A0001, "会诊意见最长 1024 字");
         }
         // 会诊意见须由受邀医生（=接受者）填写（八十八轮 IDOR 审计 P1-3）
         if (req.getConsultDoctorId() != null && !req.getConsultDoctorId().equals(CurrentUser.id())

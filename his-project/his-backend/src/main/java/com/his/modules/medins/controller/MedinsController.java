@@ -56,7 +56,7 @@ public class MedinsController {
     @PreAuthorize("@ss.hasPerm('medins:settle:reconcile')")
     @Idempotent
     @AuditLog(module = "medins", action = "医保对账", bizType = "medins_settle")
-    public R<Void> reconcile(@PathVariable Long id, @RequestBody(required = false) ReconcileRequest req) {
+    public R<Void> reconcile(@PathVariable Long id, @Valid @RequestBody(required = false) ReconcileRequest req) {
         medinsService.reconcile(id, req);
         return R.ok();
     }

@@ -88,7 +88,7 @@ public class DocOrderController {
     @PreAuthorize("@ss.hasPerm('doc:order:create')")
     @Idempotent
     @AuditLog(module = "doc", action = "作废医嘱", bizType = "doc_order")
-    public R<Void> voidOrder(@PathVariable Long id, @RequestBody(required = false) StopOrderRequest req) {
+    public R<Void> voidOrder(@PathVariable Long id, @Valid @RequestBody(required = false) StopOrderRequest req) {
         docOrderService.voidOrder(id, req == null ? new StopOrderRequest() : req);
         return R.ok();
     }
