@@ -188,17 +188,17 @@ public class BbService {
                 "{\"approved\":" + approved + "}");
     }
 
-    /** 取消（B-07）：10/20 → 70 */
+    /** 取消（B-07）：10/20/30 → 70（30 为配血完成未发血：原仅允许 10/20，血袋被他人先发后永久卡死） */
     @Transactional
     public void cancel(Long id) {
         BbRequest request = requireRequest(id);
-        if (request.getStatus() != 10 && request.getStatus() != 20) {
-            throw new BizException(ErrorCode.A0001, "待审核/配血中状态才可取消");
+        if (request.getStatus() != 10 && request.getStatus() != 20 && request.getStatus() != 30) {
+            throw new BizException(ErrorCode.A0001, "待审核/配血中/配血完成状态才可取消");
         }
         // 一百一十四轮 #2：条件更新——并发配血/发血提交后取消不得覆写（血已发出申请却是"已取消"）
         int updated = requestMapper.update(null, new LambdaUpdateWrapper<BbRequest>()
                 .eq(BbRequest::getId, id)
-                .in(BbRequest::getStatus, 10, 20)
+                .in(BbRequest::getStatus, 10, 20, 30)
                 .set(BbRequest::getStatus, 70));
         if (updated != 1) {
             throw new BizException(ErrorCode.A0008, "申请状态已变化，请刷新后重试");
@@ -206,14 +206,15 @@ public class BbService {
     }
 
     /**
-     * 交叉配血（B-08）：状态须 20；血袋须在库未过期且血型/成分与申请一致；
-     * 相容 → 30（配血完成）；不相容 → 保持 20 可换袋重配。
+     * 交叉配血（B-08）：状态须 20（配血完成 30 时允许换袋重配——原状态无任何出口，
+     * 同一血袋被其他申请先发后本申请永久卡在 30）；血袋须在库未过期且血型/成分与申请一致；
+     * 相容 → 30（配血完成）；不相容 → 保持原状态可换袋重配。
      */
     @Transactional
     public Long crossMatch(Long id, CrossMatchRequest req) {
         BbRequest request = requireRequest(id);
-        if (request.getStatus() != 20) {
-            throw new BizException(ErrorCode.A0001, "申请不在配血中状态");
+        if (request.getStatus() != 20 && request.getStatus() != 30) {
+            throw new BizException(ErrorCode.A0001, "申请不在配血中/配血完成状态");
         }
         BbBloodBag bag = requireBag(req.getBagId());
         if (bag.getStatus() != 1 || !bag.getExpireDate().isAfter(LocalDate.now())) {
@@ -238,7 +239,7 @@ public class BbService {
         if (req.getCrossResult() == 1) {
             int updated = requestMapper.update(null, new LambdaUpdateWrapper<BbRequest>()
                     .eq(BbRequest::getId, id)
-                    .eq(BbRequest::getStatus, 20)
+                    .eq(BbRequest::getStatus, request.getStatus())
                     .set(BbRequest::getStatus, 30));
             if (updated != 1) {
                 throw new BizException(ErrorCode.A0008, "申请状态已变化，请刷新后重试");

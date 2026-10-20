@@ -291,6 +291,12 @@ public class RisService {
         if (request.getStatus() != 30) {
             throw new BizException(ErrorCode.A0001, "申请不在检查中状态，不能书写报告");
         }
+        // 报告必须以影像为依据：finish 只在 UI 侧被调用，原 writeReport 可绕过影像归档直接出报告
+        Long images = imageMapper.selectCount(new LambdaQueryWrapper<RisImage>()
+                .eq(RisImage::getRequestId, req.getRequestId()));
+        if (images == null || images == 0) {
+            throw new BizException(ErrorCode.A0001, "影像未归档，不能书写报告");
+        }
         RisReport report = reportMapper.selectOne(new LambdaQueryWrapper<RisReport>()
                 .eq(RisReport::getRequestId, req.getRequestId()).last("LIMIT 1"));
         if (report == null) {

@@ -1,5 +1,7 @@
 package com.his.modules.lis.dto;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
@@ -13,12 +15,15 @@ public class ResultEntryRequest {
     @NotNull(message = "申请单不能为空")
     private Long requestId;
     private Boolean fetch;
+    @Valid
     private List<ResultRow> rows;
 
     @Getter
     @Setter
     public static class ResultRow {
+        @NotBlank(message = "检验项目不能为空")
         private String itemName;
+        @NotBlank(message = "检验结果不能为空")
         private String resultValue;
         private String unit;
         private String referenceRange;

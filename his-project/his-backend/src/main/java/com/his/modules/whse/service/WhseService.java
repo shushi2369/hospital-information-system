@@ -68,6 +68,11 @@ public class WhseService {
     /** 创建采购单（S-03，药师）：待审批 */
     @Transactional
     public String createPo(PurchaseOrderCreateRequest req) {
+        // 供应商必须存在且启用：否则审批/到货一路放行，入库时 supplier 只能落空、失去追溯
+        BasSupplier supplier = supplierMapper.selectById(req.getSupplierId());
+        if (supplier == null || supplier.getStatus() == null || supplier.getStatus() == 0) {
+            throw new BizException(ErrorCode.A0001, "供应商不存在或已停用");
+        }
         WhsePurchaseOrder po = new WhsePurchaseOrder();
         po.setPoNo(idGenerator.next("CG"));
         po.setSupplierId(req.getSupplierId());

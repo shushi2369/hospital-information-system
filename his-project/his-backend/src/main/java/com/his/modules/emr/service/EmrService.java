@@ -118,12 +118,16 @@ public class EmrService {
                 }
             }
         }
-        int submitted = recordMapper.update(null, new LambdaUpdateWrapper<EmrRecord>()
+        // 版本递增：并发暂存（updateById）若读到的是提交前快照，提交后必须因版本不符而失败，
+        // 否则 stale 暂存会把 status=10 写回、已提交文书悄悄退回草稿
+        EmrRecord upd = new EmrRecord();
+        upd.setStatus(20);
+        upd.setRecordTime(record.getRecordTime());
+        upd.setQcIssues(record.getQcIssues());
+        upd.setVersion(record.getVersion());
+        int submitted = recordMapper.update(upd, new LambdaUpdateWrapper<EmrRecord>()
                 .eq(EmrRecord::getId, recordId)
-                .in(EmrRecord::getStatus, 10, 40)
-                .set(EmrRecord::getStatus, 20)
-                .set(EmrRecord::getRecordTime, record.getRecordTime())
-                .set(EmrRecord::getQcIssues, record.getQcIssues()));
+                .in(EmrRecord::getStatus, 10, 40));
         if (submitted != 1) {
             throw new BizException(ErrorCode.A0008, "文书状态已变化，请刷新后重试");
         }

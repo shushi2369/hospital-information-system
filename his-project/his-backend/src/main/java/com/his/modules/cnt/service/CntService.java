@@ -54,6 +54,13 @@ public class CntService {
             if (opVisit == null) {
                 throw new BizException(ErrorCode.A0001, "门诊就诊不存在");
             }
+            // 患者一致性：原门诊分支既不校验也不回填 patientId，可给 A 患者就诊挂 B 患者会诊
+            if (opVisit.getPatientId() != null) {
+                if (req.getPatientId() != null && !opVisit.getPatientId().equals(req.getPatientId())) {
+                    throw new BizException(ErrorCode.A0001, "患者与门诊就诊不匹配，禁止跨患者挂会诊");
+                }
+                req.setPatientId(opVisit.getPatientId());
+            }
         }
         req.setReqNo(idGenerator.next("HZ"));
         req.setPatientId(req.getPatientId());

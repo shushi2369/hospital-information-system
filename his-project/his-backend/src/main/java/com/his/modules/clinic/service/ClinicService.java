@@ -299,6 +299,8 @@ public class ClinicService {
 
     /** 门诊检查/检验申请列表（四期二批：回写状态验证） */
     public List<com.his.modules.clinic.entity.CliExamApplication> listExamApplications(Long visitId) {
+        // 数据范围：非管理员仅能查看本人接诊就诊的申请（原直接按 visitId 查询可越权枚举他人就诊）
+        checkVisitScope(requireVisit(visitId));
         return examApplicationMapper.selectList(new LambdaQueryWrapper<com.his.modules.clinic.entity.CliExamApplication>()
                 .eq(com.his.modules.clinic.entity.CliExamApplication::getVisitId, visitId)
                 .orderByAsc(com.his.modules.clinic.entity.CliExamApplication::getId));

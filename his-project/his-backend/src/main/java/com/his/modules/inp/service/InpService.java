@@ -160,10 +160,12 @@ public class InpService {
             throw new BizException(ErrorCode.B6007, "退押金超过应退金额（上限 " + refundable + "）");
         }
         saveDeposit(admissionId, req.getAmount().negate(), req.getPayMethod());
-        // 上限校验是无锁读：递减必须带 >= amount 守卫并断言，否则并发双退穿透押金账本（八十六轮并发审计）
+        // 上限校验是无锁读：递减必须带双重守卫并断言——既要够本次退款，
+        // 又要保证递减后余额仍 >= 结算账单净额，否则并发两次部分退可把押金退到账单额以下
+        BigDecimal requiredBalance = req.getAmount().add(billTotal);
         int decreased = admissionMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<InpAdmission>()
                 .eq(InpAdmission::getId, admissionId)
-                .ge(InpAdmission::getDepositTotal, req.getAmount())
+                .ge(InpAdmission::getDepositTotal, requiredBalance)
                 .setSql("deposit_total = deposit_total - {0}", req.getAmount()));
         if (decreased != 1) {
             throw new BizException(ErrorCode.A0008, "押金余额已变化，退押金失败，请刷新后重试");
@@ -316,6 +318,9 @@ public class InpService {
         if (fee.getChargeStatus() != null && fee.getChargeStatus() != 0) {
             throw new BizException(ErrorCode.B6003, "该费用已结算，不可冲正");
         }
+        // 住院行锁串行化同住院的冲正：末笔费用判定必须看到其他并发冲正的最新结果
+        InpAdmission admission = admissionMapper.selectOne(new LambdaQueryWrapper<InpAdmission>()
+                .eq(InpAdmission::getId, fee.getAdmissionId()).last("FOR UPDATE"));
         int updated = dailyFeeMapper.update(null, new LambdaUpdateWrapper<InpDailyFee>()
                 .eq(InpDailyFee::getId, feeId)
                 .eq(InpDailyFee::getSourceType, 4)
@@ -325,6 +330,26 @@ public class InpService {
                 .set(InpDailyFee::getUpdatedAt, LocalDateTime.now()));
         if (updated != 1) {
             throw new BizException(ErrorCode.A0008, "费用状态已变化，冲正失败，请刷新后重试");
+        }
+        // 出院未结(20)状态下冲掉最后一笔未结费用后，结算入口因"无费用"永久 B3002、出院又不可重办，
+        // 住院与押金会双双卡死——与 discharge 的无费用自动结算口径一致，直接置已结算(30)
+        if (admission != null && admission.getStatus() != null && admission.getStatus() == 20) {
+            Long unpaid = (long) dailyFeeMapper.selectList(new LambdaQueryWrapper<InpDailyFee>()
+                    .eq(InpDailyFee::getAdmissionId, fee.getAdmissionId())
+                    .eq(InpDailyFee::getChargeStatus, 0)
+                    .eq(InpDailyFee::getStatus, 1)
+                    .select(InpDailyFee::getId)
+                    .last("FOR UPDATE")).size();
+            if (unpaid == 0) {
+                int settled = admissionMapper.update(null, new LambdaUpdateWrapper<InpAdmission>()
+                        .eq(InpAdmission::getId, fee.getAdmissionId())
+                        .eq(InpAdmission::getStatus, 20)
+                        .set(InpAdmission::getStatus, 30));
+                if (settled == 1) {
+                    pltService.recordEvent("admission.auto_settled", admission.getAdmissionNo(),
+                            "{\"reason\":\"lastUnpaidFeeVoided\"}");
+                }
+            }
         }
         pltService.recordEvent("inp.fee.voided", String.valueOf(feeId),
                 "{\"admissionId\":" + fee.getAdmissionId() + "}");

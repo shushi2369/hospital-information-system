@@ -159,7 +159,9 @@ public class CdssService {
         }
         var order = orderMapper.selectById(hit.getOrderId());
         boolean admin = CurrentUser.get().getRoleCodes().contains("ADMIN");
-        if (!admin && (order == null || !CurrentUser.id().equals(order.getDoctorId()))) {
+        // order.doctorId 是 bas_doctor.id，CurrentUser.id() 是 sys_user.id——须先换算再比对
+        var doctor = admin ? null : basedataAppService.getDoctorByUserId(CurrentUser.id());
+        if (!admin && (order == null || doctor == null || !doctor.getId().equals(order.getDoctorId()))) {
             throw new BizException(ErrorCode.A0003, "仅开单医生本人可处置该命中");
         }
         int updated = hitMapper.update(null, new LambdaUpdateWrapper<CdssHit>()

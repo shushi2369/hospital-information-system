@@ -213,6 +213,10 @@ public class LisService {
         if (threshold == null || threshold.getLowValue() == null && threshold.getHighValue() == null) {
             return 0;
         }
+        // 空结果（仪器缺项/手工漏填）直接不判——原 value.trim() NPE 会回滚整次结果录入
+        if (value == null || value.isBlank()) {
+            return 0;
+        }
         try {
             BigDecimal v = new BigDecimal(value.trim());
             if (threshold.getHighValue() != null && v.compareTo(threshold.getHighValue()) > 0) {
@@ -275,10 +279,23 @@ public class LisService {
         return report.getReportNo();
     }
 
-    /** 报告分页（L-07） */
+    /** 报告分页（L-07）：admission/patient 落来源申请单，status 过滤报告本身（对齐 RIS 报告口径） */
     public PageResult<LisReport> reportPage(com.his.modules.lis.dto.LisRequestQuery query) {
-        Page<LisReport> page = reportMapper.selectPage(query.toPage(),
-                new LambdaQueryWrapper<LisReport>().orderByDesc(LisReport::getId));
+        LambdaQueryWrapper<LisReport> wrapper = new LambdaQueryWrapper<LisReport>()
+                .eq(query.getStatus() != null, LisReport::getStatus, query.getStatus())
+                .orderByDesc(LisReport::getId);
+        if (query.getAdmissionId() != null || query.getPatientId() != null) {
+            List<LisRequest> requests = requestMapper.selectList(new LambdaQueryWrapper<LisRequest>()
+                    .eq(query.getAdmissionId() != null, LisRequest::getAdmissionId, query.getAdmissionId())
+                    .eq(query.getPatientId() != null, LisRequest::getPatientId, query.getPatientId())
+                    .select(LisRequest::getId));
+            if (requests.isEmpty()) {
+                return PageResult.of(new Page<>(query.getPageNum(), query.getPageSize()));
+            }
+            wrapper.in(LisReport::getRequestId,
+                    requests.stream().map(LisRequest::getId).toList());
+        }
+        Page<LisReport> page = reportMapper.selectPage(query.toPage(), wrapper);
         return PageResult.of(page);
     }
 

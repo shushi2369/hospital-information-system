@@ -88,7 +88,10 @@ public class MedinsService {
                 throw new BizException(ErrorCode.B6401);
             }
         } else {
-            settleMapper.updateById(settle);
+            // @Version 更新：并发重报后到者 0 行，静默成功会丢失本次申报结果
+            if (settleMapper.updateById(settle) != 1) {
+                throw new BizException(ErrorCode.A0008, "申报单状态已变化，请刷新后重试");
+            }
         }
         pltService.recordEvent("medins.settle.applied", settle.getSettleNo(),
                 "{\"total\":" + settle.getTotalAmount() + "}");
@@ -116,7 +119,9 @@ public class MedinsService {
         settle.setReconcileTime(LocalDateTime.now());
         settle.setDiffReason(pass ? remark
                 : "申报金额与账单不一致" + (remark == null ? "" : "｜备注：" + remark));
-        settleMapper.updateById(settle);
+        if (settleMapper.updateById(settle) != 1) {
+            throw new BizException(ErrorCode.A0008, "申报单状态已变化，请刷新后重试");
+        }
         pltService.recordEvent("medins.settle.reconciled", settle.getSettleNo(),
                 "{\"pass\":" + pass + ",\"remark\":" + (remark != null) + "}");
     }

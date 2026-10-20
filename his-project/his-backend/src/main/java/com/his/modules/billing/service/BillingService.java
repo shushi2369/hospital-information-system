@@ -78,7 +78,6 @@ public class BillingService {
     private final IdGenerator idGenerator;
     private final com.his.modules.inp.app.InpAppService inpAppService;
     private final com.his.modules.rpt.service.RptService rptService;
-    private final com.his.modules.medins.mapper.MedinsSettleMapper medinsSettleMapper;
 
     /** 未收费就诊列表（B-02 收费窗口工作队列） */
     public List<Map<String, Object>> unpaidVisits() {
@@ -241,15 +240,10 @@ public class BillingService {
         if (bill == null) {
             throw new BizException(ErrorCode.B3007);
         }
-        // 医保门禁（八十八轮状态机审计 P1-3）：已申报(10)/对账通过(20)的账单不可退——
-        // 申报按当时净额支付，事后退费差额无处冲销；须先冲销申报（status 30）再退
-        if (bill.getAdmissionId() != null && medinsSettleMapper != null) {
-            Long activeSettle = medinsSettleMapper.selectCount(new LambdaQueryWrapper<com.his.modules.medins.entity.MedinsSettle>()
-                    .eq(com.his.modules.medins.entity.MedinsSettle::getBillId, bill.getId())
-                    .in(com.his.modules.medins.entity.MedinsSettle::getStatus, 10, 20));
-            if (activeSettle != null && activeSettle > 0) {
-                throw new BizException(ErrorCode.B3003, "该账单已医保申报/对账通过，须先冲销申报再退费");
-            }
+        // 住院结算账单没有退费联动：一日清行仍为已结算，且退押金按"应收-已退"重算可退额，
+        // 直接退会形成"费用已退但押金可退额同步增加"的重复退付；住院退费须走结算冲销（暂无该流程）
+        if (bill.getAdmissionId() != null) {
+            throw new BizException(ErrorCode.B3003, "住院结算账单不支持直接退费");
         }
         // 数据范围（《04》§4）：收费员仅能退本人经办账单；管理员豁免（对齐 billPage）
         com.his.infrastructure.security.LoginUser refundUser = com.his.infrastructure.security.CurrentUser.get();

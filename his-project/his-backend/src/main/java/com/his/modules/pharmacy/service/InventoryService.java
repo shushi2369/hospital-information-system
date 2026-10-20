@@ -78,6 +78,10 @@ public class InventoryService {
             after = req.getQuantity();
         } else {
             InvInventoryBatch locked = batchMapper.selectByIdForUpdate(batch.getId());
+            // 同批号必须同效期：原实现只加数量、沿用旧效期，新效期被静默丢弃
+            if (locked.getExpiryDate() != null && !locked.getExpiryDate().equals(req.getExpiryDate())) {
+                throw new BizException(ErrorCode.A0001, "同批号批次效期不一致，禁止合并入库（请更换批号）");
+            }
             before = locked.getQuantity();
             after = before.add(req.getQuantity());
             locked.setQuantity(after);

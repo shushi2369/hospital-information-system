@@ -360,10 +360,24 @@ public class DocOrderService {
         if (order.getStatus() != 50) {
             throw new BizException(ErrorCode.B6101, "医嘱不在停止状态");
         }
+        // 恢复必须回到停止前状态：药品医嘱未摆药时应回到 20（待摆药），
+        // 原无条件置 30 会让未摆药的药品医嘱直接满足执行条件，绕过库存扣减与药品费记账
+        List<DocOrderItem> activeItems = itemMapper.selectList(new LambdaQueryWrapper<DocOrderItem>()
+                .eq(DocOrderItem::getOrderId, orderId).eq(DocOrderItem::getStatus, 1));
+        int targetStatus;
+        if (order.getCategory() == 1) {
+            targetStatus = inpAppService.hasDrugDispatchFee(order.getAdmissionId(),
+                    activeItems.stream().map(DocOrderItem::getId).toList()) ? 30 : 20;
+        } else {
+            Long executed = execMapper.selectCount(new LambdaQueryWrapper<DocOrderExec>()
+                    .eq(DocOrderExec::getOrderId, orderId)
+                    .eq(DocOrderExec::getStatus, 2));
+            targetStatus = executed != null && executed > 0 ? 30 : 20;
+        }
         int resumed = orderMapper.update(null, new LambdaUpdateWrapper<DocOrder>()
                 .eq(DocOrder::getId, orderId)
                 .eq(DocOrder::getStatus, 50)
-                .set(DocOrder::getStatus, 30)
+                .set(DocOrder::getStatus, targetStatus)
                 .set(DocOrder::getStopTime, null));
         if (resumed != 1) {
             throw new BizException(ErrorCode.B6101, "医嘱状态已变化，请刷新后重试");
@@ -371,8 +385,7 @@ public class DocOrderService {
         LocalDate today = LocalDate.now();
         List<String> slots = FREQUENCY_SLOTS.getOrDefault(
                 order.getFrequency() == null ? "qd" : order.getFrequency(), List.of("08:00"));
-        for (DocOrderItem item : itemMapper.selectList(new LambdaQueryWrapper<DocOrderItem>()
-                .eq(DocOrderItem::getOrderId, orderId).eq(DocOrderItem::getStatus, 1))) {
+        for (DocOrderItem item : activeItems) {
             for (String slot : slots) {
                 execMapper.update(null, new LambdaUpdateWrapper<DocOrderExec>()
                         .eq(DocOrderExec::getItemId, item.getId())
@@ -631,9 +644,12 @@ public class DocOrderService {
         if (order.getCreatedBy() != null && order.getCreatedBy().equals(user)) {
             return;
         }
+        // admission.doctorId 是 bas_doctor.id，CurrentUser 是 sys_user.id——必须先换算再比对，
+        // 原直接比较会误拒管床医生、且 sys_user.id 恰好等于他人 bas_doctor.id 时误放行
         var admission = inpAppService.getAdmission(order.getAdmissionId());
-        if (admission != null && admission.getDoctorId() != null
-                && !admission.getDoctorId().equals(user)) {
+        var doctor = basedataAppService.getDoctorByUserId(user);
+        if (admission == null || doctor == null || admission.getDoctorId() == null
+                || !admission.getDoctorId().equals(doctor.getId())) {
             throw new BizException(ErrorCode.A0003, "仅管床医生或开嘱医生可操作该医嘱");
         }
     }

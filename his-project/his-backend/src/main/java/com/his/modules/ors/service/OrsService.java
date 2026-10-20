@@ -417,11 +417,10 @@ public class OrsService {
                 && !com.his.infrastructure.security.CurrentUser.get().getRoleCodes().contains("ADMIN")) {
             throw new BizException(ErrorCode.A0003, "仅手术申请人可取消");
         }
-        int updated = requestMapper.update(null, new LambdaUpdateWrapper<OrsSurgeryRequest>()
-                .eq(OrsSurgeryRequest::getId, id)
-                .in(OrsSurgeryRequest::getStatus, 10, 20, 30)
-                .set(OrsSurgeryRequest::getStatus, 70));
-        if (updated != 1) {
+        // 用实体更新递增 version：与原排台事务的 updateById 乐观锁串行化，
+        // 否则取消不 bump 版本，已取消(70)的手术会被排台的旧快照改回 30 并继续占台
+        request.setStatus(70);
+        if (requestMapper.updateById(request) != 1) {
             throw new BizException(ErrorCode.A0008, "申请状态已变化，请刷新后重试");
         }
         pltService.recordEvent("ors.request.cancelled", request.getRequestNo(),
@@ -436,8 +435,6 @@ public class OrsService {
                         .set(OrsSchedule::getStatus, 3));
             }
         }
-        pltService.recordEvent("ors.request.cancelled", request.getRequestNo(),
-                "{\"reason\":\"" + escapeJson(reason) + "\"}");
     }
 
     /** 手术间列表（OR-13） */

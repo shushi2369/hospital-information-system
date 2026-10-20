@@ -190,6 +190,19 @@ public class InpAppService {
         return fee.getId();
     }
 
+    /** 药品医嘱是否已摆药记账（库存扣减与药品费同事务落库，可作"已摆药"的持久证据） */
+    public boolean hasDrugDispatchFee(Long admissionId, java.util.Collection<Long> itemIds) {
+        if (itemIds == null || itemIds.isEmpty()) {
+            return false;
+        }
+        Long count = dailyFeeMapper.selectCount(new LambdaQueryWrapper<InpDailyFee>()
+                .eq(InpDailyFee::getAdmissionId, admissionId)
+                .eq(InpDailyFee::getSourceType, 2)
+                .eq(InpDailyFee::getFeeType, 7)
+                .in(InpDailyFee::getSourceDetailId, itemIds));
+        return count != null && count > 0;
+    }
+
     /** 在院校验（医嘱/护理模块经此校验操作合法性） */
     public InpAdmission requireInHospital(Long admissionId) {
         InpAdmission admission = requireAdmission(admissionId);

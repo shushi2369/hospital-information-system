@@ -18,7 +18,9 @@ import com.his.modules.inp.app.InpAppService;
 import com.his.modules.inp.entity.InpAdmission;
 import com.his.modules.lis.entity.LisRequest;
 import com.his.modules.lis.entity.LisResult;
+import com.his.modules.lis.mapper.LisRequestMapper;
 import com.his.modules.plt.service.PltService;
+import com.his.modules.ris.mapper.RisRequestMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,7 +29,7 @@ import java.time.LocalDateTime;
 
 /**
  * 危急值闭环服务（《10》§4.2 状态机）：待处理 → 已通知 → 已确认 → 已闭环。
- * 数据范围：医生确认仅限本人管床（admission.doctor_id），管理员豁免。
+ * 数据范围：住院按责任医生（admission.doctor_id）、门诊按开单医生（申请单 doctor_id），管理员豁免。
  */
 @Service
 @RequiredArgsConstructor
@@ -38,6 +40,8 @@ public class AlertService {
     private final PltService pltService;
     private final IdGenerator idGenerator;
     private final com.his.modules.system.app.SystemAppService systemAppService;
+    private final LisRequestMapper lisRequestMapper;
+    private final RisRequestMapper risRequestMapper;
 
     /** 结果危急时生成危急值（lis 调用） */
     @Transactional
@@ -168,10 +172,27 @@ public class AlertService {
             return;
         }
         var doctor = basedataAppService.getDoctorByUserId(user.getUserId());
-        InpAdmission admission = inpAppService.getAdmission(alert.getAdmissionId());
-        if (doctor == null || admission == null
-                || !admission.getDoctorId().equals(doctor.getId())) {
-            throw new BizException(ErrorCode.A0003, "仅责任医生可确认本人管床患者的危急值");
+        if (doctor == null) {
+            throw new BizException(ErrorCode.A0003, "仅开单/责任医生可处理本人患者的危急值");
+        }
+        if (alert.getAdmissionId() != null) {
+            InpAdmission admission = inpAppService.getAdmission(alert.getAdmissionId());
+            if (admission == null || !admission.getDoctorId().equals(doctor.getId())) {
+                throw new BizException(ErrorCode.A0003, "仅责任医生可确认本人管床患者的危急值");
+            }
+            return;
+        }
+        // 门诊危急值无住院记录，按来源申请单的开单医生界定；来源未登记时拒绝而非放行
+        Long orderDoctorId = null;
+        if (alert.getSource() != null && alert.getSource() == 2) {
+            var request = risRequestMapper.selectById(alert.getRequestId());
+            orderDoctorId = request == null ? null : request.getDoctorId();
+        } else {
+            var request = lisRequestMapper.selectById(alert.getRequestId());
+            orderDoctorId = request == null ? null : request.getDoctorId();
+        }
+        if (!doctor.getId().equals(orderDoctorId)) {
+            throw new BizException(ErrorCode.A0003, "仅开单医生可确认本人患者的危急值");
         }
     }
 

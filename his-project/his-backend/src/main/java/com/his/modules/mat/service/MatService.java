@@ -210,6 +210,10 @@ public class MatService {
                 throw new BizException(ErrorCode.A0001, "该物资同批号批次已存在");
             }
         } else {
+            // 同批号必须同效期：否则新入库数量沿用旧效期，实际效期信息被静默吞掉
+            if (exist.getExpireDate() != null && !exist.getExpireDate().equals(exp)) {
+                throw new BizException(ErrorCode.A0001, "同批号批次效期不一致，禁止合并入库（请更换批号）");
+            }
             batchMapper.update(null, new LambdaUpdateWrapper<MatBatch>()
                     .eq(MatBatch::getId, exist.getId())
                     .setSql("quantity = quantity + " + po.getQuantity())
@@ -257,6 +261,17 @@ public class MatService {
         if (req.getDeptId() == null || basedataAppService.getDepartment(req.getDeptId()) == null) {
             throw new BizException(ErrorCode.A0001, "领用科室不存在");
         }
+        // 过期批次不可领用：聚合库存包含过期批次数量，须先剔除再判断可用量
+        MatStock stock = stockMapper.selectOne(new LambdaQueryWrapper<MatStock>()
+                .eq(MatStock::getMaterialId, req.getMaterialId()).last("LIMIT 1"));
+        int expiredQty = batchMapper.selectList(new LambdaQueryWrapper<MatBatch>()
+                        .eq(MatBatch::getMaterialId, req.getMaterialId())
+                        .le(MatBatch::getExpireDate, java.time.LocalDate.now())
+                        .gt(MatBatch::getQuantity, 0))
+                .stream().mapToInt(MatBatch::getQuantity).sum();
+        if (stock == null || stock.getQuantity() - expiredQty < req.getQuantity()) {
+            throw new BizException(ErrorCode.A0001, "可用库存不足（过期批次不可领用）");
+        }
         int deducted = stockMapper.update(null, new LambdaUpdateWrapper<MatStock>()
                 .eq(MatStock::getMaterialId, req.getMaterialId())
                 .ge(MatStock::getQuantity, req.getQuantity())
@@ -288,6 +303,8 @@ public class MatService {
                 .eq(MatBatch::getMaterialId, materialId)
                 .eq(MatBatch::getStatus, 1)
                 .gt(MatBatch::getQuantity, 0)
+                // 效期已过的批次不得参与 FEFO（原仅按状态/数量过滤，过期批恰因效期最早被优先拨出）
+                .gt(MatBatch::getExpireDate, java.time.LocalDate.now())
                 .orderByAsc(MatBatch::getExpireDate));
         StringBuilder sb = new StringBuilder("[");
         int remain = qty;

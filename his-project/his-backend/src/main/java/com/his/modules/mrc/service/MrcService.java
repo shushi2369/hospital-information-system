@@ -226,11 +226,16 @@ public class MrcService {
             throw new BizException(ErrorCode.A0001, "病案已归档或借阅中，质控结论冻结");
         }
         int qcStatus = Boolean.TRUE.equals(req.getPass()) ? 1 : 2;
-        int updated = recordMapper.update(null, new LambdaUpdateWrapper<MrcRecord>()
+        // 版本递增 + 归档态条件：与 archive 的 updateById 乐观锁串行化，
+        // 否则并发归档后本更新仍能命中（wrapper 不带版本）把冻结的质控结论改掉
+        MrcRecord upd = new MrcRecord();
+        upd.setQcStatus(qcStatus);
+        upd.setQcBy(CurrentUser.id());
+        upd.setQcTime(LocalDateTime.now());
+        upd.setVersion(record.getVersion());
+        int updated = recordMapper.update(upd, new LambdaUpdateWrapper<MrcRecord>()
                 .eq(MrcRecord::getId, record.getId())
-                .set(MrcRecord::getQcStatus, qcStatus)
-                .set(MrcRecord::getQcBy, CurrentUser.id())
-                .set(MrcRecord::getQcTime, LocalDateTime.now()));
+                .eq(MrcRecord::getArchiveStatus, 10));
         if (updated != 1) {
             throw new BizException(ErrorCode.A0008, "病案状态已变化，请刷新后重试");
         }
@@ -250,11 +255,19 @@ public class MrcService {
         if (record.getArchiveStatus() != 10) {
             throw new BizException(ErrorCode.A0001, "病案当前状态不可归档（已归档或借阅中）");
         }
-        record.setArchiveStatus(20);
-        record.setArchiveTime(LocalDateTime.now());
-        if (recordMapper.updateById(record) != 1) {
+        // 条件更新带版本 + qcStatus：并发质控退回（版本递增）后不得再归档
+        MrcRecord upd = new MrcRecord();
+        upd.setArchiveStatus(20);
+        upd.setArchiveTime(LocalDateTime.now());
+        upd.setVersion(record.getVersion());
+        if (recordMapper.update(upd, new LambdaUpdateWrapper<MrcRecord>()
+                .eq(MrcRecord::getId, record.getId())
+                .eq(MrcRecord::getArchiveStatus, 10)
+                .eq(MrcRecord::getQcStatus, 1)) != 1) {
             throw new BizException(ErrorCode.A0008, "病案状态已变化，请刷新后重试");
         }
+        record.setArchiveStatus(20);
+        record.setArchiveTime(LocalDateTime.now());
         pltService.recordEvent("mrc.archived", record.getMrcNo(), "{}");
         // 五期-lite：病案归档触发区域上报
         com.his.modules.patient.app.PatientDTO mrcPt = patientAppService.getById(record.getPatientId());

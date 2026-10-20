@@ -76,6 +76,21 @@ public class PubService {
                     new LambdaQueryWrapper<PubDiseaseDict>().eq(PubDiseaseDict::getStatus, 1));
             for (PubDiseaseDict d : dict) {
                 if (diagnosisName.contains(d.getDiseaseName())) {
+                    // 同一就诊/住院同一病种只建一张卡：重复保存诊断不得重复报卡
+                    LambdaQueryWrapper<PubInfectiousCard> exists = new LambdaQueryWrapper<PubInfectiousCard>()
+                            .eq(PubInfectiousCard::getDiseaseName, d.getDiseaseName())
+                            .ne(PubInfectiousCard::getStatus, 50);
+                    if (visitId != null) {
+                        exists.eq(PubInfectiousCard::getVisitId, visitId);
+                    } else if (admissionId != null) {
+                        exists.eq(PubInfectiousCard::getAdmissionId, admissionId);
+                    } else {
+                        exists.eq(PubInfectiousCard::getPatientId, patientId)
+                                .eq(PubInfectiousCard::getDiagnoseDate, java.time.LocalDate.now());
+                    }
+                    if (cardMapper.selectCount(exists) > 0) {
+                        continue;
+                    }
                     PubInfectiousCard card = new PubInfectiousCard();
                     card.setCardNo(idGenerator.next("CR"));
                     card.setVisitId(visitId);
