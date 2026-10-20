@@ -1,6 +1,7 @@
 package com.his.modules.doc.dto;
 
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -21,6 +22,7 @@ public class OrderItemRequest {
     private Integer days;
     @NotNull(message = "数量不能为空")
     @DecimalMin(value = "0.01", message = "数量必须大于 0")
+    @Digits(integer = 10, fraction = 2, message = "数量格式不正确（最多 10 位整数、2 位小数）")
     private BigDecimal quantity;
     @Size(max = 16, message = "用法最长 16 字")
     private String usageRoute;

@@ -1,5 +1,6 @@
 package com.his.modules.doc.dto;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
@@ -26,6 +27,7 @@ public class OrderCreateRequest {
     @Size(max = 16, message = "用药频次最长 16 字")
     private String frequency;
     private Boolean skinTestFlag;
+    @Valid
     @NotEmpty(message = "医嘱明细不能为空")
     private List<OrderItemRequest> items;
 }

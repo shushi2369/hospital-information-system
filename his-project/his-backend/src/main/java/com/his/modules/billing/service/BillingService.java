@@ -273,21 +273,20 @@ public class BillingService {
             }
         }
 
-        // 药品费明细 → 处方状态（B3004：已发药须先退药）
-        Map<Long, Integer> rxStatusByItemId = clinicAppService.prescriptionStatusByItemIds(
-                billDetails.stream()
-                        .filter(d -> d.getSourceType() == 2 && d.getFeeType() == 7)
-                        .map(BilChargeDetail::getSourceDetailId).toList());
+        // 药品费明细 → 处方（行锁：与发药事务锁同一行，防止“校验通过后并发发药”）
+        List<Long> rxItemIds = billDetails.stream()
+                .filter(d -> d.getSourceType() == 2 && d.getFeeType() == 7)
+                .map(BilChargeDetail::getSourceDetailId).toList();
+        Map<Long, Long> rxIdByItem = clinicAppService.prescriptionIdByItemIds(rxItemIds);
+        Map<Long, Integer> rxStatusById = clinicAppService.lockPrescriptionsForRefund(rxIdByItem.values());
+        Map<Long, Integer> rxStatusByItemId = new HashMap<>();
+        rxIdByItem.forEach((itemId, rxId) -> rxStatusByItemId.put(itemId, rxStatusById.get(rxId)));
 
         // 药品费必须整方退（《05》R8/R9 补充：部分退费会导致处方仍可发药的不一致）
         Map<Long, BigDecimal> requestedQtyByDetail = new HashMap<>();
         for (RefundRequest.Line line : req.getDetails()) {
             requestedQtyByDetail.merge(line.getChargeDetailId(), line.getRefundQuantity(), BigDecimal::add);
         }
-        Map<Long, Long> rxIdByItem = clinicAppService.prescriptionIdByItemIds(
-                billDetails.stream()
-                        .filter(d -> d.getSourceType() == 2 && d.getFeeType() == 7)
-                        .map(BilChargeDetail::getSourceDetailId).toList());
         Map<Long, List<BilChargeDetail>> rxGroups = new LinkedHashMap<>();
         for (BilChargeDetail d : billDetails) {
             if (d.getSourceType() == 2 && d.getFeeType() == 7 && rxIdByItem.containsKey(d.getSourceDetailId())) {
@@ -305,10 +304,11 @@ public class BillingService {
             }
         }
 
-        // 检查/检验申请（sourceType=3）状态批量解析（八十八轮状态机审计 P0-1）
-        Map<Long, Integer> examStatusByAppId = clinicAppService.examStatusByIds(detailById.values().stream()
-                .filter(d -> d.getSourceType() == 3)
-                .map(BilChargeDetail::getSourceDetailId).toList());
+        // 检查/检验申请（sourceType=3）：行锁读取申请与 RIS 检查单——已预约/检查中/已报告均不可退
+        ClinicAppService.ExamRefundSnapshot examSnapshot = clinicAppService.lockExamsForRefund(
+                detailById.values().stream()
+                        .filter(d -> d.getSourceType() == 3)
+                        .map(BilChargeDetail::getSourceDetailId).toList());
         BigDecimal refundTotal = BigDecimal.ZERO;
         List<BilRefundDetail> refundDetails = new ArrayList<>();
         for (RefundRequest.Line line : req.getDetails()) {
@@ -340,11 +340,16 @@ public class BillingService {
                     throw new BizException(ErrorCode.B3004, detail.getItemName() + " 已发药，请先到药房退药");
                 }
             }
-            // 八十八轮状态机审计 P0-1：检查/检验申请费——已执行(30)不可退，服务已提供
+            // 检查/检验申请费：已执行或已进入 RIS 执行链路（预约/检查中/已报告）均不可退
             if (detail.getSourceType() == 3) {
-                Integer examStatus = examStatusByAppId.get(detail.getSourceDetailId());
+                Integer examStatus = examSnapshot.clinicStatus().get(detail.getSourceDetailId());
                 if (examStatus != null && examStatus == 30) {
                     throw new BizException(ErrorCode.B3003, detail.getItemName() + " 检查/检验已执行，不可退费");
+                }
+                Integer risStatus = examSnapshot.risStatus().get(detail.getSourceDetailId());
+                if (risStatus != null && (risStatus == 20 || risStatus == 30 || risStatus == 40)) {
+                    String state = risStatus == 20 ? "已预约" : risStatus == 30 ? "已开始检查" : "已出报告";
+                    throw new BizException(ErrorCode.B3003, detail.getItemName() + " " + state + "，不可退费");
                 }
             }
             // B3005：挂号费/诊察费在就诊开始后不可退（CliVisit 仅在接诊时创建，20 就诊中/30 已完成均拦截）
@@ -815,18 +820,17 @@ public class BillingService {
         for (Map.Entry<Long, List<BilChargeDetail>> entry : rxDetails.entrySet()) {
             boolean allFullyRefunded = entry.getValue().stream()
                     .allMatch(d -> d.getRefundStatus() != null && d.getRefundStatus() == 2);
-            if (allFullyRefunded && !entry.getValue().isEmpty()) {
-                try {
-                    clinicAppService.voidPrescriptionForRefund(entry.getKey());
-                } catch (BizException e) {
-                    log.warn("退费联动作废处方失败 rxId={}: {}", entry.getKey(), e.getMessage());
-                }
+            if (allFullyRefunded && !entry.getValue().isEmpty()
+                    && !clinicAppService.voidPrescriptionForRefund(entry.getKey())) {
+                // 已发药/状态被抢占：必须回滚整单退费，不能只留下未作废的处方
+                throw new BizException(ErrorCode.A0008, "处方状态已变化，退费已取消，请刷新后重试");
             }
         }
-        // 检查/检验申请费全退 → 联动作废申请(20→50)与未开始的 RIS 检查单(10→50)（八十八轮审计 P0-1 方向B）
+        // 检查/检验申请费全退 → 联动作废申请(20→50)与未开始的 RIS 检查单(10→50)
         for (BilChargeDetail d : detailById.values()) {
-            if (d.getSourceType() == 3 && d.getRefundStatus() != null && d.getRefundStatus() == 2) {
-                clinicAppService.voidExamForRefund(d.getSourceDetailId());
+            if (d.getSourceType() == 3 && d.getRefundStatus() != null && d.getRefundStatus() == 2
+                    && !clinicAppService.voidExamForRefund(d.getSourceDetailId())) {
+                throw new BizException(ErrorCode.A0008, "检查申请状态已变化，退费已取消，请刷新后重试");
             }
         }
         // 挂号费+诊查费全退且未完成就诊 → 挂号单置已退号（R5/R9）

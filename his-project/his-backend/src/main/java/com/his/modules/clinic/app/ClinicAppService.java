@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.time.LocalDate;
@@ -179,38 +180,76 @@ public class ClinicAppService {
                 .set(CliExamApplication::getUpdatedAt, java.time.LocalDateTime.now()));
     }
 
-    /** 检查申请 ID → 状态（退费校验：已执行(30)不可退——服务已提供） */
-    public Map<Long, Integer> examStatusByIds(Collection<Long> applyIds) {
-        Map<Long, Integer> result = new HashMap<>();
-        if (applyIds == null || applyIds.isEmpty()) {
-            return result;
-        }
-        for (com.his.modules.clinic.entity.CliExamApplication row : examApplicationMapper.selectBatchIds(applyIds)) {
-            result.put(row.getId(), row.getStatus());
-        }
-        return result;
+    /** 退费快照：clinicStatus=检查申请状态；risStatus=关联 RIS 检查单状态（无单则缺省） */
+    public record ExamRefundSnapshot(Map<Long, Integer> clinicStatus, Map<Long, Integer> risStatus) {
     }
 
     /**
-     * 退费联动作废检查申请（八十八轮状态机审计 P0-1）：仅未执行(20)可废；
-     * 联动作废未开始的 RIS 检查单(status=10)——已开始的不可废。
-     * 不抛异常：经代理加入退费宿主事务，异常会标记 rollback-only；竞态仅告警。
+     * 退费前置：按 RIS → 检查申请的统一顺序行锁，读取真实状态。
+     * 与 RisService 的预约/开始/报告发布互斥，堵住"退费校验后检查仍被预约/执行"的窗口。
      */
-    public void voidExamForRefund(Long applyId) {
-        com.his.modules.clinic.entity.CliExamApplication exam =
-                examApplicationMapper.selectById(applyId);
-        if (exam == null) {
-            return;
+    public ExamRefundSnapshot lockExamsForRefund(Collection<Long> applyIds) {
+        Map<Long, Integer> clinicStatus = new LinkedHashMap<>();
+        Map<Long, Integer> risStatus = new LinkedHashMap<>();
+        if (applyIds == null || applyIds.isEmpty()) {
+            return new ExamRefundSnapshot(clinicStatus, risStatus);
         }
-        int updated = examApplicationMapper.update(null, new LambdaUpdateWrapper<com.his.modules.clinic.entity.CliExamApplication>()
-                .eq(com.his.modules.clinic.entity.CliExamApplication::getId, applyId)
-                .eq(com.his.modules.clinic.entity.CliExamApplication::getStatus, 20)
-                .set(com.his.modules.clinic.entity.CliExamApplication::getStatus, 50)
-                .set(com.his.modules.clinic.entity.CliExamApplication::getUpdatedAt, java.time.LocalDateTime.now()));
-        if (updated != 1) {
-            org.slf4j.LoggerFactory.getLogger(ClinicAppService.class)
-                    .warn("退费联动作废检查申请跳过（状态已变化）applyId={}", applyId);
-            return;
+        List<Long> ids = applyIds.stream().filter(java.util.Objects::nonNull).distinct().sorted().toList();
+        // 非锁定读仅用于发现关联 RIS 单，随后统一按 RIS → 检查申请顺序加锁
+        Map<Long, Long> risIdByApply = new HashMap<>();
+        for (CliExamApplication exam : examApplicationMapper.selectBatchIds(ids)) {
+            if (exam.getRisRequestId() != null) {
+                risIdByApply.put(exam.getId(), exam.getRisRequestId());
+            }
+        }
+        Map<Long, Integer> lockedRis = new HashMap<>();
+        for (Long risId : risIdByApply.values().stream().distinct().sorted().toList()) {
+            com.his.modules.ris.entity.RisRequest ris = risRequestMapper.selectByIdForUpdate(risId);
+            if (ris != null) {
+                lockedRis.put(risId, ris.getStatus());
+            }
+        }
+        for (Long applyId : ids) {
+            CliExamApplication exam = examApplicationMapper.selectByIdForUpdate(applyId);
+            if (exam == null) {
+                continue;
+            }
+            clinicStatus.put(applyId, exam.getStatus());
+            if (exam.getRisRequestId() != null) {
+                Integer status = lockedRis.get(exam.getRisRequestId());
+                if (status == null) {
+                    // 加锁窗口内新绑定（收费联动）的 RIS 单：补锁后再读
+                    com.his.modules.ris.entity.RisRequest ris =
+                            risRequestMapper.selectByIdForUpdate(exam.getRisRequestId());
+                    status = ris == null ? null : ris.getStatus();
+                }
+                if (status != null) {
+                    risStatus.put(applyId, status);
+                }
+            }
+        }
+        return new ExamRefundSnapshot(clinicStatus, risStatus);
+    }
+
+    /**
+     * 退费联动作废检查申请：检查申请 20→50，并作废未预约(10)的 RIS 检查单。
+     * 返回 false 表示状态已变化且无法安全作废，调用方必须回滚退费（不得静默放行）。
+     */
+    @Transactional
+    public boolean voidExamForRefund(Long applyId) {
+        CliExamApplication exam = examApplicationMapper.selectByIdForUpdate(applyId);
+        if (exam == null) {
+            return false;
+        }
+        if (exam.getStatus() == null || exam.getStatus() != 50) {
+            int updated = examApplicationMapper.update(null, new LambdaUpdateWrapper<CliExamApplication>()
+                    .eq(CliExamApplication::getId, applyId)
+                    .eq(CliExamApplication::getStatus, 20)
+                    .set(CliExamApplication::getStatus, 50)
+                    .set(CliExamApplication::getUpdatedAt, java.time.LocalDateTime.now()));
+            if (updated != 1) {
+                return false;
+            }
         }
         if (exam.getRisRequestId() != null) {
             risRequestMapper.update(null, new LambdaUpdateWrapper<com.his.modules.ris.entity.RisRequest>()
@@ -218,22 +257,27 @@ public class ClinicAppService {
                     .eq(com.his.modules.ris.entity.RisRequest::getStatus, 10)
                     .set(com.his.modules.ris.entity.RisRequest::getStatus, 50)
                     .set(com.his.modules.ris.entity.RisRequest::getUpdatedAt, java.time.LocalDateTime.now()));
+            com.his.modules.ris.entity.RisRequest ris =
+                    risRequestMapper.selectByIdForUpdate(exam.getRisRequestId());
+            // 已预约/检查中/已报告不可作废；已作废视为幂等成功
+            if (ris == null || ris.getStatus() == null || ris.getStatus() != 50) {
+                return false;
+            }
         }
+        return true;
     }
 
-    /** 处方明细 → 处方状态（退费校验 B3004：已发药须先退药） */
-    public Map<Long, Integer> prescriptionStatusByItemIds(Collection<Long> itemIds) {
-        Map<Long, Integer> result = new HashMap<>();
-        if (itemIds == null || itemIds.isEmpty()) {
+    /** 退费前置：按 ID 升序行锁处方（与发药事务锁同一行，消除"校验后发药"窗口） */
+    public Map<Long, Integer> lockPrescriptionsForRefund(Collection<Long> rxIds) {
+        Map<Long, Integer> result = new LinkedHashMap<>();
+        if (rxIds == null || rxIds.isEmpty()) {
             return result;
         }
-        List<CliPrescriptionItem> rows = prescriptionItemMapper.selectBatchIds(itemIds);
-        // 一百一十八轮性能【5】：处方一次批查（原循环内逐条 selectById，退费行锁窗口内 +N 查）
-        Map<Long, Integer> rxStatus = prescriptionMapper.selectBatchIds(
-                        rows.stream().map(CliPrescriptionItem::getPrescriptionId).distinct().toList())
-                .stream().collect(java.util.stream.Collectors.toMap(CliPrescription::getId, CliPrescription::getStatus));
-        for (CliPrescriptionItem row : rows) {
-            result.put(row.getId(), rxStatus.get(row.getPrescriptionId()));
+        for (Long rxId : rxIds.stream().filter(java.util.Objects::nonNull).distinct().sorted().toList()) {
+            CliPrescription rx = prescriptionMapper.selectByIdForUpdate(rxId);
+            if (rx != null) {
+                result.put(rxId, rx.getStatus());
+            }
         }
         return result;
     }
@@ -273,21 +317,20 @@ public class ClinicAppService {
 
     /**
      * 退费联动作废处方（《05》R9：仅未发药处方，幂等）。
-     * 不抛异常：本方法经代理加入退费宿主事务，BizException 穿越代理边界会把共享事务标记
-     * rollback-only，外层 catch 也救不回，提交时整单 UnexpectedRollbackException（八十六轮并发审计）。
-     * 竞态（读后并发发药/驳回）由条件更新 0 行兜住，联动作废跳过仅告警，不阻断退费主流程。
+     * 返回 false 表示处方已发药/不存在，调用方必须回滚退费；已作废(50) 视为幂等成功。
      */
     @Transactional
-    public void voidPrescriptionForRefund(Long rxId) {
+    public boolean voidPrescriptionForRefund(Long rxId) {
         int voided = prescriptionMapper.update(null, new LambdaUpdateWrapper<CliPrescription>()
                 .eq(CliPrescription::getId, rxId)
                 .in(CliPrescription::getStatus, 10, 20)
                 .set(CliPrescription::getStatus, 50)
                 .set(CliPrescription::getVoidReason, "退费"));
-        if (voided != 1) {
-            org.slf4j.LoggerFactory.getLogger(ClinicAppService.class)
-                    .warn("退费联动作废处方跳过（处方状态已变化或不存在）rxId={}", rxId);
+        if (voided == 1) {
+            return true;
         }
+        CliPrescription rx = prescriptionMapper.selectById(rxId);
+        return rx != null && rx.getStatus() != null && rx.getStatus() == 50;
     }
 
     // ---------------- 只读统计（报表模块 T-02） ----------------

@@ -95,6 +95,10 @@ public class DocOrderService {
 
         BigDecimal total = BigDecimal.ZERO;
         for (OrderItemRequest item : req.getItems()) {
+            // 服务层兜底：负数量会把明细金额与总金额打成负数
+            if (item.getQuantity() == null || item.getQuantity().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new BizException(ErrorCode.A0001, "医嘱数量必须大于 0");
+            }
             DocOrderItem row = new DocOrderItem();
             row.setOrderId(order.getId());
             row.setStatus(1);

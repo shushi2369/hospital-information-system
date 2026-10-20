@@ -1,6 +1,7 @@
 package com.his.modules.ris.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.his.common.BizException;
 import com.his.common.ErrorCode;
@@ -72,10 +73,16 @@ public class RisService {
                 .eq(RisRequest::getStatus, 10)
                 .last("LIMIT 1"));
         if (request != null) {
-            request.setStatus(50);
-            requestMapper.updateById(request);
-            pltService.recordEvent("ris.request.voided", request.getRequestNo(),
-                    "{\"orderId\":" + orderId + "}");
+            // 条件更新：与技师预约并发时，已被预约(20)的申请不得回退作废
+            int updated = requestMapper.update(null, new LambdaUpdateWrapper<RisRequest>()
+                    .eq(RisRequest::getId, request.getId())
+                    .eq(RisRequest::getStatus, 10)
+                    .set(RisRequest::getStatus, 50)
+                    .set(RisRequest::getUpdatedAt, LocalDateTime.now()));
+            if (updated == 1) {
+                pltService.recordEvent("ris.request.voided", request.getRequestNo(),
+                        "{\"orderId\":" + orderId + "}");
+            }
         }
     }
 
@@ -156,7 +163,8 @@ public class RisService {
     /** 预约（R-03）：10 → 20，设备检查类别须匹配 */
     @Transactional
     public Long appoint(Long id, AppointRequest req) {
-        RisRequest request = requireRequest(id);
+        // 行锁：与退费联动作废互斥，避免“退费后仍可预约”
+        RisRequest request = requireRequestForUpdate(id);
         if (request.getStatus() != 10) {
             throw new BizException(ErrorCode.A0001, "申请不在待预约状态");
         }
@@ -184,8 +192,12 @@ public class RisService {
             // uk_ris_appt_req：同一检查申请只能预约一次（并发双击兜底）
             throw new BizException(ErrorCode.A0001, "该检查已预约，请勿重复预约");
         }
-        request.setStatus(20);
-        if (requestMapper.updateById(request) != 1) {
+        int updated = requestMapper.update(null, new LambdaUpdateWrapper<RisRequest>()
+                .eq(RisRequest::getId, id)
+                .eq(RisRequest::getStatus, 10)
+                .set(RisRequest::getStatus, 20)
+                .set(RisRequest::getUpdatedAt, LocalDateTime.now()));
+        if (updated != 1) {
             throw new BizException(ErrorCode.A0008, "申请状态已变化，请刷新后重试");
         }
         return appointment.getId();
@@ -194,7 +206,8 @@ public class RisService {
     /** 开始检查（R-04）：20 → 30 */
     @Transactional
     public void start(Long id) {
-        RisRequest request = requireRequest(id);
+        // 行锁：与退费联动作废互斥，避免“已退费仍可开始检查”
+        RisRequest request = requireRequestForUpdate(id);
         if (request.getStatus() != 20) {
             throw new BizException(ErrorCode.A0001, "检查未预约，不能开始");
         }
@@ -204,8 +217,12 @@ public class RisService {
             appointment.setStatus(2);
             appointmentMapper.updateById(appointment);
         }
-        request.setStatus(30);
-        if (requestMapper.updateById(request) != 1) {
+        int updated = requestMapper.update(null, new LambdaUpdateWrapper<RisRequest>()
+                .eq(RisRequest::getId, id)
+                .eq(RisRequest::getStatus, 20)
+                .set(RisRequest::getStatus, 30)
+                .set(RisRequest::getUpdatedAt, LocalDateTime.now()));
+        if (updated != 1) {
             throw new BizException(ErrorCode.A0008, "申请状态已变化，请刷新后重试");
         }
     }
@@ -403,6 +420,14 @@ public class RisService {
 
     private RisRequest requireRequest(Long id) {
         RisRequest request = requestMapper.selectById(id);
+        if (request == null) {
+            throw new BizException(ErrorCode.A0001, "检查申请不存在");
+        }
+        return request;
+    }
+
+    private RisRequest requireRequestForUpdate(Long id) {
+        RisRequest request = requestMapper.selectByIdForUpdate(id);
         if (request == null) {
             throw new BizException(ErrorCode.A0001, "检查申请不存在");
         }

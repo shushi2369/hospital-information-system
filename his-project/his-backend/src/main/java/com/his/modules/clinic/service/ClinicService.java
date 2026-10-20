@@ -212,13 +212,27 @@ public class ClinicService {
         BigDecimal total = BigDecimal.ZERO;
         List<PreparedRow> rows = new java.util.ArrayList<>();
         for (PrescriptionItemRequest item : req.getItems()) {
+            // 服务层兜底：数量/天数必须为正（DTO 校验被绕过时仍不可开出负数量处方）
+            if (item.getQuantity() == null || item.getQuantity().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new BizException(ErrorCode.A0001, "药品数量必须大于 0");
+            }
+            if (item.getDays() == null || item.getDays() < 1) {
+                throw new BizException(ErrorCode.A0001, "用药天数至少 1 天");
+            }
             DrugDTO drug = basedataAppService.getDrug(item.getDrugId());
             if (drug == null || drug.getStatus() == 0) {
                 throw new BizException(ErrorCode.A0001, "药品不存在或已停用");
             }
             BigDecimal amount = drug.getRetailPrice().multiply(item.getQuantity()).setScale(2, RoundingMode.HALF_UP);
+            // DECIMAL(10,2) 溢出收口
+            if (amount.compareTo(new BigDecimal("99999999")) > 0) {
+                throw new BizException(ErrorCode.A0001, "处方明细金额超出系统上限（单行 ≤ 99999999）");
+            }
             total = total.add(amount);
             rows.add(new PreparedRow(drug, item, amount));
+        }
+        if (total.compareTo(new BigDecimal("99999999")) > 0) {
+            throw new BizException(ErrorCode.A0001, "处方金额超出系统上限（单张 ≤ 99999999）");
         }
         CliPrescription prescription = new CliPrescription();
         prescription.setRxNo(idGenerator.next("CF"));

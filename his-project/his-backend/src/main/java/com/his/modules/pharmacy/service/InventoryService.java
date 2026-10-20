@@ -184,6 +184,9 @@ public class InventoryService {
     /** 住院摆药出库（FEFO 扣减 + 流水；供医嘱闭环调用，DOC→PHR 依赖规则） */
     @org.springframework.transaction.annotation.Transactional
     public void dispenseForOrder(Long drugId, java.math.BigDecimal quantity, String refNo) {
+        if (quantity == null || quantity.compareTo(java.math.BigDecimal.ZERO) <= 0) {
+            throw new com.his.common.BizException(com.his.common.ErrorCode.A0001, "摆药数量必须大于 0");
+        }
         java.math.BigDecimal remaining = quantity;
         for (InvInventoryBatch batch : batchMapper.selectPickable(drugId)) {
             if (remaining.compareTo(java.math.BigDecimal.ZERO) <= 0) {

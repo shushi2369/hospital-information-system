@@ -117,6 +117,10 @@ public class PharmacyService {
         BigDecimal totalQuantity = BigDecimal.ZERO;
         List<PhrDispenseDetail> details = new ArrayList<>();
         for (PharmacyRxDTO.Item item : rx.getItems()) {
+            // 历史数据/绕过校验的负数量明细：直接拒绝，避免“跳过扣减仍算发药成功”
+            if (item.getQuantity() == null || item.getQuantity().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new BizException(ErrorCode.A0001, "处方明细数量异常，禁止发药：" + item.getDrugName());
+            }
             BigDecimal remaining = item.getQuantity();
             for (InvInventoryBatch batch : batchMapper.selectPickable(item.getDrugId())) {
                 if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
