@@ -57,9 +57,25 @@ public class CdssService {
         if (rule.getRuleType() == null || rule.getRuleType() < 1 || rule.getRuleType() > 4) {
             throw new BizException(ErrorCode.A0001, "规则类型取值 1~4");
         }
+        if (rule.getRuleCode() == null || rule.getRuleCode().isBlank()
+                || rule.getRuleCode().length() > 32) {
+            throw new BizException(ErrorCode.A0001, "规则编码不能为空且最长 32 字");
+        }
+        if (rule.getMessage() == null || rule.getMessage().isBlank()
+                || rule.getMessage().length() > 256) {
+            throw new BizException(ErrorCode.A0001, "提示文案不能为空且最长 256 字");
+        }
+        if (rule.getRefAId() == null) {
+            throw new BizException(ErrorCode.A0001, "参照A不能为空");
+        }
         validateRuleFields(rule);
+        // 裸实体入参：主键/状态/审计列必须由服务端生成
         rule.setId(null);
         rule.setStatus(1);
+        rule.setVersion(0);
+        rule.setCreatedBy(null);
+        rule.setCreatedAt(null);
+        rule.setUpdatedAt(null);
         try {
             ruleMapper.insert(rule);
         } catch (org.springframework.dao.DuplicateKeyException e) {

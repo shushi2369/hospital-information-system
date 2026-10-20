@@ -173,10 +173,27 @@ public class PubService {
         if (!adm.getPatientId().equals(req.getPatientId())) {
             throw new BizException(ErrorCode.A0001, "住院记录与患者不匹配");
         }
+        if (req.getInfectionType() == null || req.getInfectionType() < 1 || req.getInfectionType() > 5) {
+            throw new BizException(ErrorCode.A0001, "感染类型取值 1~5");
+        }
+        if (req.getInfectionSite() == null || req.getInfectionSite().isBlank()) {
+            throw new BizException(ErrorCode.A0001, "感染部位不能为空");
+        }
+        if (req.getInfectionSite().length() > 64) {
+            throw new BizException(ErrorCode.A0001, "感染部位最长 64 字");
+        }
+        // 裸实体入参：主键/报告人/流程与确认字段必须由服务端生成，否则可伪造"已确认"院感病例
+        req.setId(null);
         req.setCaseNo(idGenerator.next("GR"));
         req.setStatus(10);
         req.setReporterId(CurrentUser.id());
         req.setDiagnoseDate(java.time.LocalDate.now());
+        req.setConfirmNote(null);
+        req.setConfirmTime(null);
+        req.setVersion(0);
+        req.setCreatedBy(null);
+        req.setCreatedAt(null);
+        req.setUpdatedAt(null);
         haiMapper.insert(req);
         pltService.recordEvent("pub.hai.reported", req.getCaseNo(),
                 "{\"type\":" + req.getInfectionType() + "}");
