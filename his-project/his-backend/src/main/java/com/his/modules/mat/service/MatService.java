@@ -72,11 +72,24 @@ public class MatService {
     /** 物资字典创建（M-01） */
     @Transactional
     public String createMaterial(MatMaterial material) {
+        if (material.getMaterialCode() == null || material.getMaterialCode().isBlank()
+                || material.getMaterialCode().length() > 32) {
+            throw new BizException(ErrorCode.A0001, "物资编码不能为空且最长 32 字");
+        }
         if (material.getCategory() == null || material.getCategory() < 1 || material.getCategory() > 4) {
             throw new BizException(ErrorCode.A0001, "物资类别取值 1~4");
         }
+        if (material.getUnit() == null || material.getUnit().isBlank()) {
+            material.setUnit("件");
+        }
+        validateMaterialFields(material);
+        // 裸实体入参：主键/状态/审计列必须由服务端生成
         material.setId(null);
         material.setStatus(1);
+        material.setVersion(0);
+        material.setCreatedBy(null);
+        material.setCreatedAt(null);
+        material.setUpdatedAt(null);
         try {
             materialMapper.insert(material);
         } catch (org.springframework.dao.DuplicateKeyException e) {
@@ -90,15 +103,24 @@ public class MatService {
         return material.getMaterialCode();
     }
 
-    /** 物资字典更新（M-01 PUT）：编码不可改 */
+    /** 物资字典更新（M-01 PUT）：编码不可改；停用物资仍可编辑并重新启用 */
     @Transactional
     public void updateMaterial(Long id, MatMaterial req) {
-        MatMaterial material = requireMaterial(id);
-        material.setName(req.getName());
+        MatMaterial material = materialMapper.selectById(id);
+        if (material == null) {
+            throw new BizException(ErrorCode.A0001, "物资不存在");
+        }
         if (req.getCategory() != null) {
             if (req.getCategory() < 1 || req.getCategory() > 4) {
                 throw new BizException(ErrorCode.A0001, "物资类别取值 1~4");
             }
+        }
+        if (req.getStatus() != null && req.getStatus() != 0 && req.getStatus() != 1) {
+            throw new BizException(ErrorCode.A0001, "物资状态取值 0 或 1");
+        }
+        validateMaterialFields(req);
+        material.setName(req.getName());
+        if (req.getCategory() != null) {
             material.setCategory(req.getCategory());
         }
         material.setUnit(req.getUnit());
@@ -107,6 +129,27 @@ public class MatService {
         material.setStatus(req.getStatus() == null ? material.getStatus() : req.getStatus());
         if (materialMapper.updateById(material) != 1) {
             throw new BizException(ErrorCode.A0008, "物资已变化，请刷新后重试");
+        }
+    }
+
+    /** 物资名称/单位/单价/安全库存为必填且有取值边界，否则负价或负库存会污染台账与预警 */
+    private void validateMaterialFields(MatMaterial material) {
+        if (material.getName() == null || material.getName().isBlank()
+                || material.getName().length() > 64) {
+            throw new BizException(ErrorCode.A0001, "物资名称不能为空且最长 64 字");
+        }
+        if (material.getUnit() == null || material.getUnit().isBlank()
+                || material.getUnit().length() > 16) {
+            throw new BizException(ErrorCode.A0001, "物资单位不能为空且最长 16 字");
+        }
+        if (material.getPrice() == null
+                || material.getPrice().compareTo(BigDecimal.ZERO) <= 0
+                || material.getPrice().compareTo(new BigDecimal("99999999.99")) > 0) {
+            throw new BizException(ErrorCode.A0001, "参考单价须大于 0 且不超过 99999999.99");
+        }
+        if (material.getSafeStock() == null
+                || material.getSafeStock() < 0 || material.getSafeStock() > 1000000) {
+            throw new BizException(ErrorCode.A0001, "安全库存须为 0~1000000 的整数");
         }
     }
 
