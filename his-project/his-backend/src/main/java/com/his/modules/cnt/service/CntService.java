@@ -120,12 +120,21 @@ public class CntService {
         return PageResult.of(page);
     }
 
-    /** 接受（T-02）：10 → 20（受邀医生） */
+    /** 接受（T-02）：10 → 20（受邀科室医生；管理员代接受豁免） */
     @Transactional
     public void accept(Long id) {
         CntRequest req = requireRequest(id);
         if (req.getStatus() != 10) {
             throw new BizException(ErrorCode.A0001, "会诊不在待接受状态");
+        }
+        // 跨科室抢单：接受者即 consultDoctorId，一旦被非受邀科室抢走，
+        // 受邀科室医生再也无法填写意见（complete 仅认接受者/管理员）
+        if (!CurrentUser.get().getRoleCodes().contains("ADMIN")) {
+            var doctor = basedataAppService.getDoctorByUserId(CurrentUser.id());
+            if (req.getDeptId() == null || doctor == null
+                    || !req.getDeptId().equals(doctor.getDeptId())) {
+                throw new BizException(ErrorCode.A0003, "仅受邀科室医生可接受会诊");
+            }
         }
         // 接受者即受邀会诊医生（八十八轮 IDOR 审计 P1-3：完成时须同一医生或管理员）
         req.setConsultDoctorId(CurrentUser.id());

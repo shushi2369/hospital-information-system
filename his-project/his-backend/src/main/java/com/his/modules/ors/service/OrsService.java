@@ -262,6 +262,9 @@ public class OrsService {
         if (request.getStatus() != 40) {
             throw new BizException(ErrorCode.A0001, "仅术中可保存麻醉记录");
         }
+        if (req.getAnesthesiaMethod() != null) {
+            validateAnesthesiaMethod(req.getAnesthesiaMethod());
+        }
         OrsAnesthesiaRecord record = anesthesiaMapper.selectOne(new LambdaQueryWrapper<OrsAnesthesiaRecord>()
                 .eq(OrsAnesthesiaRecord::getRequestId, id).last("LIMIT 1"));
         if (record == null) {
@@ -417,12 +420,19 @@ public class OrsService {
                 && !com.his.infrastructure.security.CurrentUser.get().getRoleCodes().contains("ADMIN")) {
             throw new BizException(ErrorCode.A0003, "仅手术申请人可取消");
         }
-        // 用实体更新递增 version：与原排台事务的 updateById 乐观锁串行化，
-        // 否则取消不 bump 版本，已取消(70)的手术会被排台的旧快照改回 30 并继续占台
-        request.setStatus(70);
-        if (requestMapper.updateById(request) != 1) {
+        // 条件更新并显式递增 version：与原排台事务的 updateById 乐观锁串行化，
+        // 否则取消不 bump 版本，已取消(70)的手术会被排台的旧快照改回 30 并继续占台。
+        // 同时条件带旧状态：start/finish/leave 走 wrapper 不 bump 版本，
+        // 仅靠 version 挡不住"取消覆写已切皮(40)"，必须由 WHERE status IN (10,20,30) 兜住
+        int updated = requestMapper.update(null, new LambdaUpdateWrapper<OrsSurgeryRequest>()
+                .eq(OrsSurgeryRequest::getId, id)
+                .in(OrsSurgeryRequest::getStatus, 10, 20, 30)
+                .set(OrsSurgeryRequest::getStatus, 70)
+                .setSql("version = version + 1"));
+        if (updated != 1) {
             throw new BizException(ErrorCode.A0008, "申请状态已变化，请刷新后重试");
         }
+        request.setStatus(70);
         pltService.recordEvent("ors.request.cancelled", request.getRequestNo(),
                 "{\"reason\":\"" + escapeJson(reason) + "\"}");
         {

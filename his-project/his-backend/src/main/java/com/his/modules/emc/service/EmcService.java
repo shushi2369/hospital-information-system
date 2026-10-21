@@ -210,7 +210,9 @@ public class EmcService {
             }
             visit.setVisitId(req.getVisitId());
         }
-        visitMapper.updateById(visit);
+        if (visitMapper.updateById(visit) != 1) {
+            throw new BizException(ErrorCode.A0008, "病例状态已变化，请刷新后重试");
+        }
     }
 
     /** 关档（E-08）：转归登记，10 → 20 */
@@ -226,6 +228,11 @@ public class EmcService {
         if (visitMapper.updateById(visit) != 1) {
             throw new BizException(ErrorCode.A0008, "病例状态已变化，请刷新后重试");
         }
+        // 分诊单同步关档：emc_triage.status=2 原无任何写入方，E-02 的"已关档"筛选永远为空
+        triageMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<EmcTriage>()
+                .eq(EmcTriage::getId, visit.getTriageId())
+                .eq(EmcTriage::getStatus, 1)
+                .set(EmcTriage::getStatus, 2));
         pltService.recordEvent("emc.visit.closed", visit.getVisitNo(),
                 "{\"outcome\":" + req.getOutcome() + "}");
     }

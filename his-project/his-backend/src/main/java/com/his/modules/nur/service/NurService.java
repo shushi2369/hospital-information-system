@@ -81,6 +81,12 @@ public class NurService {
         validateRange("呼吸", req.getRespiration(), 5, 60);
         validateRange("收缩压", req.getBpHigh(), 40, 260);
         validateRange("舒张压", req.getBpLow(), 20, 180);
+        if (req.getBpHigh() <= req.getBpLow()) {
+            throw new BizException(ErrorCode.A0001, "收缩压必须大于舒张压");
+        }
+        if (req.getRecordTime() != null && req.getRecordTime().isAfter(LocalDateTime.now())) {
+            throw new BizException(ErrorCode.A0001, "体征记录时间不能晚于当前时间");
+        }
         if (req.getSpo2() != null) {
             validateRange("血氧", req.getSpo2(), 50, 100);
         }
