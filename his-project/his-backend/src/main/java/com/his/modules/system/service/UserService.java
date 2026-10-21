@@ -105,6 +105,11 @@ public class UserService {
     public Long create(UserCreateRequest req) {
         // 一百一十二轮 B06：与重置同口径（DTO 只有 @Size(min=8)，纯数字弱口令可建档）
         validatePasswordStrength(req.getPassword());
+        // 与修改同口径：非管理员建档时不得直接绑定 ADMIN 角色（防委派用户管理后自建超管）
+        if (req.getRoleIds().contains(1L)
+                && !com.his.infrastructure.security.CurrentUser.get().getRoleCodes().contains("ADMIN")) {
+            throw new BizException(ErrorCode.A0003, "仅管理员可分配管理员角色");
+        }
         if (userMapper.selectByUsername(req.getUsername()) != null) {
             throw new BizException(ErrorCode.B5003);
         }

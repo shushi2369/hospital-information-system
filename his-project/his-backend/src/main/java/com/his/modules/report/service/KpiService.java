@@ -66,7 +66,8 @@ public class KpiService {
         m.put("surgeriesCompleted", surgeryMapper.selectCount(
                 new LambdaQueryWrapper<OrsSurgeryRequest>()
                         .eq(OrsSurgeryRequest::getStatus, 60)
-                        .between(from != null, OrsSurgeryRequest::getUpdatedAt, from, to == null ? LocalDateTime.now() : to)));
+                        .ge(from != null, OrsSurgeryRequest::getUpdatedAt, from)
+                        .le(to != null, OrsSurgeryRequest::getUpdatedAt, to)));
         m.put("labTests", lisRequestMapper.selectCount(between(LisRequest::getCreatedAt, from, to)));
         m.put("imagingExams", risRequestMapper.selectCount(between(RisRequest::getCreatedAt, from, to)));
         m.put("orders", orderMapper.selectCount(between(DocOrder::getCreatedAt, from, to)));

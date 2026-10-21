@@ -92,7 +92,6 @@ public class CdssService {
         if (req.getStatus() != null && (req.getStatus() < 0 || req.getStatus() > 1)) {
             throw new BizException(ErrorCode.A0001, "状态取值 0 停用 / 1 启用");
         }
-        validateRuleFields(req);
         if (req.getLevel() != null && req.getLevel() < 1) {
             throw new BizException(ErrorCode.A0001, "提示级别须为正整数（当前口径 1=提示）");
         }
@@ -129,6 +128,12 @@ public class CdssService {
         if (req.getStatus() != null) {
             rule.setStatus(req.getStatus());
         }
+        // 合并后校验：原实现只校验请求体，{refAId=既有refBId} 可把配伍规则改为自配对死规则，
+        // 空文案也能落库（创建侧有拦截、更新侧没有）
+        if (rule.getMessage() == null || rule.getMessage().isBlank() || rule.getMessage().length() > 256) {
+            throw new BizException(ErrorCode.A0001, "提示文案不能为空且最长 256 字");
+        }
+        validateRuleFields(rule);
         if (ruleMapper.updateById(rule) != 1) {
             throw new BizException(ErrorCode.A0008, "规则已变化，请刷新后重试");
         }
@@ -146,6 +151,9 @@ public class CdssService {
         if (req.getRuleType() != null && req.getRuleType() == 4
                 && (req.getAllergyKeyword() == null || req.getAllergyKeyword().isBlank())) {
             throw new BizException(ErrorCode.A0001, "过敏史规则必须填写关键词");
+        }
+        if (req.getAgeMin() != null && req.getAgeMax() != null && req.getAgeMin() > req.getAgeMax()) {
+            throw new BizException(ErrorCode.A0001, "年龄下限不能大于上限");
         }
     }
 

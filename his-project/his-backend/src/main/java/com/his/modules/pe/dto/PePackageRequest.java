@@ -1,5 +1,6 @@
 package com.his.modules.pe.dto;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -19,11 +20,13 @@ public class PePackageRequest {
     @DecimalMin(value = "0", message = "套餐价不能为负")
     private BigDecimal price;
     @NotNull(message = "项目不能为空")
+    @Valid
     private List<PackageItem> items;
 
     @Getter
     @Setter
     public static class PackageItem {
+        @NotNull(message = "项目编码不能为空")
         private Long chargeItemId;
         private String itemName;
         @DecimalMin(value = "0", message = "项目价不能为负")

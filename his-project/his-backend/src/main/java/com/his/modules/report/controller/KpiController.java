@@ -23,11 +23,19 @@ import java.util.Map;
 public class KpiController {
     private final KpiService kpiService;
 
+    /** 区间反转直接拒绝：静默返回空集会让"KPI 为 0"被误读成真实业务量（对齐报表口径） */
+    private void requireRange(LocalDateTime from, LocalDateTime to) {
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new com.his.common.BizException(com.his.common.ErrorCode.A0001, "开始时间不能晚于结束时间");
+        }
+    }
+
     @GetMapping("/workload")
     @PreAuthorize("@ss.hasPerm('kpi:view')")
     public R<Map<String, Object>> workload(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
+        requireRange(from, to);
         return R.ok(kpiService.workload(from, to));
     }
 
@@ -36,6 +44,7 @@ public class KpiController {
     public R<Map<String, Object>> efficiency(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
+        requireRange(from, to);
         return R.ok(kpiService.efficiency(from, to));
     }
 
@@ -44,6 +53,7 @@ public class KpiController {
     public R<Map<String, Object>> safety(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
+        requireRange(from, to);
         return R.ok(kpiService.safety(from, to));
     }
 
@@ -53,6 +63,7 @@ public class KpiController {
     public void export(HttpServletResponse response,
                        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
                        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) throws IOException {
+        requireRange(from, to);
         StringBuilder sb = new StringBuilder("指标,数值\n");
         // workload 聚合一次复用（原三连调 = 6 个聚合 ×3，其中 12 个纯重复）
         Map<String, Object> workload = kpiService.workload(from, to);
