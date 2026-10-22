@@ -23,4 +23,8 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
             + "JOIN sys_role r ON r.id = ur.role_id "
             + "WHERE u.id = #{userId} AND r.role_code = 'NURSE' AND r.status = 1 AND u.status = 1")
     int countNurseRole(Long userId);
+
+    /** 收费员行锁：收费/退费/住院结算与日结共用同一把锁，保证日结汇总期间不再有在途交易 */
+    @Select("SELECT id FROM sys_user WHERE id = #{id} FOR UPDATE")
+    Long lockByIdForUpdate(Long id);
 }

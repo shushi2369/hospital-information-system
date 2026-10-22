@@ -4,6 +4,7 @@ import com.his.common.BizException;
 import com.his.modules.mat.dto.MatRequisitionRequest;
 import com.his.modules.mat.entity.MatMaterial;
 import com.his.modules.mat.entity.MatPurchase;
+import com.his.modules.mat.entity.MatStock;
 import com.his.modules.mat.mapper.MatBatchMapper;
 import com.his.modules.mat.mapper.MatMaterialMapper;
 import com.his.modules.mat.mapper.MatPurchaseMapper;
@@ -19,10 +20,11 @@ import java.math.BigDecimal;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /** MatService 核心逻辑单测：状态机 + 校验 + 原子扣减。 */
-class MatServiceTest {
+class MatServiceTest extends com.his.UnitTestBase {
 
     private final MatMaterialMapper materialMapper = mock(MatMaterialMapper.class);
     private final MatStockMapper stockMapper = mock(MatStockMapper.class);
@@ -64,9 +66,43 @@ class MatServiceTest {
         when(materialMapper.selectById(1L)).thenReturn(material(1L));
         when(basedataAppService.getDepartment(1L))
                 .thenReturn(new com.his.modules.basedata.app.DepartmentDTO());
-        when(stockMapper.update(any(), any())).thenReturn(0);
         BizException e = assertThrows(BizException.class, () -> service.requisition(req(1L, 1)));
         assertTrue(e.getMessage().contains("库存不足"));
+    }
+
+    /** 扣减守卫必须由数据库重算过期量：两笔并发领用都能通过 Java 预检，只有条件更新能兜住 */
+    @Test
+    void requisition_usesExpiredAwareAtomicDeduction() {
+        when(materialMapper.selectById(1L)).thenReturn(material(1L));
+        when(basedataAppService.getDepartment(1L))
+                .thenReturn(new com.his.modules.basedata.app.DepartmentDTO());
+        MatStock stock = new MatStock();
+        stock.setMaterialId(1L);
+        stock.setQuantity(5);
+        when(stockMapper.selectOne(any())).thenReturn(stock);
+        when(batchMapper.selectList(any())).thenReturn(java.util.List.of());
+        when(stockMapper.deductAvailable(1L, 3)).thenReturn(0);
+
+        BizException e = assertThrows(BizException.class, () -> service.requisition(req(1L, 3)));
+        assertTrue(e.getMessage().contains("可用库存不足"));
+        verify(stockMapper).deductAvailable(1L, 3);
+    }
+
+    @Test
+    void requisition_succeedsAfterAtomicDeduction() {
+        when(materialMapper.selectById(1L)).thenReturn(material(1L));
+        when(basedataAppService.getDepartment(1L))
+                .thenReturn(new com.his.modules.basedata.app.DepartmentDTO());
+        MatStock stock = new MatStock();
+        stock.setMaterialId(1L);
+        stock.setQuantity(5);
+        when(stockMapper.selectOne(any())).thenReturn(stock);
+        when(batchMapper.selectList(any())).thenReturn(java.util.List.of());
+        when(stockMapper.deductAvailable(1L, 3)).thenReturn(1);
+        when(idGenerator.next("LY")).thenReturn("LY0001");
+
+        assertEquals("LY0001", service.requisition(req(1L, 3)));
+        verify(requisitionMapper).insert(any(com.his.modules.mat.entity.MatRequisition.class));
     }
 
     @Test

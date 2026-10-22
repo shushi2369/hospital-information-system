@@ -315,12 +315,11 @@ public class MatService {
         if (stock == null || stock.getQuantity() - expiredQty < req.getQuantity()) {
             throw new BizException(ErrorCode.A0001, "可用库存不足（过期批次不可领用）");
         }
-        int deducted = stockMapper.update(null, new LambdaUpdateWrapper<MatStock>()
-                .eq(MatStock::getMaterialId, req.getMaterialId())
-                .ge(MatStock::getQuantity, req.getQuantity())
-                .setSql("quantity = quantity - " + req.getQuantity()));
+        // 守卫必须把过期批次算进扣减条件：仅校验聚合数量时，两笔并发领用都能通过预检，
+        // 后一笔会实际占用过期库存（聚合减少、可用批次拨不出，造成账实漂移）
+        int deducted = stockMapper.deductAvailable(req.getMaterialId(), req.getQuantity());
         if (deducted != 1) {
-            throw new BizException(ErrorCode.A0001, "库存不足，领用失败");
+            throw new BizException(ErrorCode.A0001, "可用库存不足（过期批次不可领用）");
         }
         // 四期 FEFO：批次按效期升序拨发，跨批次拆分留痕（聚合扣减成功后批次拨发应足额；
         // 批次与聚合短暂不一致由入库同步维护，此处不足额按聚合数兜底拨尽并告警）

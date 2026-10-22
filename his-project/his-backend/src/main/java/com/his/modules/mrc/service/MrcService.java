@@ -132,8 +132,9 @@ public class MrcService {
             throw new BizException(ErrorCode.B6003, "住院在院，不能编码首页");
         }
         // 归档(20)/借阅中(30)冻结：法定病案首页归档后不可篡改且无版本留痕（八十八轮状态机审计）
+        // 锁读冻结标记：否则校验通过后并发归档可把首页改成"归档后内容"（本方法不改记录版本，乐观锁兜不住）
         MrcRecord recordForFreeze = recordMapper.selectOne(new LambdaQueryWrapper<MrcRecord>()
-                .eq(MrcRecord::getAdmissionId, admissionId).last("LIMIT 1"));
+                .eq(MrcRecord::getAdmissionId, admissionId).last("LIMIT 1 FOR UPDATE"));
         if (recordForFreeze != null && recordForFreeze.getArchiveStatus() != null
                 && recordForFreeze.getArchiveStatus() != 10) {
             throw new BizException(ErrorCode.B6303, "病案已归档或借阅中，首页编码冻结");

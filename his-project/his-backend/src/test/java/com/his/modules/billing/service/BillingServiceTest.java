@@ -58,12 +58,14 @@ class BillingServiceTest extends UnitTestBase {
     private final IdGenerator idGenerator = mock(IdGenerator.class);
     private final InpAppService inpAppService = mock(InpAppService.class);
     private final com.his.modules.rpt.service.RptService rptService = mock(com.his.modules.rpt.service.RptService.class);
+    private final com.his.modules.system.mapper.SysUserMapper sysUserMapper =
+            mock(com.his.modules.system.mapper.SysUserMapper.class);
 
     private final BillingService service = new BillingService(
             billMapper, chargeDetailMapper, paymentRecordMapper, refundBillMapper,
             refundDetailMapper, settlementMapper, clinicAppService, registrationAppService,
             patientAppService, systemAppService, pltService, risAppService,
-            basedataAppService, idGenerator, inpAppService, rptService);
+            basedataAppService, idGenerator, inpAppService, rptService, sysUserMapper);
 
     private BillingVisitDTO visit() {
         BillingVisitDTO v = new BillingVisitDTO();
@@ -224,6 +226,19 @@ class BillingServiceTest extends UnitTestBase {
         BizException e = assertThrows(BizException.class, () -> service.settle(req));
         assertEquals(ErrorCode.B3006, e.getErrorCode());
         verify(settlementMapper, never()).insert(any());
+    }
+
+    /** 一百一十七轮：日结必须与收费共用收费员行锁，否则汇总→INSERT 窗口内的收费会永久漏出日结 */
+    @Test
+    void settle_locksCashierRow() {
+        SettlementRequest req = new SettlementRequest();
+        req.setSettleDate(LocalDate.now());
+        when(billMapper.selectList(any())).thenReturn(List.of());
+        when(refundBillMapper.selectList(any())).thenReturn(List.of());
+
+        service.settle(req);
+        verify(sysUserMapper).lockByIdForUpdate(1L);
+        verify(settlementMapper).insert(any(com.his.modules.billing.entity.BilDailySettlement.class));
     }
 
     @Test

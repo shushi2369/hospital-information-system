@@ -78,6 +78,7 @@ public class BillingService {
     private final IdGenerator idGenerator;
     private final com.his.modules.inp.app.InpAppService inpAppService;
     private final com.his.modules.rpt.service.RptService rptService;
+    private final com.his.modules.system.mapper.SysUserMapper sysUserMapper;
 
     /** 未收费就诊列表（B-02 收费窗口工作队列） */
     public List<Map<String, Object>> unpaidVisits() {
@@ -415,6 +416,10 @@ public class BillingService {
      *  必须用加锁读：普通读在 RR 快照下看不到并发日结刚提交的锁行；锁定读同时占住唯一索引间隙，
      *  使并发日结的 INSERT 排队到本笔收费提交之后，杜绝"检查通过后日结先落库、交易落在日结之外" */
     private void requireDailySettleOpen() {
+        // 必须先锁收费员行、再查日结：日结同样以该行为互斥点，两边加锁顺序一致才不会死锁。
+        // 只锁日结行挡不住"汇总已开始、结算行还没 INSERT"的窗口——那段时间锁的是不存在的行，
+        // 收费照常提交后日结才落库，交易永久落在日结之外
+        lockCashier();
         BilDailySettlement locked = settlementMapper.selectOne(new LambdaQueryWrapper<BilDailySettlement>()
                 .eq(BilDailySettlement::getCashierId, CurrentUser.id())
                 .eq(BilDailySettlement::getSettleDate, java.time.LocalDate.now())
@@ -424,15 +429,21 @@ public class BillingService {
         }
     }
 
+    /** 收费员行锁：同一收费员的收费/退费/住院结算与日结串行（日结汇总期间不再有在途交易） */
+    private void lockCashier() {
+        sysUserMapper.lockByIdForUpdate(CurrentUser.id());
+    }
+
     /** 日结（B-07）：按收费员+日期汇总并锁定，重复日结拒绝（B3006）。
-     *  一百一十六轮复核【3】：READ_COMMITTED——RR 一致性快照下"汇总后复查计数"永远相等（死代码），
-     *  改读已提交隔离后复查才能看到窗口期新交易 */
+     *  READ_COMMITTED：复查计数需要看到其它事务刚提交的交易（RR 一致快照下会读成死代码）。
+     *  与收费/退费/住院结算共用收费员行锁：拿到锁时已无在途交易，汇总→INSERT 之间不可能再插入 */
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public BilDailySettlement settle(SettlementRequest req) {
         // 只允许日结"今天"：传未来日期会预生成空日结锁死次日收费，传历史日期产生对不上的垃圾日结
         if (!java.time.LocalDate.now().equals(req.getSettleDate())) {
             throw new BizException(ErrorCode.A0001, "日结日期只能选择今天");
         }
+        lockCashier();
         Long cashierId = CurrentUser.id();
         Long exists = settlementMapper.selectCount(new LambdaQueryWrapper<BilDailySettlement>()
                 .eq(BilDailySettlement::getSettleDate, req.getSettleDate())
