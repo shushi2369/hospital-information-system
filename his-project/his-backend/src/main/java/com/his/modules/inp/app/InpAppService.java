@@ -212,6 +212,15 @@ public class InpAppService {
         return admission;
     }
 
+    /** 行锁读取住院：出院结算读费用/标记费用期间，与床位费日结、并发出院结算串行 */
+    public InpAdmission lockAdmission(Long admissionId) {
+        InpAdmission admission = admissionMapper.selectByIdForUpdate(admissionId);
+        if (admission == null) {
+            throw new BizException(ErrorCode.A0001, "住院记录不存在");
+        }
+        return admission;
+    }
+
     /** 行锁 + 在院校验：出院与记账/押金并发时，后到者必须看到最新状态 */
     public InpAdmission requireInHospitalForUpdate(Long admissionId) {
         InpAdmission admission = admissionMapper.selectByIdForUpdate(admissionId);

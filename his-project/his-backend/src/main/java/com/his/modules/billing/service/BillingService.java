@@ -487,8 +487,9 @@ public class BillingService {
     @Transactional
     public BillResponse settleAdmission(Long admissionId, Integer payMethod) {
         requireDailySettleOpen();
-        var view = inpAppService.getAdmissionView(admissionId);
-        var admission = view.getAdmission();
+        // 行锁：床位费日结可能给"出院未结(20)"补记费用，结算取下与标记之间必须与它串行；
+        // 同时串行化并发出院结算，第二笔在锁上排队后看到 30 直接拒绝（不依赖唯一索引兜底）
+        var admission = inpAppService.lockAdmission(admissionId);
         if (admission.getStatus() == 30) {
             throw new BizException(ErrorCode.B3001, "该住院已结算");
         }

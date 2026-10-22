@@ -228,19 +228,15 @@ class BillingServiceTest extends UnitTestBase {
 
     @Test
     void settleAdmission_statusGatesRejected() {
-        InpAppService.AdmissionView settled = new InpAppService.AdmissionView();
         InpAdmission done = new InpAdmission();
         done.setStatus(30);
-        settled.setAdmission(done);
-        when(inpAppService.getAdmissionView(7L)).thenReturn(settled);
+        when(inpAppService.lockAdmission(7L)).thenReturn(done);
         assertEquals(ErrorCode.B3001, assertThrows(BizException.class,
                 () -> service.settleAdmission(7L, 1)).getErrorCode());
 
-        InpAppService.AdmissionView inHouse = new InpAppService.AdmissionView();
         InpAdmission active = new InpAdmission();
         active.setStatus(10);
-        inHouse.setAdmission(active);
-        when(inpAppService.getAdmissionView(7L)).thenReturn(inHouse);
+        when(inpAppService.lockAdmission(7L)).thenReturn(active);
         assertEquals(ErrorCode.B6003, assertThrows(BizException.class,
                 () -> service.settleAdmission(7L, 1)).getErrorCode());
         verify(chargeDetailMapper, never()).insert(any(BilChargeDetail.class));
@@ -249,8 +245,7 @@ class BillingServiceTest extends UnitTestBase {
     /** 四十九轮：标记收窄 + 残留复查——结算窗口期新增费用必须拒绝，不允许静默遗留 */
     @Test
     void settleAdmission_newFeeDuringSettleAborts() {
-        InpAppService.AdmissionView view = dischargedView();
-        when(inpAppService.getAdmissionView(7L)).thenReturn(view);
+        when(inpAppService.lockAdmission(7L)).thenReturn(dischargedAdmission());
         when(billMapper.selectCount(any())).thenReturn(0L);
         when(inpAppService.listUnpaidDailyFees(7L)).thenReturn(List.of(fee(501L)));
         when(inpAppService.countUnpaidDailyFees(7L)).thenReturn(1L);
@@ -264,8 +259,7 @@ class BillingServiceTest extends UnitTestBase {
     /** 对照：无窗口期新增 → 仅标记账单包含的费用并完成结算 */
     @Test
     void settleAdmission_marksOnlyBillFeesAndSettles() {
-        InpAppService.AdmissionView view = dischargedView();
-        when(inpAppService.getAdmissionView(7L)).thenReturn(view);
+        when(inpAppService.lockAdmission(7L)).thenReturn(dischargedAdmission());
         when(billMapper.selectCount(any())).thenReturn(0L);
         when(inpAppService.listUnpaidDailyFees(7L)).thenReturn(List.of(fee(501L)));
         when(inpAppService.countUnpaidDailyFees(7L)).thenReturn(0L);
@@ -335,14 +329,12 @@ class BillingServiceTest extends UnitTestBase {
         assertEquals(1L, service.billDetail(1L).getId());
     }
 
-    private InpAppService.AdmissionView dischargedView() {
-        InpAppService.AdmissionView view = new InpAppService.AdmissionView();
+    private InpAdmission dischargedAdmission() {
         InpAdmission discharged = new InpAdmission();
         discharged.setId(7L);
         discharged.setStatus(20);
         discharged.setPatientId(3L);
-        view.setAdmission(discharged);
-        return view;
+        return discharged;
     }
 
     private com.his.modules.inp.app.DailyFeeDTO fee(Long id) {
