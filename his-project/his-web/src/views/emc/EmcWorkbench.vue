@@ -376,7 +376,6 @@ async function openLink(row: EmcVisit) {
   linkRow = row
   linkForm.admissionId = undefined
   linkVisible.value = true
-  await loadAdmOptions()
 }
 
 async function handleLink() {

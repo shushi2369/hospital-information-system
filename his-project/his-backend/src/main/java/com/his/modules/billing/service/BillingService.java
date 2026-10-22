@@ -197,8 +197,12 @@ public class BillingService {
             rxIds.addAll(clinicAppService.prescriptionIdByItemIds(rxItemIds).values());
         }
         registrationAppService.markCharged(regId);
-        clinicAppService.markPrescriptionsCharged(rxIds);
-        clinicAppService.markExamApplicationsCharged(applyIds);
+        // 收费与处方/检查申请作废并发：条件更新 0 行说明单据已被作废，必须回滚整笔收费
+        int rxMarked = clinicAppService.markPrescriptionsCharged(rxIds);
+        int examMarked = clinicAppService.markExamApplicationsCharged(applyIds);
+        if (rxMarked != rxIds.size() || examMarked != applyIds.size()) {
+            throw new BizException(ErrorCode.A0008, "收费项目状态已变化（可能已被作废），本次收费已回滚，请刷新后重试");
+        }
 
         BilPaymentRecord payment = new BilPaymentRecord();
         payment.setBillId(bill.getId());
@@ -407,12 +411,15 @@ public class BillingService {
         return refundBill.getRefundNo();
     }
 
-    /** 日结锁定（B-07）：本人当日已日结后不得再收费/退费/住院结算，否则交易落在任何日结之外（对账永久失真） */
+    /** 日结锁定（B-07）：本人当日已日结后不得再收费/退费/住院结算，否则交易落在任何日结之外（对账永久失真）。
+     *  必须用加锁读：普通读在 RR 快照下看不到并发日结刚提交的锁行；锁定读同时占住唯一索引间隙，
+     *  使并发日结的 INSERT 排队到本笔收费提交之后，杜绝"检查通过后日结先落库、交易落在日结之外" */
     private void requireDailySettleOpen() {
-        Long exists = settlementMapper.selectCount(new LambdaQueryWrapper<BilDailySettlement>()
+        BilDailySettlement locked = settlementMapper.selectOne(new LambdaQueryWrapper<BilDailySettlement>()
                 .eq(BilDailySettlement::getCashierId, CurrentUser.id())
-                .eq(BilDailySettlement::getSettleDate, java.time.LocalDate.now()));
-        if (exists != null && exists > 0) {
+                .eq(BilDailySettlement::getSettleDate, java.time.LocalDate.now())
+                .last("LIMIT 1 FOR UPDATE"));
+        if (locked != null) {
             throw new BizException(ErrorCode.B3006, "当日已日结，不能再收费或退费，请切换账号或次日处理");
         }
     }

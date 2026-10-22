@@ -31,7 +31,12 @@ class BbServiceTest extends UnitTestBase {
         org.apache.ibatis.builder.MapperBuilderAssistant assistant =
                 new org.apache.ibatis.builder.MapperBuilderAssistant(
                         new com.baomidou.mybatisplus.core.MybatisConfiguration(), "");
-        for (Class<?> entity : new Class<?>[]{com.his.modules.bb.entity.BbBloodBag.class}) {
+        for (Class<?> entity : new Class<?>[]{
+                com.his.modules.bb.entity.BbBloodBag.class,
+                com.his.modules.bb.entity.BbRequest.class,
+                com.his.modules.bb.entity.BbIssue.class,
+                com.his.modules.bb.entity.BbCrossMatch.class,
+                com.his.modules.bb.entity.BbTransfusion.class}) {
             com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(assistant, entity);
         }
     }
@@ -124,6 +129,7 @@ class BbServiceTest extends UnitTestBase {
         }).when(issueMapper).insert(any());
         when(systemAppService.getUsername(anyLong())).thenReturn("护士");
         Mockito.doReturn(1).when(requestMapper).updateById(any());
+        when(requestMapper.update(any(), any())).thenReturn(1); // 状态条件更新
         Mockito.doReturn(1).when(bagMapper).updateById(any());
         when(bagMapper.update(any(), any())).thenReturn(1); // 占袋条件更新
         setupAs(3L, "BB_USER");
@@ -189,6 +195,7 @@ class BbServiceTest extends UnitTestBase {
         var request = request(1L, 40);
         when(requestMapper.selectById(1L)).thenReturn(request);
         when(issueMapper.selectCount(any())).thenReturn(1L);
+        when(bagMapper.selectById(10L)).thenReturn(bag(10L, 2)); // 已发血血袋
         when(systemAppService.getUsername(anyLong())).thenReturn("用户");
         Mockito.doAnswer(inv -> {
             var tf = inv.getArgument(0, BbTransfusion.class);

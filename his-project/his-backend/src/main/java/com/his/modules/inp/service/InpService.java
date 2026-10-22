@@ -125,10 +125,10 @@ public class InpService {
         return detail(admission.getId());
     }
 
-    /** 押金缴纳（I-08）：仅"在院"可缴 */
+    /** 押金缴纳（I-08）：仅"在院"可缴；行锁与出院串行，防出院后仍缴入押金 */
     @Transactional
     public BigDecimal addDeposit(Long admissionId, DepositRequest req) {
-        InpAdmission admission = inpAppService.requireInHospital(admissionId);
+        InpAdmission admission = inpAppService.requireInHospitalForUpdate(admissionId);
         BigDecimal added = saveDeposit(admissionId, req.getAmount(), req.getPayMethod());
         // 原子递增（并发补押金不丢写，对齐退费行锁同级别的保障）
         admissionMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<InpAdmission>()
@@ -176,7 +176,8 @@ public class InpService {
     /** 转科（I-07）：释放原床位 + 占用新床位 + 记录留痕，一个事务 */
     @Transactional
     public void transfer(Long admissionId, TransferRequest req) {
-        InpAdmission admission = inpAppService.requireInHospital(admissionId);
+        // 先锁住院行：与出院统一"住院→床位"加锁顺序，防转科持床位锁等住院行、出院持住院行等床位
+        InpAdmission admission = inpAppService.requireInHospitalForUpdate(admissionId);
         InpWard toWard = wardMapper.selectById(req.getToWardId());
         if (toWard == null || toWard.getStatus() == 0) {
             throw new BizException(ErrorCode.A0001, "目标病区不存在或已停用");
@@ -221,7 +222,9 @@ public class InpService {
     /** 出院申请（I-11）：前置校验（未收费检查/长期医嘱）→ 出院未结 */
     @Transactional
     public void discharge(Long admissionId, DischargeRequest req) {
-        InpAdmission admission = inpAppService.requireInHospital(admissionId);
+        // 行锁：与手工记账/押金/开嘱并发时串行化——否则"先数未结费用→再置已结算"之间
+        // 插入的记账会让已结算住院永久挂着未收费费用（二〇二六轮 Q10 实锤）
+        InpAdmission admission = inpAppService.requireInHospitalForUpdate(admissionId);
         // 出院前置检查（依赖倒置：医嘱/检查模块各自实现钩子，《08》§2 依赖规则）
         for (com.his.modules.inp.spi.DischargeCheckHook hook : dischargeHooks) {
             String blocker = hook.checkBlocker(admissionId);
@@ -283,10 +286,10 @@ public class InpService {
         }).toList();
     }
 
-    /** 手工记账（I-10）：仅"在院" */
+    /** 手工记账（I-10）：仅"在院"；行锁与出院串行，防出院判空后补记费用 */
     @Transactional
     public Long addManualFee(Long admissionId, ManualFeeRequest req) {
-        inpAppService.requireInHospital(admissionId);
+        inpAppService.requireInHospitalForUpdate(admissionId);
         InpDailyFee fee = new InpDailyFee();
         fee.setAdmissionId(admissionId);
         fee.setFeeDate(LocalDate.now());

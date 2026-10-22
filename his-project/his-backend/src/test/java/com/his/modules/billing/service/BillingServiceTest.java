@@ -35,6 +35,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.*;
 
@@ -62,8 +63,7 @@ class BillingServiceTest extends UnitTestBase {
             billMapper, chargeDetailMapper, paymentRecordMapper, refundBillMapper,
             refundDetailMapper, settlementMapper, clinicAppService, registrationAppService,
             patientAppService, systemAppService, pltService, risAppService,
-            basedataAppService, idGenerator, inpAppService, rptService,
-            mock(com.his.modules.medins.mapper.MedinsSettleMapper.class));
+            basedataAppService, idGenerator, inpAppService, rptService);
 
     private BillingVisitDTO visit() {
         BillingVisitDTO v = new BillingVisitDTO();
@@ -119,7 +119,9 @@ class BillingServiceTest extends UnitTestBase {
     private void stubRefundCommon(BilChargeBill bill) {
         when(billMapper.selectByIdForUpdate(1L)).thenReturn(bill);
         when(clinicAppService.getVisitForBilling(9L)).thenReturn(visit());
-        when(clinicAppService.prescriptionStatusByItemIds(anyList())).thenReturn(Map.of());
+        when(clinicAppService.lockPrescriptionsForRefund(anyCollection())).thenReturn(Map.of());
+        when(clinicAppService.lockExamsForRefund(anyCollection()))
+                .thenReturn(new ClinicAppService.ExamRefundSnapshot(Map.of(), Map.of()));
         when(clinicAppService.prescriptionIdByItemIds(anyList())).thenReturn(Map.of());
     }
 
@@ -156,7 +158,8 @@ class BillingServiceTest extends UnitTestBase {
         d.setSourceType(3);
         d.setSourceDetailId(333L); // cli_exam_application.id
         when(chargeDetailMapper.selectList(any())).thenReturn(List.of(d));
-        when(clinicAppService.examStatusByIds(anyList())).thenReturn(Map.of(333L, 30));
+        when(clinicAppService.lockExamsForRefund(anyCollection()))
+                .thenReturn(new ClinicAppService.ExamRefundSnapshot(Map.of(333L, 30), Map.of()));
 
         BizException e = assertThrows(BizException.class,
                 () -> service.refund(refundReq(line(11L, "1"))));
@@ -173,7 +176,8 @@ class BillingServiceTest extends UnitTestBase {
         d.setSourceType(3);
         d.setSourceDetailId(334L);
         when(chargeDetailMapper.selectList(any())).thenReturn(List.of(d));
-        when(clinicAppService.examStatusByIds(anyList())).thenReturn(Map.of(334L, 20));
+        when(clinicAppService.lockExamsForRefund(anyCollection()))
+                .thenReturn(new ClinicAppService.ExamRefundSnapshot(Map.of(334L, 20), Map.of()));
         when(refundBillMapper.insert(any(BilRefundBill.class))).thenReturn(1);
 
         // 走过门禁后因其他未桩路径失败也可——关键是不能抛"已执行"门禁错
@@ -187,7 +191,7 @@ class BillingServiceTest extends UnitTestBase {
         stubRefundCommon(bill());
         BilChargeDetail d = detail(11L, 7, new BigDecimal("2"), "10.00"); // sourceDetailId 111
         when(chargeDetailMapper.selectList(any())).thenReturn(List.of(d));
-        when(clinicAppService.prescriptionStatusByItemIds(anyList())).thenReturn(Map.of(111L, 30)); // 已发药
+        when(clinicAppService.lockPrescriptionsForRefund(anyCollection())).thenReturn(Map.of(9L, 30)); // 已发药
         when(clinicAppService.prescriptionIdByItemIds(anyList())).thenReturn(Map.of(111L, 9L));
 
         BizException e = assertThrows(BizException.class,
@@ -202,7 +206,7 @@ class BillingServiceTest extends UnitTestBase {
         BilChargeDetail d1 = detail(11L, 7, new BigDecimal("10"), "1.00"); // 同处方 rx9 的两行
         BilChargeDetail d2 = detail(12L, 7, new BigDecimal("5"), "1.00");
         when(chargeDetailMapper.selectList(any())).thenReturn(List.of(d1, d2));
-        when(clinicAppService.prescriptionStatusByItemIds(anyList())).thenReturn(Map.of(111L, 10, 112L, 10));
+        when(clinicAppService.lockPrescriptionsForRefund(anyCollection())).thenReturn(Map.of(9L, 10));
         when(clinicAppService.prescriptionIdByItemIds(anyList())).thenReturn(Map.of(111L, 9L, 112L, 9L));
 
         BizException e = assertThrows(BizException.class,
@@ -279,7 +283,8 @@ class BillingServiceTest extends UnitTestBase {
     /** 五十轮：日结锁定——本人当日已日结后，收费/退费/住院结算一律拒绝（B3006），否则交易落在任何日结之外 */
     @Test
     void charge_blockedAfterDailySettlement() {
-        when(settlementMapper.selectCount(any())).thenReturn(1L);
+        when(settlementMapper.selectOne(any()))
+                .thenReturn(new com.his.modules.billing.entity.BilDailySettlement());
         ChargeRequest req = new ChargeRequest();
         req.setVisitId(9L);
         req.setPayMethod(1);
@@ -291,7 +296,8 @@ class BillingServiceTest extends UnitTestBase {
 
     @Test
     void refund_blockedAfterDailySettlement() {
-        when(settlementMapper.selectCount(any())).thenReturn(1L);
+        when(settlementMapper.selectOne(any()))
+                .thenReturn(new com.his.modules.billing.entity.BilDailySettlement());
         RefundRequest req = new RefundRequest();
         req.setBillId(1L);
 
@@ -302,7 +308,8 @@ class BillingServiceTest extends UnitTestBase {
 
     @Test
     void settleAdmission_blockedAfterDailySettlement() {
-        when(settlementMapper.selectCount(any())).thenReturn(1L);
+        when(settlementMapper.selectOne(any()))
+                .thenReturn(new com.his.modules.billing.entity.BilDailySettlement());
 
         BizException e = assertThrows(BizException.class, () -> service.settleAdmission(7L, 1));
         assertEquals(ErrorCode.B3006, e.getErrorCode());

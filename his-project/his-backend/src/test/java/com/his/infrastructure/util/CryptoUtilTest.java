@@ -20,7 +20,7 @@ class CryptoUtilTest {
         for (int i = 0; i < 32; i++) {
             key[i] = (byte) i;
         }
-        cryptoUtil = new CryptoUtil(Base64.getEncoder().encodeToString(key));
+        cryptoUtil = new CryptoUtil(Base64.getEncoder().encodeToString(key), "test-pepper");
     }
 
     @Test
@@ -56,7 +56,7 @@ class CryptoUtilTest {
     void rejectsWrongKeyLength() {
         String bad = Base64.getEncoder().encodeToString(new byte[16]);
         try {
-            new CryptoUtil(bad);
+            new CryptoUtil(bad, "test-pepper");
             throw new AssertionError("应拒绝非 32 字节密钥");
         } catch (IllegalArgumentException expected) {
             // 预期路径

@@ -30,9 +30,12 @@ class PubServiceTest extends UnitTestBase {
     private final com.his.modules.rpt.service.RptService rptService = mock(com.his.modules.rpt.service.RptService.class);
     private final com.his.modules.patient.app.PatientAppService patientAppService = mock(com.his.modules.patient.app.PatientAppService.class);
     private final IdGenerator idGen = mock(IdGenerator.class);
+    private final com.his.modules.inp.app.InpAppService inpAppService =
+            mock(com.his.modules.inp.app.InpAppService.class);
 
     private PubService svc() {
-        return new PubService(cardMapper, dictMapper, haiMapper, pltService, idGen, rptService, patientAppService);
+        return new PubService(cardMapper, dictMapper, haiMapper, pltService, idGen, rptService,
+                patientAppService, inpAppService);
     }
 
     private PubDiseaseDict disease(String name, String cat) {
@@ -101,6 +104,11 @@ class PubServiceTest extends UnitTestBase {
     void haiReport_createsCase() {
         when(idGen.next("GR")).thenReturn("GR001");
         Mockito.when(haiMapper.insert(any())).thenReturn(1);
+        var adm = new com.his.modules.inp.entity.InpAdmission();
+        adm.setId(75L);
+        adm.setPatientId(415L);
+        adm.setStatus(10);
+        when(inpAppService.requireAdmission(75L)).thenReturn(adm);
         var hai = new PubHaiCase();
         hai.setAdmissionId(75L); hai.setPatientId(415L);
         hai.setInfectionType(1); hai.setInfectionSite("呼吸道");

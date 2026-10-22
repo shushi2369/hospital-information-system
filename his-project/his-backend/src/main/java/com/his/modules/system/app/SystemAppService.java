@@ -5,8 +5,11 @@ import com.his.modules.system.mapper.SysUserMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -34,5 +37,22 @@ public class SystemAppService {
             result.put(user.getId(), user.getRealName());
         }
         return result;
+    }
+
+    /** 排班下拉选项：仅 id/姓名/账号，避免把 sys_user 其他字段带出 */
+    public List<Map<String, Object>> nurseOptions() {
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (SysUser user : userMapper.selectNurseUsers()) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", user.getId());
+            row.put("username", user.getUsername());
+            row.put("realName", user.getRealName());
+            result.add(row);
+        }
+        return result;
+    }
+
+    public boolean isNurse(Long userId) {
+        return userId != null && userMapper.countNurseRole(userId) > 0;
     }
 }

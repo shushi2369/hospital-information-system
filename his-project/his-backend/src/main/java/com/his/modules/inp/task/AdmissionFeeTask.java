@@ -16,7 +16,6 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -91,20 +90,16 @@ public class AdmissionFeeTask {
             if (item == null) {
                 continue;
             }
-            InpDailyFee fee = new InpDailyFee();
-            fee.setAdmissionId(admission.getId());
-            fee.setFeeDate(feeDate);
-            fee.setFeeType(item.getCategory());
-            fee.setSourceType(1);
-            fee.setSourceDetailId(bed.getId());
-            fee.setItemName(item.getItemName() + "（" + bed.getBedNo() + "）");
-            fee.setQuantity(BigDecimal.ONE);
-            fee.setUnitPrice(item.getPrice());
-            fee.setAmount(item.getPrice().setScale(2, RoundingMode.HALF_UP));
-            fee.setChargeStatus(0);
-            fee.setStatus(1);
             try {
-                dailyFeeMapper.insert(fee);
+                // 条件插入：查询在院与写费用之间若并发出院/结算，状态已是 30 则 0 行，
+                // 不再产生已结算住院挂床费的孤儿账（对齐 Q10 出院行锁口径）
+                int inserted = dailyFeeMapper.insertBedFeeIfActive(
+                        admission.getId(), feeDate, item.getCategory(), bed.getId(),
+                        item.getItemName() + "（" + bed.getBedNo() + "）",
+                        item.getPrice(), item.getPrice().setScale(2, RoundingMode.HALF_UP));
+                if (inserted == 0) {
+                    continue;
+                }
             } catch (org.springframework.dao.DuplicateKeyException e) {
                 // uk_df_bed_fee（V52）：启动补偿与 cron 竞态窗口的唯一索引兜底
                 continue;

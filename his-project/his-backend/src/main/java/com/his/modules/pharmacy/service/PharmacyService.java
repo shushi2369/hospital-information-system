@@ -175,7 +175,11 @@ public class PharmacyService {
     /** 整方退药（F-06，《05》R11）：回补原批次 + 流水，处方 30→50 恢复药品费可退 */
     @Transactional
     public String returnDrug(ReturnRequest req) {
-        PhrDispenseOrder order = dispenseOrderMapper.selectById(req.getDispenseOrderId());
+        // 行锁：并发两次退药会都通过"已退"预检，库存被回补两遍
+        PhrDispenseOrder order = dispenseOrderMapper.selectOne(
+                new LambdaQueryWrapper<PhrDispenseOrder>()
+                        .eq(PhrDispenseOrder::getId, req.getDispenseOrderId())
+                        .last("LIMIT 1 FOR UPDATE"));
         if (order == null) {
             throw new BizException(ErrorCode.A0001, "发药单不存在");
         }

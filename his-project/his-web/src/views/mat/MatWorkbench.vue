@@ -51,7 +51,7 @@
         </el-table>
       </el-tab-pane>
 
-      <el-tab-pane label="批次效期" name="batch">
+      <el-tab-pane v-if="canViewBatches" label="批次效期" name="batch">
         <el-table v-loading="batchLoading" :data="batches" border stripe size="small">
           <el-table-column prop="id" label="ID" width="70" align="center" />
           <el-table-column prop="materialId" label="物资ID" width="90" align="center" />
@@ -150,8 +150,9 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useUserStore } from '@/stores/user'
 import {
   approvePurchase, cancelPurchase, createPurchase, createRequisition, getBatches,
   getMaterialPage, getPurchasePage, getRequisitionPage,
@@ -161,6 +162,11 @@ import {
 import { getDepartmentListCached, type Department } from '@/api/basedata'
 
 const tab = ref('stock')
+// 批次接口授予 mat:stock:query 或 mat:batch:query；药师仅有物资/采购权限，不能显示该页签
+const userStore = useUserStore()
+const canViewBatches = computed(
+  () => userStore.hasPerm('mat:stock:query') || userStore.hasPerm('mat:batch:query'),
+)
 const loading = ref(false)
 const poLoading = ref(false)
 const reqLoading = ref(false)
@@ -294,11 +300,18 @@ async function handleReq() {
 
 async function fetchBatches() {
   batchLoading.value = true
-  try { batches.value = await getBatches() } finally { batchLoading.value = false }
+  try {
+    batches.value = await getBatches()
+  } catch {
+    batches.value = []
+  } finally {
+    batchLoading.value = false
+  }
 }
 
 onMounted(() => {
-  fetchMaterials(); fetchPo(); fetchReq(); fetchBatches()
+  fetchMaterials(); fetchPo(); fetchReq()
+  if (canViewBatches.value) fetchBatches()
   getSupplierList().then((s) => { suppliers.value = s ?? [] }).catch(() => { suppliers.value = [] })
   getDepartmentListCached({ status: 1 }).then((d) => { deptOptions.value = d ?? [] }).catch(() => { deptOptions.value = [] })
 })

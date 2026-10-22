@@ -146,7 +146,7 @@ class InpServiceTest extends UnitTestBase {
         admission.setStatus(10);
         admission.setBedId(300L);
         admission.setDepositTotal(new java.math.BigDecimal("500"));
-        when(inpAppService.requireInHospital(8641L)).thenReturn(admission);
+        when(inpAppService.requireInHospitalForUpdate(8641L)).thenReturn(admission);
         when(dischargeHooks.iterator()).thenReturn(java.util.Collections.<com.his.modules.inp.spi.DischargeCheckHook>emptyList().iterator());
         when(bedMapper.releaseBed(300L, 8641L)).thenReturn(1);
         when(dailyFeeMapper.selectCount(any())).thenReturn(0L);
@@ -168,7 +168,7 @@ class InpServiceTest extends UnitTestBase {
         admission.setId(8642L);
         admission.setStatus(10);
         admission.setBedId(301L);
-        when(inpAppService.requireInHospital(8642L)).thenReturn(admission);
+        when(inpAppService.requireInHospitalForUpdate(8642L)).thenReturn(admission);
         when(dischargeHooks.iterator()).thenReturn(java.util.Collections.<com.his.modules.inp.spi.DischargeCheckHook>emptyList().iterator());
         when(bedMapper.releaseBed(301L, 8642L)).thenReturn(1);
         when(dailyFeeMapper.selectCount(any())).thenReturn(2L); // 有未结费用 → 待结算

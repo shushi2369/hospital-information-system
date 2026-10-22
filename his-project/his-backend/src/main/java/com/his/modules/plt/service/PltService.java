@@ -70,16 +70,33 @@ public class PltService {
         if (source.getId().equals(target.getId())) {
             throw new BizException(ErrorCode.A0001, "源与目标为同一主索引，不能自合并");
         }
-        if (source.getMergeFlag() == 1) {
+        // 行锁：按 id 升序锁两行（避免 A→B 与 B→A 并发合并互等死锁），锁后重读再校验，
+        // 防止两笔并发合并同时通过校验、后提交者覆盖 mergedInto 造成断链
+        Long lowId = Math.min(source.getId(), target.getId());
+        Long highId = Math.max(source.getId(), target.getId());
+        PltMasterIndex low = masterIndexMapper.selectByIdForUpdate(lowId);
+        PltMasterIndex high = masterIndexMapper.selectByIdForUpdate(highId);
+        if (low == null || high == null) {
+            throw new BizException(ErrorCode.A0001, "主索引不存在");
+        }
+        source = source.getId().equals(lowId) ? low : high;
+        target = target.getId().equals(lowId) ? low : high;
+        if (Integer.valueOf(1).equals(source.getMergeFlag())) {
             throw new BizException(ErrorCode.A0001, "该主索引已合并");
         }
         // 目标须为未合并索引：合并到已合并目标会产生断链（A→B→C 归一需链解析，查验二十七轮）
-        if (target.getMergeFlag() != null && target.getMergeFlag() == 1) {
+        if (Integer.valueOf(1).equals(target.getMergeFlag())) {
             throw new BizException(ErrorCode.A0001, "目标主索引已合并至其他索引，请直接合并至最终索引");
         }
-        source.setMergeFlag(1);
-        source.setMergedInto(target.getId());
-        masterIndexMapper.updateById(source);
+        int merged = masterIndexMapper.update(null,
+                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<PltMasterIndex>()
+                        .eq(PltMasterIndex::getId, source.getId())
+                        .eq(PltMasterIndex::getMergeFlag, 0)
+                        .set(PltMasterIndex::getMergeFlag, 1)
+                        .set(PltMasterIndex::getMergedInto, target.getId()));
+        if (merged != 1) {
+            throw new BizException(ErrorCode.A0008, "主索引状态已变化，请刷新后重试");
+        }
         // 联动停用源患者（业界"合并后数据继续分裂"对标）：历史单据保留原 patient_id
         // （经 EMPI 归一链可见），源患者置停用防止合并后继续产生新单据
         if (source.getPatientId() != null) {

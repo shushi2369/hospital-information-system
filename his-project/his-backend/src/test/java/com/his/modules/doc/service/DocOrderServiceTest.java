@@ -101,6 +101,8 @@ class DocOrderServiceTest extends UnitTestBase {
         c.setCategory(4);
         when(basedataAppService.getChargeItem(77L)).thenReturn(c);
         when(inpAppService.addExecFee(any(), any(), any(), any(), any(), any())).thenReturn(555L);
+        when(inpAppService.touchInHospital(900L)).thenReturn(true);
+        when(orderMapper.update(any(), any())).thenReturn(1);
 
         service.execute(5L);
 

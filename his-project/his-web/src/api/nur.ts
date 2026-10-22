@@ -101,6 +101,16 @@ export const getSchedules = (params: { wardId?: number; shiftDate?: string } = {
 /** 新增排班（同一护士同日同班次重复 A0001） */
 export const createSchedule = (data: SchedulePayload) => post<void>('/nur/schedules', data)
 
+/** 排班护士下拉项 */
+export interface NurseOption {
+  id: number
+  username: string
+  realName?: string | null
+}
+
+/** 排班护士下拉（护士无 sys:user:query，不能借用用户管理接口） */
+export const getNurseOptions = () => get<NurseOption[]>('/nur/nurses')
+
 /** 病区床位一览（结构同 /inp/beds） */
 export const getNurWardBeds = (params: { wardId?: number; bedStatus?: number } = {}) =>
   get<Bed[]>('/nur/wards/beds', params)

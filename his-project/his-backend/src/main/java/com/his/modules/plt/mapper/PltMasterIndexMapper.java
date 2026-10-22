@@ -8,4 +8,7 @@ public interface PltMasterIndexMapper extends BaseMapper<PltMasterIndex> {
 
     @Select("SELECT * FROM plt_master_index WHERE patient_id = #{patientId} LIMIT 1")
     PltMasterIndex selectByPatientId(Long patientId);
+
+    @Select("SELECT * FROM plt_master_index WHERE id = #{id} FOR UPDATE")
+    PltMasterIndex selectByIdForUpdate(Long id);
 }

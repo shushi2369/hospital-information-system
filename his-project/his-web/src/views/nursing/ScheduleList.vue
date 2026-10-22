@@ -118,9 +118,17 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
-import { SHIFT_TYPE_OPTIONS, shiftTypeLabel, shiftTypeTagType, createSchedule, getSchedules, type Schedule } from '@/api/nur'
+import {
+  SHIFT_TYPE_OPTIONS,
+  shiftTypeLabel,
+  shiftTypeTagType,
+  createSchedule,
+  getNurseOptions,
+  getSchedules,
+  type NurseOption,
+  type Schedule,
+} from '@/api/nur'
 import { getWards, type Ward } from '@/api/inp'
-import { getUserPage, type SystemUser } from '@/api/system'
 import { todayStr } from '@/api/registration'
 
 // ---------------- 病区 ----------------
@@ -142,16 +150,15 @@ function wardName(): string {
   return wards.value.find((w) => w.id === wardId.value)?.wardName || '-'
 }
 
-// ---------------- 护士下拉（/system/users） ----------------
-const nurseOptions = ref<SystemUser[]>([])
+// ---------------- 护士下拉（/nur/nurses，仅护士账号） ----------------
+const nurseOptions = ref<NurseOption[]>([])
 const userLoading = ref(false)
 
 async function fetchNurses() {
   if (nurseOptions.value.length > 0) return
   userLoading.value = true
   try {
-    const res = await getUserPage({ pageNum: 1, pageSize: 200 })
-    nurseOptions.value = res.list ?? []
+    nurseOptions.value = (await getNurseOptions()) ?? []
   } catch {
     nurseOptions.value = []
   } finally {
@@ -236,7 +243,6 @@ async function handleSubmit() {
 onMounted(async () => {
   await fetchWards()
   fetchSchedules()
-  fetchNurses()
 })
 </script>
 

@@ -403,6 +403,10 @@ public class OrsService {
                         BigDecimal.ONE, price, id));
             }
         }
+        // 事务尾在院复核（对齐 doc D-03）：出院判空后并发关档不得把手术费/麻醉费记入已结算住院
+        if (!inpAppService.touchInHospital(request.getAdmissionId())) {
+            throw new BizException(ErrorCode.B6003, "患者已出院或结算，本次关档记账已回滚");
+        }
         pltService.recordEvent("ors.request.completed", request.getRequestNo(),
                 "{\"fees\":" + fees.size() + "}");
         return fees;

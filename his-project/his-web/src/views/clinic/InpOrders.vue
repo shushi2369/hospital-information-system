@@ -151,8 +151,8 @@
         </div>
       </el-tab-pane>
 
-      <!-- ② 待审核队列（药师） -->
-      <el-tab-pane label="审核队列" name="review">
+      <!-- ② 待审核队列（药师）：医生无 pharmacy:review:query，显示该页签只会在加载时报 403 -->
+      <el-tab-pane v-if="userStore.hasPerm('pharmacy:review:query')" label="审核队列" name="review">
         <div class="table-toolbar">
           <span class="toolbar-title">待审核医嘱</span>
           <el-button link type="primary" :icon="Refresh" :loading="reviewLoading" @click="fetchReviewQueue">
@@ -470,6 +470,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useUserStore } from '@/stores/user'
 import { Plus, Refresh, Search } from '@element-plus/icons-vue'
 import { getChargeItemListCached, getDrugPage, type ChargeItem, type Drug } from '@/api/basedata'
 import { USAGE_ROUTE_OPTIONS } from '@/api/clinic'
@@ -516,6 +517,7 @@ function chargeCategoryOf(docCategory: number): number {
 }
 
 // ---------------- 在院患者远程选择 ----------------
+const userStore = useUserStore()
 const admissionId = ref<number | undefined>(undefined)
 const admissionOptions = ref<Admission[]>([])
 const admSearching = ref(false)
@@ -862,7 +864,7 @@ async function openDetail(row: InpOrder) {
 
 onMounted(() => {
   searchAdmissions('')
-  fetchReviewQueue()
+  if (userStore.hasPerm('pharmacy:review:query')) fetchReviewQueue()
 })
 </script>
 

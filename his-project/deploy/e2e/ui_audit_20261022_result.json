@@ -1,0 +1,576 @@
+{
+  "admin": {
+    "login": "OK",
+    "pages": [
+      {
+        "name": "用户管理",
+        "path": "/system/users",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "角色管理",
+        "path": "/system/roles",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "日志查询",
+        "path": "/system/logs",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "患者主索引",
+        "path": "/system/empi",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "患者建档",
+        "path": "/regdesk/patients",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "挂号管理",
+        "path": "/regdesk/registrations",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "收费结算",
+        "path": "/regdesk/billing",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "机构信息",
+        "path": "/basedata/org",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "科室管理",
+        "path": "/basedata/departments",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "医生管理",
+        "path": "/basedata/doctors",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "药品管理",
+        "path": "/basedata/drugs",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "收费项目",
+        "path": "/basedata/charge-items",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "候诊队列",
+        "path": "/clinic/queue",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "就诊工作台",
+        "path": "/clinic/workbench",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "住院医嘱",
+        "path": "/clinic/orders",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "EMR 书写",
+        "path": "/clinic/emr",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "处方审核发药",
+        "path": "/pharmacy/dispense",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "库存管理",
+        "path": "/pharmacy/inventory",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "入院登记",
+        "path": "/inpatient/admissions",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "床位管理",
+        "path": "/inpatient/beds",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "费用管理",
+        "path": "/inpatient/dailyfees",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "出院结算",
+        "path": "/inpatient/settle",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "经营统计",
+        "path": "/report/dashboard",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "执行与体征",
+        "path": "/nursing/workbench",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "排班管理",
+        "path": "/nursing/schedules",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "检验工作台",
+        "path": "/lis/workbench",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "危急值处理",
+        "path": "/lis/alerts",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "危急阈值",
+        "path": "/lis/thresholds",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "手术工作台",
+        "path": "/ors/workbench",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "病案管理",
+        "path": "/mrc/records",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "影像工作台",
+        "path": "/ris/workbench",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "急诊工作台",
+        "path": "/emc/workbench",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "员工档案",
+        "path": "/hr/staff",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "物资工作台",
+        "path": "/mat/workbench",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "体检工作台",
+        "path": "/pe/workbench",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "CDSS 命中查询",
+        "path": "/cdss/hits",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "国考看板",
+        "path": "/kpi/board",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "采购管理",
+        "path": "/whse/purchase",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "供应商字典",
+        "path": "/whse/suppliers",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "血库工作台",
+        "path": "/bb/workbench",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "公卫工作台",
+        "path": "/pub/workbench",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "区域上报",
+        "path": "/pub/uploads",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "不良事件管理",
+        "path": "/ae/events",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "结算申报",
+        "path": "/medins/settles",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "会诊工作台",
+        "path": "/cnt/workbench",
+        "ok": true,
+        "issues": []
+      }
+    ]
+  },
+  "dr.wang": {
+    "login": "OK",
+    "pages": [
+      {
+        "name": "检验工作台",
+        "path": "/workbench",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "危急值处理",
+        "path": "/alerts",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "候诊队列",
+        "path": "/clinic/queue",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "就诊工作台",
+        "path": "/clinic/workbench",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "住院医嘱",
+        "path": "/clinic/orders",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "EMR 书写",
+        "path": "/clinic/emr",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "手术工作台",
+        "path": "/ors/workbench",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "影像工作台",
+        "path": "/ris/workbench",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "急诊工作台",
+        "path": "/emc/workbench",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "体检工作台",
+        "path": "/pe/workbench",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "CDSS 命中查询",
+        "path": "/cdss/hits",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "血库工作台",
+        "path": "/bb/workbench",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "公卫工作台",
+        "path": "/pub/workbench",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "不良事件管理",
+        "path": "/ae/events",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "会诊工作台",
+        "path": "/cnt/workbench",
+        "ok": true,
+        "issues": []
+      }
+    ]
+  },
+  "cashier.li": {
+    "login": "OK",
+    "pages": [
+      {
+        "name": "患者建档",
+        "path": "/regdesk/patients",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "挂号管理",
+        "path": "/regdesk/registrations",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "收费结算",
+        "path": "/regdesk/billing",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "入院登记",
+        "path": "/inpatient/admissions",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "床位管理",
+        "path": "/inpatient/beds",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "费用管理",
+        "path": "/inpatient/dailyfees",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "出院结算",
+        "path": "/inpatient/settle",
+        "ok": true,
+        "issues": []
+      }
+    ]
+  },
+  "nurse.wang": {
+    "login": "OK",
+    "pages": [
+      {
+        "name": "检验工作台",
+        "path": "/workbench",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "危急值处理",
+        "path": "/alerts",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "执行与体征",
+        "path": "/nursing/workbench",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "排班管理",
+        "path": "/nursing/schedules",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "手术工作台",
+        "path": "/ors/workbench",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "影像工作台",
+        "path": "/ris/workbench",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "血库工作台",
+        "path": "/bb/workbench",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "不良事件管理",
+        "path": "/ae/events",
+        "ok": true,
+        "issues": []
+      }
+    ]
+  },
+  "pharm.zhao": {
+    "login": "OK",
+    "pages": [
+      {
+        "name": "住院医嘱",
+        "path": "/orders",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "处方审核发药",
+        "path": "/pharmacy/dispense",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "库存管理",
+        "path": "/pharmacy/inventory",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "物资工作台",
+        "path": "/mat/workbench",
+        "ok": true,
+        "issues": []
+      }
+    ]
+  },
+  "auditor.sun": {
+    "login": "OK",
+    "pages": [
+      {
+        "name": "日志查询",
+        "path": "/system/logs",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "挂号管理",
+        "path": "/regdesk/registrations",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "收费结算",
+        "path": "/regdesk/billing",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "经营统计",
+        "path": "/report/dashboard",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "检验工作台",
+        "path": "/lis/workbench",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "危急值处理",
+        "path": "/lis/alerts",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "国考看板",
+        "path": "/kpi/board",
+        "ok": true,
+        "issues": []
+      },
+      {
+        "name": "结算申报",
+        "path": "/medins/settles",
+        "ok": true,
+        "issues": []
+      }
+    ]
+  },
+  "mrc.zhou": {
+    "login": "OK",
+    "pages": [
+      {
+        "name": "病案管理",
+        "path": "/mrc/records",
+        "ok": true,
+        "issues": []
+      }
+    ]
+  },
+  "yb.sun": {
+    "login": "OK",
+    "pages": [
+      {
+        "name": "结算申报",
+        "path": "/medins/settles",
+        "ok": true,
+        "issues": []
+      }
+    ]
+  }
+}

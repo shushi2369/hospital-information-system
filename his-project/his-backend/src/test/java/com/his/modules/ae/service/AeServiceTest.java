@@ -87,6 +87,7 @@ class AeServiceTest extends UnitTestBase {
         var e = new AeEvent();
         e.setEventType(1); e.setSeverity(1);
         e.setDepartmentId(1L); e.setDescription("测试");
+        e.setEventTime(java.time.LocalDateTime.now());
         return e;
     }
 }

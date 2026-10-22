@@ -6,6 +6,7 @@
 ③同一申请并发配血不重复推进 ④并发取消与配血竞态 ⑤同患者并发入院恰一笔成功（患者行锁串行化）。
 """
 import json
+import random
 import socket
 import sys
 import time
@@ -210,7 +211,7 @@ def main():
     import urllib.parse
     cashier = login("cashier.li")
     st, r = call("POST", "/patients", cashier, {"name": "并发入院患者" + uid, "gender": 1,
-                 "birthDate": "1992-06-15", "idCardNo": "34010419900101" + "4" + uid[-3:],
+                 "birthDate": "1992-06-15", "idCardNo": "34010419900104" + uid[-4:],
                  "phone": "138" + uid}, idem="cc-pt-" + uid)
     check("C9. 前置：建档成功", r["code"] == "OK", r)
     st, pl = call("GET", "/patients?name=" + urllib.parse.quote("并发入院患者" + uid), cashier)
@@ -367,6 +368,92 @@ def main():
     out = parallel(calls)
     codes9 = [r["code"] for _, r in out]
     check("C23. 并发日结×2：恰1成功1B3006", codes9.count("OK") == 1 and codes9.count("B3006") == 1, codes9)
+
+    # ================= ⑩ 出院 vs 记账/开嘱（Q10/Q25 行锁修复回归） =================
+    # 旧缺陷：出院先数未结费用、再置已结算，中间插入的手工费/医嘱会永久留在已结算住院上。
+    # 修复：出院与记账/押金/转科/开嘱统一先锁住院行，事务尾再复核在院状态。
+    dr10 = login("dr.li")
+
+    def new_admission(tag):
+        st, r = call("POST", "/patients", admin, {
+            "name": "竞态出院患者" + tag + uid, "gender": 1, "birthDate": "1992-06-15",
+            "idCardNo": "340106199003" + tag + "%04d" % random.randint(0, 9999), "phone": "137" + uid[:8]},
+            idem="cc-pt10-%s-%s" % (tag, uid))
+        if r.get("code") != "OK":
+            print("  [setup10] patient %s failed: %s" % (tag, r))
+            return None
+        st, pl = call("GET", "/patients?name=" + urllib.parse.quote("竞态出院患者" + tag + uid), admin)
+        pid = pl["data"]["list"][0]["id"]
+        st, wards10 = call("GET", "/inp/wards", admin)
+        ward10 = beds10 = None
+        for w in wards10["data"]:
+            st, bs = call("GET", "/inp/beds?wardId=%d&bedStatus=1" % w["id"], admin)
+            if bs["data"]:
+                ward10, beds10 = w, bs["data"][0]
+                break
+        if ward10 is None:
+            ward10 = wards10["data"][0]
+            call("POST", "/inp/beds", admin, {"wardId": ward10["id"],
+                 "bedNo": ("ZZ" + tag + uid[-6:])[:16], "chargeItemId": 10},
+                 idem="cc-bed10-%s-%s" % (tag, uid))
+            st, bs = call("GET", "/inp/beds?wardId=%d&bedStatus=1" % ward10["id"], admin)
+            beds10 = bs["data"][0]
+        st, r = call("POST", "/inp/admissions", admin, {
+            "patientId": pid, "deptId": ward10["deptId"], "wardId": ward10["id"],
+            "bedId": beds10["id"], "doctorId": 2, "admissionType": 1,
+            "plannedDiagnosis": "出院并发竞态复验", "depositAmount": 100, "payMethod": 1},
+            idem="cc-am10-%s-%s" % (tag, uid))
+        if r.get("code") != "OK":
+            print("  [setup10] admission %s failed: %s" % (tag, r))
+            return None
+        return r["data"]["id"] if isinstance(r.get("data"), dict) else r.get("data")
+
+    adm_fee = new_admission("01")
+    check("C24. 前置：竞态住院1（出院 vs 记账）创建成功", adm_fee is not None)
+    if adm_fee:
+        fee_body = {"feeType": 1, "itemName": "竞态手工费" + uid, "quantity": 1, "unitPrice": 120}
+        dc_body = {"dischargeWay": 2, "dischargeDiagnosis": "并发出院复验"}
+        out = parallel([
+            (lambda: call("POST", "/inp/daily-fees/manual?admissionId=%s" % adm_fee, admin,
+                          fee_body, idem="cc-fee10-%s" % uid)),
+            (lambda: call("POST", "/inp/admissions/%s/discharge" % adm_fee, dr10,
+                          dc_body, idem="cc-dc10-%s" % uid)),
+        ])
+        codes10 = [r["code"] for _, r in out]
+        st, a10 = call("GET", "/inp/admissions/%s" % adm_fee, admin)
+        adm10 = a10["data"].get("admission", a10["data"])
+        st, f10 = call("GET", "/inp/admissions/%s/daily-fees" % adm_fee, admin)
+        fee_cnt10 = sum(len(g.get("items", [])) for g in (f10.get("data") or []))
+        check("C25. 出院 vs 手工记账：已结算住院不得残留未收费费用",
+              not (adm10.get("status") == 30 and fee_cnt10 > 0),
+              {"codes": codes10, "status": adm10.get("status"), "fees": fee_cnt10})
+        check("C26. 出院 vs 手工记账：并发结果均为受控业务码",
+              all(c in ("OK", "B6003", "B3006") for c in codes10), codes10)
+
+    adm_ord = new_admission("02")
+    check("C27. 前置：竞态住院2（出院 vs 开嘱）创建成功", adm_ord is not None)
+    if adm_ord:
+        order_body = {"admissionId": adm_ord, "orderClass": 2, "category": 1,
+                      "frequency": "立即", "items": [{"drugId": 1, "dosage": "0.25g",
+                      "days": 1, "quantity": 1, "usageRoute": "口服"}]}
+        dc_body2 = {"dischargeWay": 2, "dischargeDiagnosis": "并发出院复验2"}
+        out = parallel([
+            (lambda: call("POST", "/doc/orders", dr10, order_body, idem="cc-ord10-%s" % uid)),
+            (lambda: call("POST", "/inp/admissions/%s/discharge" % adm_ord, dr10,
+                          dc_body2, idem="cc-dc10b-%s" % uid)),
+        ])
+        codes10b = [r["code"] for _, r in out]
+        st, a10b = call("GET", "/inp/admissions/%s" % adm_ord, admin)
+        adm10b = a10b["data"].get("admission", a10b["data"])
+        st, o10 = call("GET", "/doc/orders?admissionId=%s" % adm_ord, dr10)
+        active10 = [o for o in (o10.get("data", {}).get("list") or [])
+                    if o.get("status") in (10, 20) and o.get("orderClass") == 2]
+        check("C28. 出院 vs 开嘱：已结算住院不得残留活动医嘱",
+              not (adm10b.get("status") == 30 and len(active10) > 0),
+              {"codes": codes10b, "status": adm10b.get("status"),
+               "orders": [(o.get("orderNo"), o.get("status")) for o in active10]})
+        check("C29. 出院 vs 开嘱：并发结果均为受控业务码",
+              all(c in ("OK", "B6003", "B6006") for c in codes10b), codes10b)
 
     failed = [n for n, ok, _ in results if not ok]
     print("\n===== 并发安全专项结果: %d/%d 通过 =====" % (len(results) - len(failed), len(results)))

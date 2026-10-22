@@ -163,7 +163,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Refresh, Search } from '@element-plus/icons-vue'
 import {
   createUser,
@@ -232,6 +232,7 @@ function handleReset() {
   query.username = ''
   query.realName = ''
   query.roleId = undefined
+  query.status = undefined
   handleSearch()
 }
 

@@ -137,7 +137,8 @@ public class LisService {
     /** 结果录入（L-05）：Mock 仪器取数或手工行；危急判定 → 危急值 */
     @Transactional
     public int entry(ResultEntryRequest req) {
-        LisRequest request = requireRequest(req.getRequestId());
+        // 行锁先行：并发重录会互删对方结果并残留悬空危急值（关闭旧 alert 的 UPDATE 看不到未提交的 alert）
+        LisRequest request = requireRequestForUpdate(req.getRequestId());
         if (request.getStatus() != 30) {
             throw new BizException(ErrorCode.A0001, "申请单不在检验中状态");
         }
@@ -340,6 +341,16 @@ public class LisService {
 
     public LisRequest requireRequest(Long requestId) {
         LisRequest request = requestMapper.selectById(requestId);
+        if (request == null) {
+            throw new BizException(ErrorCode.A0001, "检验申请单不存在");
+        }
+        return request;
+    }
+
+    /** 加锁读取申请单：结果重录/发布等状态敏感的写操作必须串行化 */
+    public LisRequest requireRequestForUpdate(Long requestId) {
+        LisRequest request = requestMapper.selectOne(new LambdaQueryWrapper<LisRequest>()
+                .eq(LisRequest::getId, requestId).last("FOR UPDATE"));
         if (request == null) {
             throw new BizException(ErrorCode.A0001, "检验申请单不存在");
         }

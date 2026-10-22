@@ -212,6 +212,18 @@ public class InpAppService {
         return admission;
     }
 
+    /** 行锁 + 在院校验：出院与记账/押金并发时，后到者必须看到最新状态 */
+    public InpAdmission requireInHospitalForUpdate(Long admissionId) {
+        InpAdmission admission = admissionMapper.selectByIdForUpdate(admissionId);
+        if (admission == null) {
+            throw new BizException(ErrorCode.A0001, "住院记录不存在");
+        }
+        if (admission.getStatus() != 10) {
+            throw new BizException(ErrorCode.B6003);
+        }
+        return admission;
+    }
+
     /** 按状态集合查住院（病案惰性补建用） */
     public List<InpAdmission> listAdmissionsByStatuses(List<Integer> statuses) {
         return admissionMapper.selectList(new LambdaQueryWrapper<InpAdmission>()

@@ -52,11 +52,13 @@ def user_body(name, role_ids):
 
 def cleanup():
     sql = (
-        "DELETE ur FROM his.sys_user_role ur JOIN his.sys_user u ON ur.user_id=u.id "
-        "WHERE u.username LIKE 'zzu%{run}';"
-        "DELETE FROM his.sys_user WHERE username LIKE 'zzu%{run}';"
-        "DELETE rm FROM his.sys_role_menu rm JOIN his.sys_role r ON rm.role_id=r.id "
-        "WHERE r.role_code='ZZROLE{run}';"
+        "DELETE FROM his.sys_user_role WHERE user_id IN "
+        "(SELECT id FROM his.sys_user WHERE username LIKE 'zzu{run}%');"
+        "DELETE FROM his.sys_user WHERE username LIKE 'zzu{run}%';"
+        "DELETE FROM his.sys_user_role WHERE role_id IN "
+        "(SELECT id FROM his.sys_role WHERE role_code='ZZROLE{run}');"
+        "DELETE FROM his.sys_role_menu WHERE role_id IN "
+        "(SELECT id FROM his.sys_role WHERE role_code='ZZROLE{run}');"
         "DELETE FROM his.sys_role WHERE role_code='ZZROLE{run}';"
     ).format(run=RUN)
     subprocess.run([MYSQL, "-uroot", "-proot123", "-e", sql], capture_output=True, text=True)

@@ -72,6 +72,14 @@ public class DocOrderService {
         if (req.getItems() == null || req.getItems().isEmpty()) {
             throw new BizException(ErrorCode.A0001, "医嘱明细不能为空");
         }
+        // 开嘱越权（八十八轮 IDOR 同类）：仅管床医生可为本住院患者开医嘱，ADMIN 豁免
+        if (!CurrentUser.get().getRoleCodes().contains("ADMIN")) {
+            var selfDoctor = basedataAppService.getDoctorByUserId(CurrentUser.id());
+            if (selfDoctor == null || admission.getDoctorId() == null
+                    || !admission.getDoctorId().equals(selfDoctor.getId())) {
+                throw new BizException(ErrorCode.A0003, "仅管床医生可开具该住院患者的医嘱");
+            }
+        }
         boolean drug = req.getCategory() == 1;
         // 频次白名单 + 大小写归一（非法频次会静默按默认时段调度，《09》§6.3）
         if (req.getFrequency() != null) {
@@ -171,6 +179,8 @@ public class DocOrderService {
         } catch (Exception e) {
             pltService.recordEvent("cdss.check.failed", order.getOrderNo(), "{}");
         }
+        // 事务尾在院复核（对齐摆药/执行 D-03）：出院判空后并发开嘱不得留下已结算住院的活动医嘱
+        assertStillInHospital(req.getAdmissionId());
         return order.getOrderNo();
     }
 

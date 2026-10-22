@@ -26,10 +26,10 @@ public class ChargeItemCreateRequest {
     @Size(max = 64)
     private String itemName;
 
-    /** 类别：1 挂号费 2 诊查费 3 检查费 4 检验费 5 治疗费 6 材料费 7 药品费 */
+    /** 类别：1 挂号费 2 诊查费 3 检查费 4 检验费 5 治疗费 6 材料费 7 药品费 8 床位费 9 手术费 10 麻醉费 11 血费 */
     @NotNull(message = "费用类别不能为空")
-    @Min(value = 1, message = "费用类别取值 1挂号费 2诊查费 3检查费 4检验费 5治疗费 6材料费 7药品费")
-    @Max(value = 7, message = "费用类别取值 1挂号费 2诊查费 3检查费 4检验费 5治疗费 6材料费 7药品费")
+    @Min(value = 1, message = "费用类别取值 1~11（挂号/诊查/检查/检验/治疗/材料/药品/床位/手术/麻醉/血费）")
+    @Max(value = 11, message = "费用类别取值 1~11（挂号/诊查/检查/检验/治疗/材料/药品/床位/手术/麻醉/血费）")
     private Integer category;
 
     /** 单价 */

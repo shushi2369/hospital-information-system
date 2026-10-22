@@ -38,10 +38,9 @@ public class NurService {
     /** 排班（N-01）：同护士同日唯一 */
     @Transactional
     public Long schedule(ScheduleRequest req) {
-        // 一百一十二轮 B15b：排班对象须为真实存在的护理账号（原任意 ID 可入排班表）
-        if (req.getNurseId() == null
-                || systemAppService.getUsernameMap(java.util.List.of(req.getNurseId())).isEmpty()) {
-            throw new BizException(ErrorCode.A0001, "排班对象不存在");
+        // 排班对象必须是启用状态的护士账号：原仅校验用户存在，医生/管理员账号也能排进护理班表
+        if (!systemAppService.isNurse(req.getNurseId())) {
+            throw new BizException(ErrorCode.A0001, "排班对象必须是启用状态的护士账号");
         }
         Long dup = scheduleMapper.selectCount(new LambdaQueryWrapper<NurSchedule>()
                 .eq(NurSchedule::getNurseId, req.getNurseId())
@@ -69,6 +68,11 @@ public class NurService {
                 .eq(wardId != null, NurSchedule::getWardId, wardId)
                 .eq(shiftDate != null, NurSchedule::getShiftDate, shiftDate)
                 .orderByAsc(NurSchedule::getShiftDate));
+    }
+
+    /** 排班下拉：护士账号选项 */
+    public List<java.util.Map<String, Object>> nurseOptions() {
+        return systemAppService.nurseOptions();
     }
 
     /** 体征录入（N-02）：范围校验（体温单口径） */

@@ -152,26 +152,26 @@ public class ClinicAppService {
                 }).toList();
     }
 
-    /** 处方标记已收费（乐观条件更新，仅未收费状态生效） */
+    /** 处方标记已收费（乐观条件更新，仅未收费状态生效）；返回实际更新行数供调用方断言 */
     @Transactional
-    public void markPrescriptionsCharged(Collection<Long> rxIds) {
+    public int markPrescriptionsCharged(Collection<Long> rxIds) {
         if (rxIds == null || rxIds.isEmpty()) {
-            return;
+            return 0;
         }
-        prescriptionMapper.update(null, new LambdaUpdateWrapper<CliPrescription>()
+        return prescriptionMapper.update(null, new LambdaUpdateWrapper<CliPrescription>()
                 .in(CliPrescription::getId, rxIds)
                 .eq(CliPrescription::getChargeStatus, 0)
                 .set(CliPrescription::getChargeStatus, 1)
                 .set(CliPrescription::getUpdatedAt, java.time.LocalDateTime.now()));
     }
 
-    /** 检查申请标记已收费（状态 10→20） */
+    /** 检查申请标记已收费（状态 10→20）；返回实际更新行数供调用方断言 */
     @Transactional
-    public void markExamApplicationsCharged(Collection<Long> applyIds) {
+    public int markExamApplicationsCharged(Collection<Long> applyIds) {
         if (applyIds == null || applyIds.isEmpty()) {
-            return;
+            return 0;
         }
-        examApplicationMapper.update(null, new LambdaUpdateWrapper<CliExamApplication>()
+        return examApplicationMapper.update(null, new LambdaUpdateWrapper<CliExamApplication>()
                 .in(CliExamApplication::getId, applyIds)
                 .eq(CliExamApplication::getStatus, 10)
                 .eq(CliExamApplication::getChargeStatus, 0)

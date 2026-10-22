@@ -64,6 +64,13 @@ public class NurController {
         return R.ok(nurService.schedules(wardId, shiftDate));
     }
 
+    /** 排班护士下拉（N-01）：护士无 sys:user:query，不能借用用户管理接口 */
+    @GetMapping("/nurses")
+    @PreAuthorize("@ss.hasPerm('nur:schedule:manage')")
+    public R<List<Map<String, Object>>> nurses() {
+        return R.ok(nurService.nurseOptions());
+    }
+
     @PostMapping("/vital-signs")
     @PreAuthorize("@ss.hasPerm('nur:vital:create')")
     @Idempotent

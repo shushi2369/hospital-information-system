@@ -1,6 +1,7 @@
 package com.his.modules.inp.dto;
 
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -20,6 +21,7 @@ public class DepositRefundRequest {
     private BigDecimal amount;
     @NotNull(message = "支付方式不能为空")
     @Min(value = 1, message = "支付方式取值 1现金/2银行卡/3微信/4支付宝")
+    @Max(value = 4, message = "支付方式取值 1现金/2银行卡/3微信/4支付宝")
     private Integer payMethod;
     @Size(max = 128, message = "备注最长 128 位")
     private String reason;

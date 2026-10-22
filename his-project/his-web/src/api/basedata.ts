@@ -99,6 +99,10 @@ export const CHARGE_ITEM_CATEGORY_OPTIONS: DictOption[] = [
   { label: '治疗费', value: 5 },
   { label: '材料费', value: 6 },
   { label: '药品费', value: 7 },
+  { label: '床位费', value: 8 },
+  { label: '手术费', value: 9 },
+  { label: '麻醉费', value: 10 },
+  { label: '血费', value: 11 },
 ]
 
 export function dictLabel(options: DictOption[], value?: number | null): string {

@@ -93,15 +93,21 @@ public class RisService {
      */
     @Transactional
     public void createOutpatientRequests(Long visitId) {
+        List<com.his.modules.clinic.entity.CliExamApplication> pending;
         try {
-            List<com.his.modules.clinic.entity.CliExamApplication> pending =
-                    clinicExamApplicationMapper.selectList(
-                            new LambdaQueryWrapper<com.his.modules.clinic.entity.CliExamApplication>()
-                                    .eq(com.his.modules.clinic.entity.CliExamApplication::getVisitId, visitId)
-                                    .eq(com.his.modules.clinic.entity.CliExamApplication::getApplyType, 1)
-                                    .eq(com.his.modules.clinic.entity.CliExamApplication::getStatus, 20)
-                                    .isNull(com.his.modules.clinic.entity.CliExamApplication::getRisRequestId));
-            for (com.his.modules.clinic.entity.CliExamApplication exam : pending) {
+            pending = clinicExamApplicationMapper.selectList(
+                    new LambdaQueryWrapper<com.his.modules.clinic.entity.CliExamApplication>()
+                            .eq(com.his.modules.clinic.entity.CliExamApplication::getVisitId, visitId)
+                            .eq(com.his.modules.clinic.entity.CliExamApplication::getApplyType, 1)
+                            .eq(com.his.modules.clinic.entity.CliExamApplication::getStatus, 20)
+                            .isNull(com.his.modules.clinic.entity.CliExamApplication::getRisRequestId));
+        } catch (Exception e) {
+            log.warn("门诊检查联动查询失败 visit {}", visitId, e);
+            return;
+        }
+        // 逐条隔离：原整段 try 遇到单条异常会中断后续申请，导致部分已收费检查无 RIS 单
+        for (com.his.modules.clinic.entity.CliExamApplication exam : pending) {
+            try {
                 RisRequest request = new RisRequest();
                 request.setRequestNo(idGenerator.next("JC"));
                 request.setVisitId(visitId);
@@ -118,9 +124,11 @@ public class RisService {
                 clinicExamApplicationMapper.updateById(exam);
                 pltService.recordEvent("ris.request.created", request.getRequestNo(),
                         "{\"visitId\":" + visitId + ",\"outpatient\":true}");
+            } catch (Exception e) {
+                log.warn("门诊检查联动失败 visit {} exam {}", visitId, exam.getId(), e);
+                pltService.recordEvent("ris.outpatient.item.failed", String.valueOf(exam.getId()),
+                        "{\"visitId\":" + visitId + "}");
             }
-        } catch (Exception e) {
-            log.warn("门诊检查联动失败 visit {}", visitId, e);
         }
     }
 

@@ -29,13 +29,15 @@ class MatServiceTest {
     private final MatPurchaseMapper purchaseMapper = mock(MatPurchaseMapper.class);
     private final MatRequisitionMapper requisitionMapper = mock(MatRequisitionMapper.class);
     private final MatBatchMapper batchMapper = mock(MatBatchMapper.class);
+    private final com.his.modules.whse.mapper.BasSupplierMapper supplierMapper =
+            mock(com.his.modules.whse.mapper.BasSupplierMapper.class);
     private final BasedataAppService basedataAppService = mock(BasedataAppService.class);
     private final PltService pltService = mock(PltService.class);
     private final IdGenerator idGenerator = mock(IdGenerator.class);
 
     private final MatService service = new MatService(
             materialMapper, stockMapper, purchaseMapper, requisitionMapper,
-            batchMapper, basedataAppService, pltService, idGenerator);
+            batchMapper, supplierMapper, basedataAppService, pltService, idGenerator);
 
     private MatMaterial material(Long id) {
         MatMaterial m = new MatMaterial();
@@ -60,6 +62,8 @@ class MatServiceTest {
     @Test
     void requisition_rejectsInsufficientStock() {
         when(materialMapper.selectById(1L)).thenReturn(material(1L));
+        when(basedataAppService.getDepartment(1L))
+                .thenReturn(new com.his.modules.basedata.app.DepartmentDTO());
         when(stockMapper.update(any(), any())).thenReturn(0);
         BizException e = assertThrows(BizException.class, () -> service.requisition(req(1L, 1)));
         assertTrue(e.getMessage().contains("库存不足"));

@@ -228,6 +228,7 @@ export const FEE_TYPE_OPTIONS: DictOption[] = [
   { label: '治疗费', value: 5 },
   { label: '材料费', value: 6 },
   { label: '药品费', value: 7 },
+  { label: '床位费', value: 8 },
 ]
 
 export const BILL_STATUS_OPTIONS: DictOption[] = [

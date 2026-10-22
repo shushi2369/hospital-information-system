@@ -34,6 +34,15 @@ public class DocOrderStopCheckHook implements DischargeCheckHook {
         if (!undispensed.isEmpty()) {
             return "存在未摆药的临时药品医嘱（" + undispensed.size() + " 条），请先摆药或作废";
         }
+        // 临时非药品医嘱：出院后执行单仍在院校验处被封死，未执行会永久悬挂且不计费
+        List<DocOrder> pendingNonDrug = orderMapper.selectList(new LambdaQueryWrapper<DocOrder>()
+                .eq(DocOrder::getAdmissionId, admissionId)
+                .eq(DocOrder::getOrderClass, 2)
+                .ne(DocOrder::getCategory, 1)
+                .in(DocOrder::getStatus, 20, 30));
+        if (!pendingNonDrug.isEmpty()) {
+            return "存在未完成的临时医嘱（" + pendingNonDrug.size() + " 条），请执行完毕或作废";
+        }
         return null;
     }
 }

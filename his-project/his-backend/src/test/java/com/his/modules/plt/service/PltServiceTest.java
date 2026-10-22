@@ -9,6 +9,7 @@ import com.his.modules.plt.entity.PltMasterIndex;
 import com.his.modules.plt.mapper.PltEventLogMapper;
 import com.his.modules.plt.mapper.PltIdMapMapper;
 import com.his.modules.plt.mapper.PltMasterIndexMapper;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 
@@ -18,6 +19,15 @@ import static org.mockito.Mockito.*;
 
 /** PltService EMPI 合并单测：自合并守卫（三十五轮）+ 合并标记链守卫 + 正常合并联动停用。 */
 class PltServiceTest extends UnitTestBase {
+
+    @BeforeAll
+    static void initMpLambdaCache() {
+        org.apache.ibatis.builder.MapperBuilderAssistant assistant =
+                new org.apache.ibatis.builder.MapperBuilderAssistant(
+                        new com.baomidou.mybatisplus.core.MybatisConfiguration(), "");
+        com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(
+                assistant, PltMasterIndex.class);
+    }
 
     private final PltMasterIndexMapper masterIndexMapper = mock(PltMasterIndexMapper.class);
     private final PltIdMapMapper idMapMapper = mock(PltIdMapMapper.class);
@@ -48,8 +58,11 @@ class PltServiceTest extends UnitTestBase {
 
     @Test
     void merge_sourceAlreadyMergedRejected() {
-        when(masterIndexMapper.selectOne(any()))
-                .thenReturn(mpi(1L, "M1", 1), mpi(2L, "M2", 0));
+        PltMasterIndex source = mpi(1L, "M1", 1);
+        PltMasterIndex target = mpi(2L, "M2", 0);
+        when(masterIndexMapper.selectOne(any())).thenReturn(source, target);
+        when(masterIndexMapper.selectByIdForUpdate(1L)).thenReturn(source);
+        when(masterIndexMapper.selectByIdForUpdate(2L)).thenReturn(target);
         BizException e = assertThrows(BizException.class, () -> service.merge("M1", "M2"));
         assertTrue(e.getMessage().contains("已合并"));
         verify(masterIndexMapper, never()).updateById(any(PltMasterIndex.class));
@@ -57,8 +70,11 @@ class PltServiceTest extends UnitTestBase {
 
     @Test
     void merge_targetMergedRejected() {
-        when(masterIndexMapper.selectOne(any()))
-                .thenReturn(mpi(1L, "M1", 0), mpi(2L, "M2", 1));
+        PltMasterIndex source = mpi(1L, "M1", 0);
+        PltMasterIndex target = mpi(2L, "M2", 1);
+        when(masterIndexMapper.selectOne(any())).thenReturn(source, target);
+        when(masterIndexMapper.selectByIdForUpdate(1L)).thenReturn(source);
+        when(masterIndexMapper.selectByIdForUpdate(2L)).thenReturn(target);
         BizException e = assertThrows(BizException.class, () -> service.merge("M1", "M2"));
         assertTrue(e.getMessage().contains("目标主索引已合并"));
         verify(masterIndexMapper, never()).updateById(any(PltMasterIndex.class));
@@ -69,6 +85,9 @@ class PltServiceTest extends UnitTestBase {
         PltMasterIndex source = mpi(1L, "M1", 0);
         PltMasterIndex target = mpi(2L, "M2", 0);
         when(masterIndexMapper.selectOne(any())).thenReturn(source, target);
+        when(masterIndexMapper.selectByIdForUpdate(1L)).thenReturn(source);
+        when(masterIndexMapper.selectByIdForUpdate(2L)).thenReturn(target);
+        when(masterIndexMapper.update(any(), any())).thenReturn(1);
         PatPatient sourcePatient = new PatPatient();
         sourcePatient.setId(source.getPatientId());
         sourcePatient.setStatus(1);
@@ -77,8 +96,8 @@ class PltServiceTest extends UnitTestBase {
         String mergedTo = service.merge("M1", "M2");
 
         assertEquals("M2", mergedTo);
-        assertEquals(1, source.getMergeFlag());
-        assertEquals(2L, source.getMergedInto());
+        // 窄列条件更新（不依赖内存实体回写）：merge_flag/merged_into 由 wrapper 落库
+        verify(masterIndexMapper).update(isNull(), any());
         assertEquals(0, sourcePatient.getStatus());
         verify(patPatientMapper).updateById(sourcePatient);
         verify(eventLogMapper).insert(any());
@@ -87,8 +106,11 @@ class PltServiceTest extends UnitTestBase {
     @Test
     void merge_sourcePatientAlreadyDisabledSkipsUpdate() {
         PltMasterIndex source = mpi(1L, "M1", 0);
-        when(masterIndexMapper.selectOne(any()))
-                .thenReturn(source, mpi(2L, "M2", 0));
+        PltMasterIndex target = mpi(2L, "M2", 0);
+        when(masterIndexMapper.selectOne(any())).thenReturn(source, target);
+        when(masterIndexMapper.selectByIdForUpdate(1L)).thenReturn(source);
+        when(masterIndexMapper.selectByIdForUpdate(2L)).thenReturn(target);
+        when(masterIndexMapper.update(any(), any())).thenReturn(1);
         PatPatient disabled = new PatPatient();
         disabled.setId(source.getPatientId());
         disabled.setStatus(0);

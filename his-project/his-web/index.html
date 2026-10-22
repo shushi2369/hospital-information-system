@@ -7,13 +7,8 @@
     <!-- 九十轮性能审计：摘除 Google Fonts 同步样式表——部署目标是院内网，
          googleapis 不可达时该渲染阻塞请求挂起到 TCP 超时（白屏数十秒）；
          字体栈回落系统字体（styles.css 的 PingFang/微软雅黑 fallback） -->
-    <script>
-      // 主题初始化：防闪烁（必须在 CSS 加载前设置 class）
-      (function () {
-        var t = localStorage.getItem('his_theme');
-        if (t === 'dark') document.documentElement.classList.add('dark');
-      })();
-    </script>
+    <!-- 主题初始化：防闪烁（必须在 CSS 加载前设置 class）；外链脚本以兼容 CSP script-src 'self' -->
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="app"></div>
