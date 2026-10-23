@@ -34,16 +34,27 @@ public class AlertOverdueTask {
 
     private void scan(int status, LocalDateTime before, String label) {
         try {
-            List<AlertCritical> overdue = alertMapper.selectList(new LambdaQueryWrapper<AlertCritical>()
+            List<AlertCritical> rows = alertMapper.selectList(new LambdaQueryWrapper<AlertCritical>()
                     .eq(AlertCritical::getStatus, status)
-                    .lt(AlertCritical::getCreatedAt, before)
-                    .last("LIMIT 50"));
-            for (AlertCritical a : overdue) {
+                    .last("LIMIT 200"));
+            int overdue = 0;
+            for (AlertCritical a : rows) {
+                // 各状态按进入该状态的时刻计时：待确认从通知时间起算、已确认从确认时间起算。
+                // 用 createdAt 会把"滞留很久后才通知"的单据在下一次扫描立刻误判超时
+                LocalDateTime since = status == 20 ? a.getNotifiedAt()
+                        : status == 30 ? a.getConfirmedAt() : a.getCreatedAt();
+                if (since == null) {
+                    since = a.getCreatedAt();
+                }
+                if (since == null || !since.isBefore(before)) {
+                    continue;
+                }
+                overdue++;
                 pltService.recordEvent("alert.overdue", a.getAlertNo(),
                         "{\"status\":" + status + ",\"label\":\"" + label + "\"}");
             }
-            if (!overdue.isEmpty()) {
-                log.warn("危急值超时升级: status={} 滞留 {} 条", status, overdue.size());
+            if (overdue > 0) {
+                log.warn("危急值超时升级: status={} 滞留 {} 条", status, overdue);
             }
         } catch (Exception e) {
             log.error("危急值超时扫描失败 status={}", status, e);

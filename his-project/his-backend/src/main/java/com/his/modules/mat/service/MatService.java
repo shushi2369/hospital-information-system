@@ -341,13 +341,17 @@ public class MatService {
 
     /** 四期 FEFO 拨发：批次按效期升序扣减，返回 breakdown JSON；不足额按剩余数兜底 */
     private String fefoDeduct(Long materialId, int qty) {
+        // 锁定读：领用事务先锁聚合库存行，本查询必须看到前一笔已提交的批次扣减；
+        // 普通快照读在 REPEATABLE READ 下仍看事务开始时的旧数量，会把已被并发领走的批次
+        // 再次“拨出”，条件更新失败后只能记 shortfall，聚合与批次账实漂移
         List<MatBatch> batches = batchMapper.selectList(new LambdaQueryWrapper<MatBatch>()
                 .eq(MatBatch::getMaterialId, materialId)
                 .eq(MatBatch::getStatus, 1)
                 .gt(MatBatch::getQuantity, 0)
                 // 效期已过的批次不得参与 FEFO（原仅按状态/数量过滤，过期批恰因效期最早被优先拨出）
                 .gt(MatBatch::getExpireDate, java.time.LocalDate.now())
-                .orderByAsc(MatBatch::getExpireDate));
+                .orderByAsc(MatBatch::getExpireDate)
+                .last("FOR UPDATE"));
         StringBuilder sb = new StringBuilder("[");
         int remain = qty;
         for (MatBatch b : batches) {

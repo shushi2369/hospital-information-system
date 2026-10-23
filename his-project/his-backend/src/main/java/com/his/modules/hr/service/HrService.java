@@ -104,6 +104,10 @@ public class HrService {
         if (staff.getTitle().equals(req.getNewTitle())) {
             throw new BizException(ErrorCode.A0001, "新职称与现职称相同");
         }
+        // 职称即时生效：未来生效日会立刻改掉现职称却把变更记在未来，造成档案与记录倒挂
+        if (req.getEffectiveDate().isAfter(LocalDate.now())) {
+            throw new BizException(ErrorCode.A0001, "职称变更即时生效，生效日期不能晚于今天");
+        }
         HrTitleChange change = new HrTitleChange();
         change.setStaffId(id);
         change.setOldTitle(staff.getTitle());

@@ -155,6 +155,18 @@ class BbServiceTest extends UnitTestBase {
         return i;
     }
 
+    // ---- 出院兜底：已出院患者不得开始输注 ----
+    @Test
+    void startTransfusion_rejectsDischargedPatient() {
+        when(requestMapper.selectById(1L)).thenReturn(request(1L, 40));
+        when(inpAppService.requireInHospital(75L))
+                .thenThrow(new BizException(com.his.common.ErrorCode.B6003));
+        var e = assertThrows(BizException.class,
+                () -> svc().startTransfusion(1L, startReq(10L, null, 2L)));
+        assertFalse(e.getMessage() == null || e.getMessage().isBlank());
+        Mockito.verify(transfusionMapper, Mockito.never()).insert(any());
+    }
+
     // ---- 门禁③：输注须床边双人双签（不得同一人） ----
     @Test
     void startTransfusion_rejectsSameSigner() {

@@ -318,12 +318,13 @@ public class ClinicAppService {
     /**
      * 退费联动作废处方（《05》R9：仅未发药处方，幂等）。
      * 返回 false 表示处方已发药/不存在，调用方必须回滚退费；已作废(50) 视为幂等成功。
+     * 驳回(40) 也必须可作废：处方收费后药师仍可驳回，若只认 10/20，患者已付的药品费将永远退不掉。
      */
     @Transactional
     public boolean voidPrescriptionForRefund(Long rxId) {
         int voided = prescriptionMapper.update(null, new LambdaUpdateWrapper<CliPrescription>()
                 .eq(CliPrescription::getId, rxId)
-                .in(CliPrescription::getStatus, 10, 20)
+                .in(CliPrescription::getStatus, 10, 20, 40)
                 .set(CliPrescription::getStatus, 50)
                 .set(CliPrescription::getVoidReason, "退费"));
         if (voided == 1) {

@@ -109,7 +109,8 @@ def seed_admission(admin, cashier, uid, name_prefix, ascii_tag, diagnosis, seq):
 
 def main():
     from playwright.sync_api import sync_playwright
-    uid = str(int(time.time()) % 10**8)
+    # 尾 4 位随机：身份证号取 uid[-4:]，纯时间戳在 2.7 小时内重跑会与上轮测试数据撞唯一索引
+    uid = str(int(time.time()) % 10**8)[:4] + "%04d" % __import__("random").randint(0, 9999)
 
     admin = login("admin")
     cashier = login("cashier.li")

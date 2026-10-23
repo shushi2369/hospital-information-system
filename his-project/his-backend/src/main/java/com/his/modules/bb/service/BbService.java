@@ -70,6 +70,13 @@ public class BbService {
         if (!req.getExpireDate().isAfter(LocalDate.now())) {
             throw new BizException(ErrorCode.A0001, "血袋已过期，禁止入库");
         }
+        // 负容量/采集日晚于失效日会污染库存与效期管理，直接拒绝
+        if (req.getVolumeMl() != null && req.getVolumeMl() <= 0) {
+            throw new BizException(ErrorCode.A0001, "血袋容量必须大于 0");
+        }
+        if (req.getCollectDate() != null && !req.getExpireDate().isAfter(req.getCollectDate())) {
+            throw new BizException(ErrorCode.A0001, "失效日期必须晚于采集日期");
+        }
         BbBloodBag bag = new BbBloodBag();
         bag.setBagNo(req.getBagNo());
         bag.setBloodType(req.getBloodType());
@@ -257,6 +264,8 @@ public class BbService {
     @Transactional
     public Long issue(Long id, IssueRequest req) {
         BbRequest request = requireRequest(id);
+        // 出院门禁之外的兜底：历史数据/绕过出院检查时，已出院患者不得再发血
+        inpAppService.requireInHospital(request.getAdmissionId());
         if (request.getStatus() != 30) {
             throw new BizException(ErrorCode.A0001, "申请未完成相容配血，不能发血");
         }
@@ -322,6 +331,8 @@ public class BbService {
     @Transactional
     public Long startTransfusion(Long id, TransfusionStartRequest req) {
         BbRequest request = requireRequest(id);
+        // 输注必须在院完成：出院后开始输注会让闭环与不良反应追溯落在院外
+        inpAppService.requireInHospital(request.getAdmissionId());
         if (request.getStatus() != 40) {
             throw new BizException(ErrorCode.A0001, "血液未发血，不能开始输注");
         }

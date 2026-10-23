@@ -235,7 +235,9 @@ public class LisService {
     /** 报告发布（L-06）：申请单 → 已报告 */
     @Transactional
     public String publish(Long requestId, Integer mutualFlag, String mutualNote) {
-        LisRequest request = requireRequest(requestId);
+        // 锁读申请单：与结果重录（entry 同样锁该行）串行。普通读会与 entry 交错——
+        // 发布读到旧结果后 entry 重录出新的危急项，发布仍能把状态推到 40，报告漏掉新危急值
+        LisRequest request = requireRequestForUpdate(requestId);
         if (request.getStatus() != 30) {
             throw new BizException(ErrorCode.A0001, "申请单不在检验中状态，不能发布");
         }
@@ -303,6 +305,13 @@ public class LisService {
     /** 报告详情（L-08） */
     public Map<String, Object> reportDetail(Long requestId) {
         LisRequest request = requireRequest(requestId);
+        // 结果仅在报告发布（申请单 40）后对临床可见：检验中草稿可能被重录/复检，
+        // 只读角色提前查看会把未审核数值当成最终结果
+        if (request.getStatus() == null || request.getStatus() != 40) {
+            if (!canViewDraftResult()) {
+                throw new BizException(ErrorCode.A0003, "检验报告尚未发布");
+            }
+        }
         // 一百零七轮 L4：详情患者名回填——列表有名字、详情只有裸 ID 的断档
         com.his.infrastructure.util.PatientNameBackfill.fill(java.util.List.of(request), patientAppService);
         LisReport report = reportMapper.selectOne(new LambdaQueryWrapper<LisReport>()
@@ -314,6 +323,12 @@ public class LisService {
         result.put("report", report);
         result.put("results", results);
         return result;
+    }
+
+    /** 检验录入/发布者可见未发布结果（临床只读角色只能看已发布报告） */
+    private boolean canViewDraftResult() {
+        java.util.Set<String> perms = CurrentUser.get().getPermissions();
+        return perms != null && (perms.contains("lab:result:entry") || perms.contains("lab:report:publish"));
     }
 
     /** 申请单分页（L-01）。开单医生名批量回填（一百轮浏览器走查：裸 ID 列） */

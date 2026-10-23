@@ -129,6 +129,10 @@ public class OrsService {
         // 自审防禁（八十八轮 IDOR 审计 P1-4）：V18 把 create/review 同时绑给 DOCTOR，
         // 生产化时应拆分权限码禁自审；演示/教学流程依赖 doctor 自审，暂不启用（挂账五期）
         boolean approved = Boolean.TRUE.equals(req.getApproved());
+        // 驳回必须留理由：手术拒审无原因会让申请医生无法整改，审计事件也会出现 "reason":"null"
+        if (!approved && (req.getReason() == null || req.getReason().isBlank())) {
+            throw new BizException(ErrorCode.A0001, "驳回手术申请必须填写理由");
+        }
         if (transition(id, 10, approved ? 20 : 70) != 1) {
             throw new BizException(ErrorCode.A0008, "申请状态已变化，请刷新后重试");
         }
@@ -291,7 +295,10 @@ public class OrsService {
                 throw new BizException(ErrorCode.A0001, "该手术已存在麻醉记录");
             }
         } else {
-            anesthesiaMapper.updateById(record);
+            // @Version 乐观锁：并发保存时 0 行更新必须报错，静默返回会让医生以为记录已保存
+            if (anesthesiaMapper.updateById(record) != 1) {
+                throw new BizException(ErrorCode.A0008, "麻醉记录已被他人修改，请刷新后重试");
+            }
         }
         return record.getRecordNo();
     }

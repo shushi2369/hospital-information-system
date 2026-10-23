@@ -38,6 +38,7 @@ public class CdssService {
     private final CdssRuleMapper ruleMapper;
     private final CdssHitMapper hitMapper;
     private final com.his.modules.doc.mapper.DocOrderMapper orderMapper;
+    private final com.his.modules.doc.mapper.DocOrderItemMapper orderItemMapper;
     private final com.his.modules.basedata.app.BasedataAppService basedataAppService;
     private final com.his.modules.patient.app.PatientAppService patientAppService;
     private final PltService pltService;
@@ -283,7 +284,7 @@ public class CdssService {
                         continue;
                     }
                 }
-                String hit = match(rule, items);
+                String hit = match(rule, order, items);
                 if (hit != null) {
                     CdssHit record = new CdssHit();
                     record.setOrderId(order.getId());
@@ -331,7 +332,7 @@ public class CdssService {
     }
 
     /** 规则匹配（提示级）：返回命中提示文案，未命中返回 null */
-    private String match(CdssRule rule, List<DocOrderItem> items) {
+    private String match(CdssRule rule, DocOrder order, List<DocOrderItem> items) {
         switch (rule.getRuleType()) {
             case 1 -> {
                 // 配伍禁忌：同一药品医嘱同时含 ref_a 与 ref_b
@@ -343,9 +344,28 @@ public class CdssService {
                 return hasA && hasB ? rule.getMessage() : null;
             }
             case 2 -> {
-                // 重复检查：非药品医嘱明细引用了规则项目
-                boolean dup = items.stream().anyMatch(i -> rule.getRefAId().equals(i.getChargeItemId()));
-                return dup ? rule.getMessage() : null;
+                // 重复检查：当前单含规则项目，且该患者 24 小时内已开过同一项目。
+                // 原实现只看本单明细——同一项目本来就在本单里，导致每次开立必然命中（恒真假阳性）
+                boolean inCurrent = items.stream().anyMatch(i -> rule.getRefAId().equals(i.getChargeItemId()));
+                if (!inCurrent || order.getPatientId() == null) {
+                    return null;
+                }
+                LocalDateTime since = LocalDateTime.now().minusHours(24);
+                List<DocOrder> recentOrders = orderMapper.selectList(new LambdaQueryWrapper<DocOrder>()
+                        .eq(DocOrder::getPatientId, order.getPatientId())
+                        .ne(order.getId() != null, DocOrder::getId, order.getId())
+                        .ge(DocOrder::getCreatedAt, since)
+                        .notIn(DocOrder::getStatus, 60, 70)
+                        .select(DocOrder::getId));
+                if (recentOrders.isEmpty()) {
+                    return null;
+                }
+                Long dup = orderItemMapper.selectCount(new LambdaQueryWrapper<DocOrderItem>()
+                        .in(DocOrderItem::getOrderId,
+                                recentOrders.stream().map(DocOrder::getId).toList())
+                        .eq(DocOrderItem::getChargeItemId, rule.getRefAId())
+                        .eq(DocOrderItem::getStatus, 1));
+                return dup != null && dup > 0 ? rule.getMessage() : null;
             }
             case 3 -> {
                 // 剂量上限：药品明细数量超过 ref_b（整型化比较）

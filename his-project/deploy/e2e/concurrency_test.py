@@ -295,9 +295,14 @@ def main():
       all(c in ("B4003", "B6102") for c in codes6 if c != "OK"), codes6)
     st, o6 = call("GET", "/doc/orders?admissionId=%s&status=30" % adm6, pharmacist)
     check("C16. 医嘱终态 30 已摆药", any(o["id"] == rx6 for o in o6["data"]["list"]), o6["data"]["total"])
+    # F-62：已摆药未执行不得出院（出院后 execute 封死、void 拒绝），先执行再过出院门禁
+    st, det6 = call("GET", "/doc/orders/%d" % rx6, doctor6)
+    ex6 = [e for e in det6["data"]["executions"] if e["execType"] == 2 and e["status"] == 1][0]
+    st, r = call("POST", "/doc/executions/%s/do" % ex6["id"], nurse, idem="cc-ex6-" + uid)
+    check("C16b. 摆药后执行（出院前置）", r["code"] == "OK", r)
 
     # ================= ⑦ 退押金并发（条件递减守卫，七十/八十六轮修复固化） =================
-    # ⑥ 的住院出院（临时药嘱不拦出院）→ 无未结费用自动结算 30 → 结算 →
+    # ⑥ 的住院出院 → 无未结费用自动结算 30 → 结算 →
     # 并发退押×2 各退全额应退：恰 1 成功、另笔被条件递减拒绝、押金余额不为负
     call("POST", "/inp/admissions/%s/discharge" % adm6, doctor6,
          {"dischargeWay": 2, "dischargeDiagnosis": "并发退押复验"}, idem="cc-dc6-" + uid)

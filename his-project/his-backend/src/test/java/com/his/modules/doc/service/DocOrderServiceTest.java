@@ -85,6 +85,19 @@ class DocOrderServiceTest extends UnitTestBase {
     }
 
     @Test
+    void execute_rejectsFutureDatedPlan() {
+        DocOrderExec e = exec();
+        e.setExecDate(java.time.LocalDate.now().plusDays(1));
+        when(execMapper.selectById(5L)).thenReturn(e);
+        when(orderMapper.selectById(100L)).thenReturn(order(2, 4, 30));
+
+        BizException ex = assertThrows(BizException.class, () -> service.execute(5L));
+
+        assertTrue(ex.getMessage().contains("执行日期未到"));
+        verify(execMapper, never()).update(any(), any());
+    }
+
+    @Test
     void execute_winnerProceedsAndChargesOnce() {
         DocOrderExec e = exec();
         when(execMapper.selectById(5L)).thenReturn(e);
@@ -175,5 +188,25 @@ class DocOrderServiceTest extends UnitTestBase {
         BizException e = assertThrows(BizException.class,
                 () -> service.voidOrder(100L, new StopOrderRequest()));
         assertEquals(ErrorCode.B6106, e.getErrorCode());
+    }
+
+    @Test
+    void resume_crossDayRegeneratesTodayExecPlan() {
+        DocOrder o = order(1, 4, 50);
+        o.setFrequency("qd");
+        when(orderMapper.selectById(100L)).thenReturn(o);
+        when(inpAppService.requireInHospital(900L)).thenReturn(new com.his.modules.inp.entity.InpAdmission());
+        when(orderMapper.update(any(), any())).thenReturn(1);
+        DocOrderItem item = new DocOrderItem();
+        item.setId(11L);
+        item.setStatus(1);
+        when(itemMapper.selectList(any())).thenReturn(java.util.List.of(item));
+        when(execMapper.selectCount(any())).thenReturn(0L);
+        when(inpAppService.getBedNo(900L)).thenReturn("01");
+
+        service.resume(100L);
+
+        // 停嘱跨日期间 00:30 任务不会生成执行单，恢复时必须补当日计划
+        verify(execMapper).insert(any(DocOrderExec.class));
     }
 }

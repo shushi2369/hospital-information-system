@@ -23,6 +23,15 @@ import static org.mockito.Mockito.when;
 /** PubService 单测：传染病自动报卡 + 上报闭环 + 院感确认。 */
 class PubServiceTest extends UnitTestBase {
 
+    @org.junit.jupiter.api.BeforeAll
+    static void initMpLambdaCache() {
+        // 纯 Mockito 环境无 MP 容器：LambdaUpdateWrapper.set(实体::getter) 需要实体 lambda cache
+        org.apache.ibatis.builder.MapperBuilderAssistant assistant =
+                new org.apache.ibatis.builder.MapperBuilderAssistant(
+                        new com.baomidou.mybatisplus.core.MybatisConfiguration(), "");
+        com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(assistant, PubInfectiousCard.class);
+    }
+
     private final PubInfectiousCardMapper cardMapper = mock(PubInfectiousCardMapper.class);
     private final PubDiseaseDictMapper dictMapper = mock(PubDiseaseDictMapper.class);
     private final PubHaiCaseMapper haiMapper = mock(PubHaiCaseMapper.class);
@@ -97,6 +106,23 @@ class PubServiceTest extends UnitTestBase {
         req.setReceiptNo("CDC001");
         BizException e = assertThrows(BizException.class, () -> svc().receipt(1L, req));
         assertTrue(e.getMessage().contains("未审核"));
+    }
+
+    // ---- 诊断删除撤卡：病名已不在剩余诊断中 → 待报卡退回 ----
+    @Test
+    void withdrawPendingCards_returnsOrphanedCard() {
+        when(cardMapper.selectList(any())).thenReturn(List.of(card(1L, 10)));
+        Mockito.doReturn(1).when(cardMapper).update(any(), any());
+        svc().withdrawPendingCards(50L, List.of("感冒"));
+        Mockito.verify(cardMapper, Mockito.times(1)).update(any(), any());
+    }
+
+    // ---- 诊断删除撤卡：剩余诊断仍包含该病名 → 保留 ----
+    @Test
+    void withdrawPendingCards_keepsStillDiagnosedCard() {
+        when(cardMapper.selectList(any())).thenReturn(List.of(card(1L, 10)));
+        svc().withdrawPendingCards(50L, List.of("肺结核复查"));
+        Mockito.verify(cardMapper, Mockito.never()).update(any(), any());
     }
 
     // ---- 院感上报 ----

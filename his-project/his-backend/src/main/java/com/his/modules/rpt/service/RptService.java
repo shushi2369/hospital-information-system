@@ -143,7 +143,8 @@ public class RptService {
         }
         int ok = 0;
         for (RptUpload up : pending) {
-            if (deliverOne(up)) {
+            // 手动批可越过失败退避（原语义），但抢占仍是条件更新，防与调度器并发双发
+            if (deliverOne(up, true)) {
                 ok++;
             }
         }
@@ -152,6 +153,14 @@ public class RptService {
 
     /** 单条投递：MOCK 网关受理 / HTTP POST（预留）。成功置 20，失败重试计数。 */
     private boolean deliverOne(RptUpload up) {
+        return deliverOne(up, false);
+    }
+
+    /** force=false 调度投递（尊重退避）；force=true 手动批投递（可越过退避） */
+    private boolean deliverOne(RptUpload up, boolean force) {
+        if (!claimForDelivery(up, force)) {
+            return false;
+        }
         try {
             String receipt;
             if ("HTTP".equals(gatewayMode) && gatewayUrl != null && !gatewayUrl.isBlank()) {
@@ -159,12 +168,37 @@ public class RptService {
             } else {
                 receipt = mockAccept(up);
             }
-            markUploaded(up.getId(), receipt);
-            return true;
+            return markUploaded(up.getId(), receipt);
         } catch (Exception e) {
             markFailure(up, e.getMessage());
             return false;
         }
+    }
+
+    /**
+     * 投递租约：next_retry_at 复用为"租约到期时间"。
+     * 调度通道只领 NULL/已到期行；手动批不受退避限制，但按读取到的 next_retry_at 做乐观校验——
+     * 并发的调度/手动批/重报只有一个能抢到同一单，防二次外发。
+     */
+    private boolean claimForDelivery(RptUpload up, boolean force) {
+        LocalDateTime now = LocalDateTime.now();
+        LambdaUpdateWrapper<RptUpload> wrapper = new LambdaUpdateWrapper<RptUpload>()
+                .eq(RptUpload::getId, up.getId())
+                .eq(RptUpload::getStatus, RptUpload.STATUS_PENDING);
+        if (force) {
+            if (up.getNextRetryAt() == null) {
+                wrapper.isNull(RptUpload::getNextRetryAt);
+            } else {
+                wrapper.eq(RptUpload::getNextRetryAt, up.getNextRetryAt());
+            }
+        } else {
+            wrapper.and(w -> w.isNull(RptUpload::getNextRetryAt)
+                    .or().le(RptUpload::getNextRetryAt, now));
+        }
+        int claimed = uploadMapper.update(null, wrapper
+                .set(RptUpload::getNextRetryAt, now.plusMinutes(2))
+                .set(RptUpload::getUpdatedAt, now));
+        return claimed == 1;
     }
 
     /** MOCK 网关：生成区域受理号；患者名含"压测失败"时确定性拒绝（演示/教学失败路径） */
@@ -181,36 +215,53 @@ public class RptService {
         throw new IllegalStateException("HTTP 网关未启用（rpt.gateway.mode=MOCK）");
     }
 
-    private void markUploaded(Long id, String receipt) {
-        uploadMapper.update(null, new LambdaUpdateWrapper<RptUpload>()
+    private boolean markUploaded(Long id, String receipt) {
+        int updated = uploadMapper.update(null, new LambdaUpdateWrapper<RptUpload>()
                 .eq(RptUpload::getId, id)
                 .eq(RptUpload::getStatus, RptUpload.STATUS_PENDING)
                 .set(RptUpload::getStatus, RptUpload.STATUS_UPLOADED)
                 .set(RptUpload::getReceiptNo, receipt)
                 .set(RptUpload::getUploadedAt, LocalDateTime.now())
                 .setSql("retry_count = 0"));
+        if (updated != 1) {
+            log.warn("上报状态已变化，投递结果未落库 id={}", id);
+            return false;
+        }
         pltService.recordEvent("rpt.upload.accepted", receipt, "{}");
+        return true;
     }
 
     private void markFailure(RptUpload up, String error) {
+        LocalDateTime now = LocalDateTime.now();
+        // 先原子 +1 并续租，避免并发投递用旧快照重复计数/在收尾窗口被再次领取
         int retried = uploadMapper.update(null, new LambdaUpdateWrapper<RptUpload>()
                 .eq(RptUpload::getId, up.getId())
                 .eq(RptUpload::getStatus, RptUpload.STATUS_PENDING)
                 .setSql("retry_count = retry_count + 1")
-                .set(RptUpload::getNextRetryAt, LocalDateTime.now().plusSeconds(backoffSeconds(
-                        (up.getRetryCount() == null ? 0 : up.getRetryCount()) + 1)))
+                .set(RptUpload::getNextRetryAt, now.plusMinutes(2))
                 .set(RptUpload::getLastError, truncate(error)));
         if (retried != 1) {
             return;
         }
-        int count = (up.getRetryCount() == null ? 0 : up.getRetryCount()) + 1;
+        RptUpload fresh = uploadMapper.selectById(up.getId());
+        int count = fresh == null || fresh.getRetryCount() == null ? 1 : fresh.getRetryCount();
         if (count >= RptUpload.MAX_RETRY) {
-            uploadMapper.update(null, new LambdaUpdateWrapper<RptUpload>()
+            int failed = uploadMapper.update(null, new LambdaUpdateWrapper<RptUpload>()
                     .eq(RptUpload::getId, up.getId())
+                    .eq(RptUpload::getStatus, RptUpload.STATUS_PENDING)
+                    .ge(RptUpload::getRetryCount, RptUpload.MAX_RETRY)
                     .set(RptUpload::getStatus, RptUpload.STATUS_FAILED)
                     .set(RptUpload::getLastError, truncate(error)));
-            pltService.recordEvent("rpt.upload.failed", up.getUploadNo(),
-                    "{\"retry\":" + count + ",\"error\":\"" + JsonEscapeUtil.escape(truncate(error)) + "\"}");
+            if (failed == 1) {
+                pltService.recordEvent("rpt.upload.failed", up.getUploadNo(),
+                        "{\"retry\":" + count + ",\"error\":\"" + JsonEscapeUtil.escape(truncate(error)) + "\"}");
+            }
+        } else {
+            uploadMapper.update(null, new LambdaUpdateWrapper<RptUpload>()
+                    .eq(RptUpload::getId, up.getId())
+                    .eq(RptUpload::getStatus, RptUpload.STATUS_PENDING)
+                    .eq(RptUpload::getRetryCount, count)
+                    .set(RptUpload::getNextRetryAt, now.plusSeconds(backoffSeconds(count))));
         }
     }
 
@@ -254,7 +305,8 @@ public class RptService {
         return m;
     }
 
-    /** 手动重报：失败单回队并立即尝试投递一次（管理端按钮/e2e 断言用） */
+    /** 手动重报：失败单回队并立即尝试投递一次（管理端按钮/e2e 断言用）。
+     *  仅 FAILED 可重报：PENDING 单可能正被调度器投递，越过租约再发一次会造成同一单双份外发 */
     public RptUpload retryNow(Long id) {
         RptUpload up = uploadMapper.selectById(id);
         if (up == null) {
@@ -263,13 +315,24 @@ public class RptService {
         if (up.getStatus() == RptUpload.STATUS_UPLOADED) {
             throw new BizException(ErrorCode.A0001, "该上报已成功，无需重报");
         }
-        uploadMapper.update(null, new LambdaUpdateWrapper<RptUpload>()
+        if (up.getStatus() == RptUpload.STATUS_PENDING) {
+            throw new BizException(ErrorCode.A0001, "该上报已在待上报队列中，请稍后查看结果");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        int updated = uploadMapper.update(null, new LambdaUpdateWrapper<RptUpload>()
                 .eq(RptUpload::getId, id)
                 .eq(RptUpload::getStatus, RptUpload.STATUS_FAILED)
                 .set(RptUpload::getStatus, RptUpload.STATUS_PENDING)
-                .set(RptUpload::getRetryCount, 0));
+                .set(RptUpload::getRetryCount, 0)
+                .set(RptUpload::getLastError, null)
+                .set(RptUpload::getNextRetryAt, now)
+                .set(RptUpload::getUpdatedAt, now));
+        if (updated != 1) {
+            throw new BizException(ErrorCode.A0008, "上报状态已变化，请刷新后重试");
+        }
         RptUpload reloaded = uploadMapper.selectById(id);
-        deliverOne(reloaded);
+        // 走统一抢占：与并发的手动批/调度器只有一个能领到该单
+        deliverOne(reloaded, false);
         return uploadMapper.selectById(id);
     }
 

@@ -111,6 +111,41 @@ public class PubService {
         }
     }
 
+    /**
+     * 诊断删除后的报卡撤回：病名已不在该次就诊剩余有效诊断中且仍待报(10) → 退回(50)。
+     * 只动待报卡——已上报/审核/回执的卡已进入公卫流程，须由公卫科人工处理。
+     * 失败内部消化，不得阻断诊断删除（对齐 autoCreateCards 的异常隔离口径）。
+     */
+    public void withdrawPendingCards(Long visitId, List<String> remainingDiagnosisNames) {
+        try {
+            if (visitId == null) {
+                return;
+            }
+            List<PubInfectiousCard> pending = cardMapper.selectList(
+                    new LambdaQueryWrapper<PubInfectiousCard>()
+                            .eq(PubInfectiousCard::getVisitId, visitId)
+                            .eq(PubInfectiousCard::getStatus, 10));
+            for (PubInfectiousCard card : pending) {
+                boolean stillTriggered = remainingDiagnosisNames != null
+                        && remainingDiagnosisNames.stream()
+                                .anyMatch(name -> name != null && name.contains(card.getDiseaseName()));
+                if (stillTriggered) {
+                    continue;
+                }
+                int updated = cardMapper.update(null, new LambdaUpdateWrapper<PubInfectiousCard>()
+                        .eq(PubInfectiousCard::getId, card.getId())
+                        .eq(PubInfectiousCard::getStatus, 10)
+                        .set(PubInfectiousCard::getStatus, 50));
+                if (updated == 1) {
+                    pltService.recordEvent("pub.card.withdrawn", card.getCardNo(),
+                            "{\"reason\":\"诊断已删除\"}");
+                }
+            }
+        } catch (Exception e) {
+            log.warn("删除诊断撤回报卡失败 visit {}: {}", visitId, e.getMessage());
+        }
+    }
+
     /** 上报登记（PUB-02）：10 待报 → 20 已上报（公卫科） */
     @Transactional
     public void report(Long id) {

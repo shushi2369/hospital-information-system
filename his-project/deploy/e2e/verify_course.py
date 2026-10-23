@@ -168,6 +168,12 @@ st, ol = call("GET", "/doc/orders?admissionId=%s&status=10" % adm, "dr.li")
 oid = ol["data"]["list"][0]["id"]
 call("POST", "/doc/orders/%d/review" % oid, "pharm.zhao", {"pass": True}, idem="ce6-rv-" + uid)
 call("POST", "/doc/orders/%d/dispense" % oid, "pharm.zhao", idem="ce6-dp-" + uid)
+# F-62：临时药已摆药未执行时出院会被门禁拦截（出院后执行接口封死），演示流程须先执行
+st, od6 = call("GET", "/doc/orders/%d" % oid, "dr.li")
+ex6 = [e for e in (od6["data"].get("executions") or []) if e.get("execType") == 2 and e.get("status") == 1]
+if ex6:
+    st, r = call("POST", "/doc/executions/%s/do" % ex6[0]["id"], "nurse.wang", idem="ce6-ex-" + uid)
+    check("E6.3a 摆药后执行（出院前置）", r.get("code") == "OK", r)
 st, r = call("POST", "/inp/daily-fees/manual?admissionId=%s" % adm, "admin",
     {"feeType": 1, "itemName": "实验护理", "quantity": 1, "unitPrice": 50}, idem="ce6-f-" + uid)
 check("E6.3 手工记账", r["code"] == "OK", r)

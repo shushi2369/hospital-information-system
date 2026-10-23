@@ -183,7 +183,16 @@ public class ClinicService {
         }
         requireVisitInProgress(diagnosis.getVisitId());
         diagnosis.setStatus(0);
-        diagnosisMapper.updateById(diagnosis);
+        if (diagnosisMapper.updateById(diagnosis) != 1) {
+            throw new BizException(ErrorCode.A0008, "诊断状态已变化，请刷新后重试");
+        }
+        // 传染病报卡随诊断撤回：原实现删除诊断后待报卡仍挂着，公卫科会对已不成立的诊断上报
+        List<CliDiagnosis> remaining = diagnosisMapper.selectList(new LambdaQueryWrapper<CliDiagnosis>()
+                .eq(CliDiagnosis::getVisitId, diagnosis.getVisitId())
+                .eq(CliDiagnosis::getStatus, 1)
+                .select(CliDiagnosis::getDiagnosisName));
+        pubService.withdrawPendingCards(diagnosis.getVisitId(),
+                remaining.stream().map(CliDiagnosis::getDiagnosisName).toList());
     }
 
     /** 新增文字医嘱（C-06） */

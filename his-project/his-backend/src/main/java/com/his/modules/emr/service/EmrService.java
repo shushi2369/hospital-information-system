@@ -256,10 +256,12 @@ public class EmrService {
 
     /** 六十轮：病案已归档/借阅中则文书冻结（封存语义——归档后修改病历会使封存失效） */
     private void requireNotArchived(Long admissionId) {
+        // 锁读归档状态：与 mrc 归档的条件更新串行。普通读会与归档交错——
+        // 校验通过后归档提交，本事务仍把文书内容写进已封存病历（@Version 锁不到 mrc_record）
         com.his.modules.mrc.entity.MrcRecord mrc = mrcRecordMapper.selectOne(
                 new LambdaQueryWrapper<com.his.modules.mrc.entity.MrcRecord>()
                         .eq(com.his.modules.mrc.entity.MrcRecord::getAdmissionId, admissionId)
-                        .last("LIMIT 1"));
+                        .last("LIMIT 1 FOR UPDATE"));
         if (mrc != null && mrc.getArchiveStatus() != null
                 && (mrc.getArchiveStatus() == 20 || mrc.getArchiveStatus() == 30)) {
             throw new BizException(ErrorCode.B6202, "病案已归档或借阅中，文书不可修改");

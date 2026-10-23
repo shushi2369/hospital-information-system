@@ -258,6 +258,11 @@ public class RisService {
         } else {
             series = req.getSeriesCount() == null ? 0 : req.getSeriesCount();
             count = req.getImageCount() == null ? 0 : req.getImageCount();
+            // 零影像"归档"会生成一行空影像记录，使 finish/writeReport 的"已归档"行数校验通过，
+            // 最终产出无影像依据的报告（R-05/R-07 闭环被绕过）
+            if (series < 1 || count < 1) {
+                throw new BizException(ErrorCode.A0001, "手工归档须填写序列数（≥1）与影像数（≥1）");
+            }
             impression = req.getImpressionText();
             criticalSign = null;
         }
@@ -285,11 +290,17 @@ public class RisService {
         if (request.getStatus() != 30) {
             throw new BizException(ErrorCode.A0001, "检查不在检查中状态");
         }
-        Long images = imageMapper.selectCount(new LambdaQueryWrapper<RisImage>()
-                .eq(RisImage::getRequestId, id));
-        if (images == null || images == 0) {
+        // 校验影像数而非仅行数：历史零影像归档行不得再充当"已归档"
+        if (!hasArchivedImages(id)) {
             throw new BizException(ErrorCode.A0001, "影像未归档，不能完成检查");
         }
+    }
+
+    /** 归档影像必须实际存在：有影像行且影像数 ≥1（零影像行 = 未归档） */
+    private boolean hasArchivedImages(Long requestId) {
+        RisImage image = imageMapper.selectOne(new LambdaQueryWrapper<RisImage>()
+                .eq(RisImage::getRequestId, requestId).last("LIMIT 1"));
+        return image != null && image.getImageCount() != null && image.getImageCount() > 0;
     }
 
     /** 报告书写（R-07）：检查中书写/驳回后修改重提 */
@@ -300,9 +311,7 @@ public class RisService {
             throw new BizException(ErrorCode.A0001, "申请不在检查中状态，不能书写报告");
         }
         // 报告必须以影像为依据：finish 只在 UI 侧被调用，原 writeReport 可绕过影像归档直接出报告
-        Long images = imageMapper.selectCount(new LambdaQueryWrapper<RisImage>()
-                .eq(RisImage::getRequestId, req.getRequestId()));
-        if (images == null || images == 0) {
+        if (!hasArchivedImages(req.getRequestId())) {
             throw new BizException(ErrorCode.A0001, "影像未归档，不能书写报告");
         }
         RisReport report = reportMapper.selectOne(new LambdaQueryWrapper<RisReport>()
@@ -393,6 +402,14 @@ public class RisService {
 
     /** 报告分页（R-09）：支持按住院/患者过滤（经申请单关联） */
     public PageResult<RisReport> reportPage(RisRequestQuery query) {
+        Integer status = query.getStatus();
+        if (!canViewDraftReport()) {
+            // 普通查询者只能看已发布报告：草稿含未审核结论，提前可见可能被当成最终诊断
+            if (status != null && status != 20) {
+                return PageResult.of(new Page<>(query.getPageNum(), query.getPageSize()));
+            }
+            status = 20;
+        }
         List<Long> requestIds = null;
         if (query.getAdmissionId() != null || query.getPatientId() != null) {
             List<RisRequest> requests = requestMapper.selectList(new LambdaQueryWrapper<RisRequest>()
@@ -406,7 +423,7 @@ public class RisService {
         Page<RisReport> page = reportMapper.selectPage(query.toPage(),
                 new LambdaQueryWrapper<RisReport>()
                         .in(requestIds != null, RisReport::getRequestId, requestIds)
-                        .eq(query.getStatus() != null, RisReport::getStatus, query.getStatus())
+                        .eq(status != null, RisReport::getStatus, status)
                         .orderByDesc(RisReport::getId));
         return PageResult.of(page);
     }
@@ -418,12 +435,21 @@ public class RisService {
         if (report == null) {
             throw new BizException(ErrorCode.A0001, "报告不存在");
         }
+        if (report.getStatus() != null && report.getStatus() != 20 && !canViewDraftReport()) {
+            throw new BizException(ErrorCode.A0003, "报告尚未审核发布");
+        }
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("report", report);
         result.put("request", requestMapper.selectById(requestId));
         result.put("image", imageMapper.selectOne(new LambdaQueryWrapper<RisImage>()
                 .eq(RisImage::getRequestId, requestId).last("LIMIT 1")));
         return result;
+    }
+
+    /** 报告书写/审核者可见草稿（技师等只读角色只能看已发布） */
+    private boolean canViewDraftReport() {
+        java.util.Set<String> perms = CurrentUser.get().getPermissions();
+        return perms != null && (perms.contains("ris:report:write") || perms.contains("ris:report:review"));
     }
 
     /** 设备列表（R-10） */

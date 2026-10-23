@@ -20,9 +20,10 @@ public class OrsDischargeCheckHook implements DischargeCheckHook {
         List<OrsSurgeryRequest> open = requestMapper.selectList(
                 new LambdaQueryWrapper<OrsSurgeryRequest>()
                         .eq(OrsSurgeryRequest::getAdmissionId, admissionId)
-                        // 一百一十四轮 #3：补 60（已离室未关档）——漏掉时患者可出院，此后 complete()
-                        // 因 requireInHospital 必抛，手术费/麻醉费永久漏记且无恢复路径
-                        .in(OrsSurgeryRequest::getStatus, List.of(10, 20, 30, 40, 50, 60)));
+                        // 60（已离室）只有关档记账后才是终态；只按状态拦 60 会让已关档患者永久无法出院
+                        .and(w -> w.in(OrsSurgeryRequest::getStatus, List.of(10, 20, 30, 40, 50))
+                                .or(x -> x.eq(OrsSurgeryRequest::getStatus, 60)
+                                        .eq(OrsSurgeryRequest::getChargeStatus, 0))));
         if (!open.isEmpty()) {
             return "存在未完结的手术申请（" + open.size() + " 条），请先取消或完成手术";
         }

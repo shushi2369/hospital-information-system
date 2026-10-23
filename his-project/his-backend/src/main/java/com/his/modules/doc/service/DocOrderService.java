@@ -205,6 +205,10 @@ public class DocOrderService {
         // 驳回(70)=作废路径之一：清理当日已生成的执行单，防死单永挂护士待执行列表
         if (!Boolean.TRUE.equals(req.getPass())) {
             skipFutureExec(orderId, LocalDate.now());
+        } else if (order.getOrderClass() == 1) {
+            // 长期医嘱跨日审核：00:30 计划任务扫描时还是待审核(10)，通过后当天无执行单 →
+            // 当日给药缺失。审核通过时补齐当日计划（已有计划则跳过，唯一索引兜并发）
+            generateTodayExecPlan(order);
         }
         pltService.recordEvent("order.reviewed", order.getOrderNo(),
                 "{\"pass\":" + req.getPass() + "}");
@@ -271,6 +275,10 @@ public class DocOrderService {
         }
         if (exec.getStatus() == 2) {
             throw new BizException(ErrorCode.B6103);
+        }
+        // 未来日期的执行单不得提前执行：否则执行/计费时点早于计划日，跨日费用与护理记录失真
+        if (exec.getExecDate() != null && exec.getExecDate().isAfter(LocalDate.now())) {
+            throw new BizException(ErrorCode.A0001, "执行日期未到，不能提前执行");
         }
         DocOrder order = requireOrder(exec.getOrderId());
         validateExecutable(order);
@@ -393,20 +401,21 @@ public class DocOrderService {
             throw new BizException(ErrorCode.B6101, "医嘱状态已变化，请刷新后重试");
         }
         LocalDate today = LocalDate.now();
-        List<String> slots = FREQUENCY_SLOTS.getOrDefault(
-                order.getFrequency() == null ? "qd" : order.getFrequency(), List.of("08:00"));
-        for (DocOrderItem item : activeItems) {
-            for (String slot : slots) {
-                execMapper.update(null, new LambdaUpdateWrapper<DocOrderExec>()
-                        .eq(DocOrderExec::getItemId, item.getId())
-                        .eq(DocOrderExec::getExecDate, today)
-                        .eq(DocOrderExec::getExecSlot, slot)
-                        .eq(DocOrderExec::getExecType, 2)
-                        .eq(DocOrderExec::getStatus, 3)
-                        .set(DocOrderExec::getStatus, 1)
-                        .set(DocOrderExec::getUpdatedAt, LocalDateTime.now()));
-            }
+        // 按医嘱恢复当日全部被置跳过的执行单：PRN 的 slot 带秒级时间戳、皮试为 type=3，
+        // 原按频次 slot 精确匹配只能恢复 qd/bid 等固定时段，PRN/皮试永远恢复不了
+        List<Long> itemIds = activeItems.stream().map(DocOrderItem::getId).toList();
+        if (!itemIds.isEmpty()) {
+            execMapper.update(null, new LambdaUpdateWrapper<DocOrderExec>()
+                    .eq(DocOrderExec::getOrderId, orderId)
+                    .in(DocOrderExec::getItemId, itemIds)
+                    .eq(DocOrderExec::getExecDate, today)
+                    .eq(DocOrderExec::getStatus, 3)
+                    .set(DocOrderExec::getStatus, 1)
+                    .set(DocOrderExec::getUpdatedAt, LocalDateTime.now()));
         }
+        // 跨日恢复：00:30 计划任务只扫 20/30，停嘱期间当日执行单从未生成，仅翻旧单会使
+        // 恢复当天无药可执行。已有当日执行单时该方法幂等跳过
+        generateTodayExecPlan(order);
     }
 
     /** 作废（未执行的医嘱） */
@@ -595,6 +604,31 @@ public class DocOrderService {
                 .eq(DocOrderItem::getOrderId, orderId).eq(DocOrderItem::getStatus, 1)
                 .orderByAsc(DocOrderItem::getId)).stream().findFirst().orElse(null);
         return item == null ? null : item.getId();
+    }
+
+    /** 审核通过补当日长期医嘱执行计划（创建当日已有计划的跳过，避免 PRN 重复行） */
+    private void generateTodayExecPlan(DocOrder order) {
+        LocalDate today = LocalDate.now();
+        Long existing = execMapper.selectCount(new LambdaQueryWrapper<DocOrderExec>()
+                .eq(DocOrderExec::getOrderId, order.getId())
+                .eq(DocOrderExec::getExecDate, today));
+        if (existing != null && existing > 0) {
+            return;
+        }
+        List<DocOrderItem> items = itemMapper.selectList(new LambdaQueryWrapper<DocOrderItem>()
+                .eq(DocOrderItem::getOrderId, order.getId()).eq(DocOrderItem::getStatus, 1));
+        List<String> slots = FREQUENCY_SLOTS.getOrDefault(
+                order.getFrequency() == null ? "qd" : order.getFrequency(), List.of("08:00"));
+        String bedNo = inpAppService.getBedNo(order.getAdmissionId());
+        for (DocOrderItem item : items) {
+            for (String slot : slots) {
+                try {
+                    insertExec(order.getId(), item.getId(), today, slot, 2, bedNo);
+                } catch (org.springframework.dao.DuplicateKeyException e) {
+                    // 与定时任务/并发审核撞唯一索引：该时段计划已存在
+                }
+            }
+        }
     }
 
     private Long insertExec(Long orderId, Long itemId, LocalDate date, String slot, int type, String bedNo) {

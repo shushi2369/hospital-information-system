@@ -83,6 +83,11 @@ public class LongOrderPlanTask {
                     && admission.getAdmissionTime().toLocalDate().isAfter(earliest)) {
                 earliest = admission.getAdmissionTime().toLocalDate();
             }
+            // 药品医嘱审核通过前不生效：重启回补不得为"待审核期间"补出虚假执行单
+            if (order.getCategory() != null && order.getCategory() == 1 && order.getReviewAt() != null
+                    && order.getReviewAt().toLocalDate().isAfter(earliest)) {
+                earliest = order.getReviewAt().toLocalDate();
+            }
             if (today.isBefore(earliest)) {
                 continue;
             }

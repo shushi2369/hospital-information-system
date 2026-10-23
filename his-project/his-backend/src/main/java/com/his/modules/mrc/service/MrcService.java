@@ -98,19 +98,23 @@ public class MrcService {
                 .stream().map(MrcRecord::getAdmissionId).collect(java.util.stream.Collectors.toSet());
         for (InpAdmission admission : admissions) {
             if (!existing.contains(admission.getId())) {
-                MrcRecord record = new MrcRecord();
-                record.setMrcNo(admission.getAdmissionNo());
-                record.setAdmissionId(admission.getId());
-                record.setPatientId(admission.getPatientId());
-                record.setArchiveStatus(10);
-                record.setQcStatus(0);
-                record.setStatus(1);
-                try {
-                    recordMapper.insert(record);
-                } catch (org.springframework.dao.DuplicateKeyException e) {
-                    // 并发惰性补建：唯一索引兜底，另一方已建则忽略
-                }
+                createRecordFor(admission);
             }
+        }
+    }
+
+    private void createRecordFor(InpAdmission admission) {
+        MrcRecord record = new MrcRecord();
+        record.setMrcNo(admission.getAdmissionNo());
+        record.setAdmissionId(admission.getId());
+        record.setPatientId(admission.getPatientId());
+        record.setArchiveStatus(10);
+        record.setQcStatus(0);
+        record.setStatus(1);
+        try {
+            recordMapper.insert(record);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            // 并发惰性补建：唯一索引兜底，另一方已建则忽略
         }
     }
 
@@ -118,6 +122,16 @@ public class MrcService {
         ensureCreated();
         MrcRecord record = recordMapper.selectOne(new LambdaQueryWrapper<MrcRecord>()
                 .eq(MrcRecord::getAdmissionId, admissionId).last("LIMIT 1"));
+        if (record == null) {
+            // 批量补建只看最近 500 条出院记录：存量更大时老病案会永久漏建，按需为当前住院补建
+            InpAdmission admission = inpAppService.getAdmission(admissionId);
+            Integer status = admission == null ? null : admission.getStatus();
+            if (status != null && (status == 20 || status == 30)) {
+                createRecordFor(admission);
+                record = recordMapper.selectOne(new LambdaQueryWrapper<MrcRecord>()
+                        .eq(MrcRecord::getAdmissionId, admissionId).last("LIMIT 1"));
+            }
+        }
         if (record == null) {
             throw new BizException(ErrorCode.A0001, "病案不存在");
         }
@@ -145,14 +159,22 @@ public class MrcService {
             homepage = new MrcHomepage();
             homepage.setAdmissionId(admissionId);
         }
+        String otherJson;
+        try {
+            otherJson = new com.fasterxml.jackson.databind.ObjectMapper()
+                    .writeValueAsString(req.getOtherDiagnoses() == null ? List.of() : req.getOtherDiagnoses());
+        } catch (Exception ignored) {
+            otherJson = "[]";
+        }
+        // 编码内容是否变化须在覆盖前判断：质控通过后重新编码（哪怕只改诊断/编码）必须重新质控
+        boolean codingChanged = homepage.getId() == null
+                || !java.util.Objects.equals(homepage.getMainDiagnosisCode(), req.getMainDiagnosisCode())
+                || !java.util.Objects.equals(homepage.getMainDiagnosisName(), req.getMainDiagnosisName())
+                || !java.util.Objects.equals(homepage.getOperationCode(), req.getOperationCode())
+                || !java.util.Objects.equals(homepage.getOtherDiagnoses(), otherJson);
         homepage.setMainDiagnosisCode(req.getMainDiagnosisCode());
         homepage.setMainDiagnosisName(req.getMainDiagnosisName());
-        try {
-            homepage.setOtherDiagnoses(new com.fasterxml.jackson.databind.ObjectMapper()
-                    .writeValueAsString(req.getOtherDiagnoses() == null ? List.of() : req.getOtherDiagnoses()));
-        } catch (Exception ignored) {
-            homepage.setOtherDiagnoses("[]");
-        }
+        homepage.setOtherDiagnoses(otherJson);
         homepage.setOperationCode(req.getOperationCode());
         homepage.setCoderId(CurrentUser.id());
         homepage.setCodeTime(LocalDateTime.now());
@@ -161,6 +183,19 @@ public class MrcService {
             homepageMapper.insert(homepage);
         } else {
             homepageMapper.updateById(homepage);
+        }
+        // 重新编码即视为质控结论失效：否则质控通过后改编码仍可凭旧结论直接归档
+        if (codingChanged && recordForFreeze != null && recordForFreeze.getQcStatus() != null
+                && recordForFreeze.getQcStatus() == 1) {
+            MrcRecord reset = new MrcRecord();
+            reset.setQcStatus(0);
+            reset.setVersion(recordForFreeze.getVersion());
+            int resetRows = recordMapper.update(reset, new LambdaUpdateWrapper<MrcRecord>()
+                    .eq(MrcRecord::getId, recordForFreeze.getId())
+                    .eq(MrcRecord::getArchiveStatus, 10));
+            if (resetRows != 1) {
+                throw new BizException(ErrorCode.A0008, "病案状态已变化，请刷新后重试");
+            }
         }
     }
 

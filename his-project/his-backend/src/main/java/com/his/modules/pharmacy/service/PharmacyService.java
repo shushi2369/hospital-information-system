@@ -126,8 +126,14 @@ public class PharmacyService {
                 if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
                     break;
                 }
-                // 行锁批次并条件扣减（quantity >= 拣批量）
+                // 行锁批次并条件扣减（quantity >= 拣批量）；锁后复检状态与效期——
+                // 选批到锁行之间批次可能被停用/报废或跨过零点过期，仅凭旧快照发放会发出不可用药品
                 InvInventoryBatch locked = batchMapper.selectByIdForUpdate(batch.getId());
+                if (locked == null || locked.getStatus() == null || locked.getStatus() != 1
+                        || locked.getExpiryDate() == null
+                        || !locked.getExpiryDate().isAfter(java.time.LocalDate.now())) {
+                    continue;
+                }
                 BigDecimal take = locked.getQuantity().min(remaining);
                 if (take.compareTo(BigDecimal.ZERO) <= 0) {
                     continue;

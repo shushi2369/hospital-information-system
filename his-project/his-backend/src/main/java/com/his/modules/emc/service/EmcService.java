@@ -155,7 +155,12 @@ public class EmcService {
     /** 时间节点录入（E-06）：字典校验（中心匹配且启用），超时同样允许录入（留痕真实时间） */
     @Transactional
     public Long addTimepoint(Long visitId, TimepointRequest req) {
-        EmcVisit visit = requireVisit(visitId);
+        // 锁定读：与关档互斥。先查后插的窗口内若关档提交，节点会落在已关档病例上，
+        // 而关档时已按缺失节点固化达标统计，事后补录将造成口径不一致
+        EmcVisit visit = visitMapper.selectByIdForUpdate(visitId);
+        if (visit == null) {
+            throw new BizException(ErrorCode.A0001, "五大中心病例不存在");
+        }
         if (visit.getStatus() != 10) {
             throw new BizException(ErrorCode.A0001, "病例已关档，不可录入节点");
         }
@@ -218,7 +223,11 @@ public class EmcService {
     /** 关档（E-08）：转归登记，10 → 20 */
     @Transactional
     public void close(Long visitId, CloseRequest req) {
-        EmcVisit visit = requireVisit(visitId);
+        // 与节点录入共用行锁：关档提交后，并发节点请求必须看到 20 并被拒绝
+        EmcVisit visit = visitMapper.selectByIdForUpdate(visitId);
+        if (visit == null) {
+            throw new BizException(ErrorCode.A0001, "五大中心病例不存在");
+        }
         if (visit.getStatus() != 10) {
             throw new BizException(ErrorCode.A0001, "病例已关档");
         }

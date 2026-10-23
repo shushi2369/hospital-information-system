@@ -111,6 +111,10 @@ public class NurService {
         vital.setNurseId(CurrentUser.id());
         vital.setStatus(1);
         vitalSignMapper.insert(vital);
+        // 事务尾在院复核：并发出院提交后不得再落体征（与医嘱执行/记账同一 TOCTOU 防线）
+        if (!inpAppService.touchInHospital(req.getAdmissionId())) {
+            throw new BizException(ErrorCode.B6003, "患者已出院或结算，本次体征记录已回滚");
+        }
         return vital.getId();
     }
 
