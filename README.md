@@ -4,9 +4,9 @@
 
 ## 为什么值得读（工程亮点）
 
-- **质量体系即资产**：十套 API e2e **298 项断言** + 93 项单测 + **75 段数据一致性巡检** + Playwright UI 链路（7 条业务链 44 断言）与 UI 冒烟（全菜单 404 猎手）+ 并发竞态套件（12 断言），CI 每次推送全量回归（fail-fast）。
+- **质量体系即资产**：十一套 API e2e + 单测 + 75 段数据一致性巡检 + Playwright UI 链路与 UI 冒烟 + 并发竞态套件，**363 项回归全绿**，CI 每次推送全量回归（fail-fast）。当前口径见 [his-project/README.md](his-project/README.md#6-测试与验收)。
 - **资金与库存全服务端硬门禁**：收费/退费行锁与快照、药房 FEFO 拆批扣减、输血三道安全门禁（不相容阻断/签收/双人双签）、物资原子扣减防超卖——前端只是入口。
-- **并发正确性有论证**：幂等组件（失败释放锁）、乐观锁断言、条件更新防丢失更新、患者行锁防双登记；66 轮查验沉淀 **20+ 条系统性 bug 模式**（[docs/lessons/bug-patterns.md](his-project/docs/lessons/bug-patterns.md)）。
+- **并发正确性有论证**：幂等组件（失败释放锁）、乐观锁断言、条件更新防丢失更新、患者行锁防双登记；**120 轮查验沉淀 20+ 条系统性 bug 模式**（[docs/lessons/bug-patterns.md](his-project/docs/lessons/bug-patterns.md)）。
 - **可运维性**：一键部署（优雅停机 + actuator 探活）、健康检查（actuator 零凭据探针）、异盘备份 + 恢复演练（RTO<60s 含一致性验证）、75 段巡检、慢接口治理有前后数据（床位一览 -83%、病案列表 -78%）、**Redis 停机七探针演练**与发号器降级/恢复补偿、AES 密钥轮换脚本（rotate_aes_key.py）。
 - **文档即课程**：[运维手册](his-project/docs/lessons/ops-runbook.md)、[演示剧本](his-project/docs/lessons/demo-script.md)、[bug 模式库](his-project/docs/lessons/bug-patterns.md)——每条模式带机理/真实案例/检查方法；[**系统设计白皮书**](his-project/docs/portfolio/系统设计白皮书.md)、[**ADR 13 条**](his-project/docs/portfolio/ADR.md)面向求职作品集；[**16 课时教案 + 实验手册**](his-project/docs/course/README.md)面向教学。
 
@@ -18,7 +18,7 @@ graph LR
     subgraph 前端
         W["Vue 3 + Element Plus<br/>40+ 页面 / 动态菜单"]
     end
-    subgraph 后端["Spring Boot 3.2 模块化单体 · 18 个业务模块"]
+    subgraph 后端["Spring Boot 3.2 模块化单体 · 18 个业务模块（30 个模块包）"]
         direction TB
         A["门诊闭环（一期）"]
         B["住院闭环（二期）"]
@@ -29,7 +29,7 @@ graph LR
         G["门诊RIS·传染病·AE·会诊·院感（四期二三批）"]
     end
     subgraph 存储
-        D2[("MySQL 8<br/>Flyway V1~V40 · 103 张表")]
+        D2[("MySQL 8<br/>Flyway V1~V58 · 104 张表")]
         R[("Redis<br/>会话/幂等/限流")]
     end
     W -->|"/api/v1 + JWT + 幂等"| A
@@ -123,23 +123,25 @@ graph LR
 
 ```
 ├── his-project/
-│   ├── his-backend/       Spring Boot 后端（30 个模块包，267 个 REST 接口）
+│   ├── his-backend/       Spring Boot 后端（30 个模块包，274 个 REST 接口）
 │   │   ├── src/main/java/com/his/modules/  # 18 业务模块 + platform/横切模块 + infrastructure + common
 │   │   └── src/main/resources/db/
-│   │       ├── migration/  # V1~V50 全环境迁移（104 张表、菜单权限、五期-lite）
+│   │       ├── migration/  # V1~V58 全环境迁移（104 张表、菜单权限、五期-lite）
 │   │       ├── demo/       # V3/V8/V15/V19/V24/V30 演示数据（仅 dev/test 加载）
 │   │       └── perf/       # 大数据量灌入脚本（5 万患者）
-│   │   └── src/test/       # 93 项单测（17 个测试类）
+│   │   └── src/test/       # 核心域单测（CryptoUtil/退避序列/EMR 归属/会诊门禁等）
 │   ├── his-web/           # Vue 3 前端（40+ 页面 / 27 个 API 模块）
 │   ├── deploy/
 │   │   ├── deploy.sh       # 一键部署（停服→备份→替换→启动→健康检查）
 │   │   ├── health_check.sh # 健康告警（5 项检查）
 │   │   ├── db/             # 一致性巡检 SQL + 恢复演练报告
-│   │   └── e2e/            # 八套 e2e 脚本
-│   └── docs/              # 用户操作手册、OpenAPI 导出（271 接口）
-├── 设计文档/                # 24 份设计文档（含数据字典 103 表 1333 列）
-└── README.md
+│   │   └── e2e/            # 十一套 e2e 脚本（含修复回归/并发/UI 链/教学验证）
+│   └── docs/              # 文档中心（入口 docs/README.md：CHANGELOG/HANDOVER/runbook/课程）
+├── 设计文档/                # 24 份设计文档（含数据字典 104 表）
+└── README.md            # 本文件（仓库门面）
 ```
+
+> **详细与最新口径一律以 [his-project/README.md](his-project/README.md) 为准**（含文档中心、逐轮变更日志 docs/CHANGELOG.md、交接文档 docs/交接HANDOVER.md）。
 
 ## 4. 快速开始（本地开发）
 
