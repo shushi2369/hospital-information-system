@@ -108,14 +108,12 @@ export interface VisitBrief {
   visitNo: string
   visitDate?: string
   patientName?: string
-  patientNo?: string
   deptName?: string
   doctorName?: string
-  chiefComplaint?: string | null
-  diagnosisNames?: string | null
   /** 20 接诊中 30 已完成 */
   status: number
-  createdAt?: string
+  startTime?: string | null
+  endTime?: string | null
 }
 
 export interface VisitQuery {

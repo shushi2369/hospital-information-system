@@ -253,3 +253,38 @@ SELECT 'negative_stock_qty' AS chk, b.id FROM inv_inventory_batch b WHERE b.quan
 SELECT 'duplicate_active_identity' AS chk, id_card_hash, COUNT(*) c FROM pat_patient
 WHERE status = 1 AND id_card_hash IS NOT NULL
 GROUP BY id_card_hash HAVING c > 1 LIMIT 5;
+
+-- ============================================================
+-- 24. 一百二十八轮：状态机门禁落库不变量（112~127 轮修复固化）
+-- ============================================================
+-- 作废医嘱不得残留待执行单（voidOrder skipFutureExec + 阳性作废清理的落库不变量；
+-- 历史存量 23 条已于一百二十八轮清理 status→3）
+SELECT '作废医嘱有待执行单' AS chk, o.id AS order_id, o.order_no
+FROM doc_order o
+WHERE o.status = 60
+  AND EXISTS (SELECT 1 FROM doc_order_exec e WHERE e.order_id = o.id AND e.status = 1) AS chk;
+
+-- 已开始手术（40 术中/50 复苏/60 完成）三方核查（麻醉前+切皮前）必齐
+-- （OrsService.start 硬门禁的落库不变量；70 取消不适用）
+SELECT '术中/完成手术核查不齐' AS chk, r.id AS request_id, r.request_no
+FROM or_surgery_request r
+WHERE r.status IN (40, 50, 60)
+  AND (SELECT COUNT(DISTINCT c.check_type) FROM or_check_record c WHERE c.request_id = r.id) < 2;
+
+-- 已闭环危急值必有处置意见（116 轮 #11 必填的落库不变量）
+SELECT '闭环危急值无处置意见' AS chk, a.id AS alert_id, a.alert_no
+FROM alert_critical a
+WHERE a.status = 40 AND (a.handle_note IS NULL OR a.handle_note = '');
+
+-- 物资库存 = 活跃批次合计（口径：仅有批次的物资——种子数据存在无批次直入库存的
+-- 物资，运行时入库是批次+库存同事务，此不变量对有批次物资成立）
+SELECT '物资库存≠活跃批次和' AS chk, i.material_id, i.quantity AS stock_qty,
+       COALESCE((SELECT SUM(t.quantity) FROM mat_batch t WHERE t.material_id = i.material_id AND t.status = 1), 0) AS batch_sum
+FROM mat_stock i
+WHERE EXISTS (SELECT 1 FROM mat_batch t WHERE t.material_id = i.material_id)
+  AND i.quantity <> COALESCE((SELECT SUM(t.quantity) FROM mat_batch t WHERE t.material_id = i.material_id AND t.status = 1), 0);
+
+-- 处方已发药(30)必已收费（发药前置 charge_status=1 的落库不变量）
+SELECT '已发药处方未收费' AS chk, p.id AS rx_id, p.rx_no
+FROM cli_prescription p
+WHERE p.status = 30 AND p.charge_status = 0;
