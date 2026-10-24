@@ -60,9 +60,10 @@ public class AuthService {
         Long fails = null;
         try {
             fails = redis.opsForValue().increment(failKey);
-            if (fails != null && fails == 1) {
-                redis.expire(failKey, Duration.ofSeconds(60));
-            }
+            // 一百二十四轮【02】P2：expire 无条件补设（幂等）——原仅 fails==1 时设置，
+            // 首次 expire 异常被吞则键永无 TTL，该用户名+IP 永久 A0007 锁死（与 116 轮复核
+            // 【5】ipKey 同款漏修）
+            redis.expire(failKey, Duration.ofSeconds(60));
         } catch (Exception e) {
             log.warn("登录限流计数不可用: {}", e.getMessage());
         }
@@ -174,14 +175,24 @@ public class AuthService {
     private void saveLoginLog(String username, String ip, String ua, boolean success, String message) {
         try {
             SysLoginLog logEntity = new SysLoginLog();
-            logEntity.setUsername(username);
-            logEntity.setIp(ip);
-            logEntity.setUserAgent(ua != null && ua.length() > 256 ? ua.substring(0, 256) : ua);
+            // 一百二十四轮【01】P2：全字段入库前截断（与 ua 同款）——超长 username/ip/message
+            // 会抛 Data too long 被 catch 吞掉，失败登录与限流事件零审计痕迹
+            logEntity.setUsername(truncate(username, 32));
+            logEntity.setIp(truncate(ip, 64));
+            logEntity.setUserAgent(truncate(ua, 256));
+            logEntity.setMessage(truncate(message, 128));
             logEntity.setSuccess(success ? 1 : 0);
             logEntity.setMessage(message);
             loginLogMapper.insert(logEntity);
         } catch (Exception e) {
             log.error("登录日志写入失败", e);
         }
+    }
+
+    private static String truncate(String v, int max) {
+        if (v == null) {
+            return null;
+        }
+        return v.length() > max ? v.substring(0, max) : v;
     }
 }

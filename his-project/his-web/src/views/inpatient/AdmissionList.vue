@@ -721,18 +721,23 @@ function openTransferDialog(row: Admission) {
   fetchWards()
 }
 
+// 一百二十四轮【10】P3：目标床位联动 seq 守卫（同 D7 两处联动同款——旧病区床位列表
+// 后到覆盖新选择，用户选到"所见非所选病区"的床位）
+let trBedSeq = 0
 async function handleTargetWardChange() {
+  const seq = ++trBedSeq
   trForm.toBedId = undefined
   trBedOptions.value = []
   if (!trForm.toWardId) return
   trBedLoading.value = true
   try {
     const beds = (await getBeds({ wardId: trForm.toWardId, bedStatus: 1 })) ?? []
+    if (seq !== trBedSeq) return
     trBedOptions.value = beds.filter((b) => b.bedStatus === 1 && b.id !== currentRow.value?.bedId)
   } catch {
-    trBedOptions.value = []
+    if (seq === trBedSeq) trBedOptions.value = []
   } finally {
-    trBedLoading.value = false
+    if (seq === trBedSeq) trBedLoading.value = false
   }
 }
 
@@ -780,16 +785,19 @@ function openDischargeDialog(row: Admission) {
   dcFeeLoading.value = true
   getDailyFees(row.id)
     .then((groups) => {
+      // 一百二十四轮【4】P2：乱序守卫——快速为 A/B 两患者连续打开出院弹窗时，
+      // A 的慢响应不得把费用合计写进 B 的弹窗（同 117 轮 F-06 模式）
+      if (currentRow.value !== row) return
       dcFeeTotal.value = (groups ?? []).reduce(
         (sum, g) => sum + (Number(g.totalAmount) || 0),
         0
       )
     })
     .catch(() => {
-      dcFeeTotal.value = 0
+      if (currentRow.value === row) dcFeeTotal.value = 0
     })
     .finally(() => {
-      dcFeeLoading.value = false
+      if (currentRow.value === row) dcFeeLoading.value = false
     })
 }
 

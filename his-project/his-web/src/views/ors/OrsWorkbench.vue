@@ -77,7 +77,8 @@
             <el-option v-for="i in anesthesiaItems" :key="i.id" :value="i.id" :label="i.itemName + '（¥' + i.price + '）'" />
           </el-select>
         </el-form-item>
-        <el-form-item label="拟手术日期" required><el-date-picker v-model="createForm.plannedDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" /></el-form-item>
+        <el-form-item label="拟手术日期" required><el-date-picker v-model="createForm.plannedDate"
+              :disabled-date="(d: Date) => d.getTime() < Date.now() - 864e5" type="date" value-format="YYYY-MM-DD" style="width: 100%" /></el-form-item>
         <el-form-item label="麻醉方式" required>
           <el-select v-model="createForm.anesthesiaMethod" style="width: 100%">
             <el-option v-for="(l, v) in [1, 2, 3, 4, 5]" :key="v" :value="Number(v) + 1" :label="anesthesiaMethodLabel(Number(v) + 1)" />
@@ -98,7 +99,8 @@
             <el-option v-for="r in rooms" :key="r.id" :value="r.id" :label="`${r.roomNo} ${r.roomName}`" />
           </el-select>
         </el-form-item>
-        <el-form-item label="手术日期" required><el-date-picker v-model="scheduleForm.surgeryDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" /></el-form-item>
+        <el-form-item label="手术日期" required><el-date-picker v-model="scheduleForm.surgeryDate"
+              :disabled-date="(d: Date) => d.getTime() < Date.now() - 864e5" type="date" value-format="YYYY-MM-DD" style="width: 100%" /></el-form-item>
         <el-form-item label="台次" required><el-input-number v-model="scheduleForm.seqNo" :min="1" :max="10" style="width: 100%" /></el-form-item>
         <el-form-item label="主刀医生ID" required><el-input-number v-model="scheduleForm.surgeonId" :min="1" :precision="0" style="width: 100%" /></el-form-item>
       </el-form>
@@ -135,7 +137,16 @@
       </el-table>
       <template #footer>
         <el-button @click="checkVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmitCheck">登记</el-button>
+        <!-- 一百二十四轮【9】P3：存在未通过项时禁用登记（后端必拒，就地提示防误以为故障） -->
+        <el-tooltip
+          :disabled="checkAllPassed"
+          content="存在未通过核查项，不得登记"
+          placement="top"
+        >
+          <span>
+            <el-button type="primary" :disabled="!checkAllPassed" @click="handleSubmitCheck">登记</el-button>
+          </span>
+        </el-tooltip>
       </template>
     </el-dialog>
 
@@ -213,7 +224,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
@@ -402,6 +413,8 @@ async function openCheck(row: OrsRequest) {
   checkForm.items = defaultChecklist(checkForm.checkType)
   checkVisible.value = true
 }
+
+const checkAllPassed = computed(() => (checkForm.items ?? []).every((i) => i.result))
 
 async function handleSubmitCheck() {
   if (!currentRow || !checkForm.checker2Id) {

@@ -239,7 +239,9 @@ async function openRefund(row: Admission) {
     // 乱序守卫：响应回来时已切换另一行则丢弃（防 A 住院的应退金额预填进 B 弹窗）
     if (refundRow.value !== row) return
     const bill = res.list?.[0]
-    refundBillTotal.value = bill ? Number(bill.totalAmount) : 0
+    // 一百二十四轮【3】P2：口径对齐后端 D3 净额（payable - refund）——totalAmount 会把
+    // 已退部分误算成押金抵扣，压低应退预填与 :max 上限
+    refundBillTotal.value = bill ? Number(bill.payableAmount ?? 0) - Number(bill.refundAmount ?? 0) : 0
     refundAmount.value = refundable.value > 0 ? refundable.value : null
   } catch {
     // 账单额展示 '-'，金额留空由收银台手填

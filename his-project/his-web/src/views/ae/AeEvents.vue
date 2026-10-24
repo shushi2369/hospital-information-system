@@ -137,6 +137,7 @@
         <el-form-item label="发生时间" required>
           <el-date-picker
             v-model="reportForm.eventTime"
+              :disabled-date="(d: Date) => d.getTime() > Date.now() + 60000"
             type="datetime"
             value-format="YYYY-MM-DDTHH:mm:ss"
             style="width: 100%"

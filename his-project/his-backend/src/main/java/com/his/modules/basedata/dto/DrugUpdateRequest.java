@@ -22,6 +22,7 @@ public class DrugUpdateRequest {
     private String drugName;
 
     /** 通用名（传 null 不修改） */
+    @jakarta.validation.constraints.Size(max = 64, message = "genericName最长 64 字")
     private String genericName;
 
     /** 规格，如 0.25g×24粒 */
@@ -30,6 +31,7 @@ public class DrugUpdateRequest {
     private String spec;
 
     /** 剂型（传 null 不修改） */
+    @jakarta.validation.constraints.Size(max = 32, message = "dosageForm最长 32 字")
     private String dosageForm;
 
     /** 分类：1 西药 2 中成药 3 中药饮片（不传则不修改） */

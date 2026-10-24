@@ -189,7 +189,18 @@ const formRules: FormRules = {
   feeType: [{ required: true, message: '请选择费用类别', trigger: 'change' }],
   itemName: [{ required: true, message: '请输入项目名称', trigger: 'blur' }],
   quantity: [{ required: true, message: '请输入数量', trigger: 'change' }],
-  unitPrice: [{ required: true, message: '请输入单价', trigger: 'change' }],
+  // 一百二十四轮【2】P1：0 元费用静默落库拦截（async-validator 对数字 0 放行，
+  // 与押金表单 value<=0 校验器同款）
+  unitPrice: [
+    { required: true, message: '请输入单价', trigger: 'change' },
+    {
+      validator: (_rule: unknown, value: number, callback: (err?: Error) => void) => {
+        if (value != null && value <= 0) callback(new Error('单价必须大于 0'))
+        else callback()
+      },
+      trigger: 'change',
+    },
+  ],
 }
 
 function openManualDialog() {

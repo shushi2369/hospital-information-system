@@ -11,10 +11,12 @@ import lombok.Data;
 public class OrganizationUpdateRequest {
 
     /** 机构名称 */
+    @jakarta.validation.constraints.Size(max = 64, message = "orgName最长 64 字")
     @NotBlank(message = "机构名称不能为空")
     private String orgName;
 
     /** 地址 */
+    @jakarta.validation.constraints.Size(max = 128, message = "address最长 128 字")
     private String address;
 
     /** 联系电话 */

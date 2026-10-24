@@ -16,11 +16,13 @@ public class UserCreateRequest {
     @Size(max = 32, message = "用户名最长 32 位")
     @Pattern(regexp = "[a-zA-Z0-9_.]+", message = "用户名只允许字母、数字、点与下划线")
     private String username;
+    @jakarta.validation.constraints.Size(max = 32, message = "realName最长 32 字")
     @NotBlank(message = "姓名不能为空")
     private String realName;
     @NotBlank(message = "初始密码不能为空")
     @Size(min = 8, max = 32, message = "密码长度须在 8~32 位之间")
     private String password;
+    @jakarta.validation.constraints.Size(max = 20, message = "phone最长 20 字")
     private String phone;
     @NotEmpty(message = "至少绑定一个角色")
     private Set<Long> roleIds;

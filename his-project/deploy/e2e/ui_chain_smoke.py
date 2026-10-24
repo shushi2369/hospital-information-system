@@ -311,11 +311,10 @@ def main():
         # 审核(or:request:review)是医生权限，OR_NURSE 的 v-perm 会隐藏"通过"按钮 → 全链用 admin 走 UI
         page.evaluate("(t) => localStorage.setItem('his_token', t)", admin)
         page.goto(BASE + "/ors/workbench")
-        page.wait_for_timeout(2000)
-        # 用就诊 ID 过滤锁定目标行，避免分页/数据量干扰
-        page.locator(".el-input-number input").first.fill(str(adm_or))
-        page.get_by_role("button", name="查询").click()
-        page.wait_for_timeout(1800)
+        page.wait_for_timeout(2500)
+        # 一百二十四轮：el-input-number 的 input.value setter 不更新 Vue v-model（116 轮同坑）。
+        # 待审核队列默认第一页（pageSize 10），不做过滤直接按行文本匹配目标申请
+        page.wait_for_timeout(1500)
         orow = page.locator("tr", has_text="UI链路术式" + uid)
         check("手术·待审核队列可见", orow.count() > 0)
         if orow.count() > 0:

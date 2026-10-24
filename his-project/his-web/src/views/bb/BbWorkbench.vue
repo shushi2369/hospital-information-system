@@ -308,12 +308,34 @@ async function handleCreateReq() {
 }
 
 async function handleReview(row: BbRequest, approved: boolean) {
-  try {
-    await ElMessageBox.confirm(`确认${approved ? '通过' : '驳回'}用血申请 ${row.reqNo}？`, '用血审核')
-    await reviewRequest(row.id, approved)
-    ElMessage.success('已处理')
-    fetchList()
-  } catch { /* 取消 */ }
+  let note: string | undefined
+  if (!approved) {
+    // 一百二十四轮【6】P3：驳回理由必填（对齐 ORS 范式——审计事件 approved:false 无 reason 留痕缺失）
+    try {
+      const { value } = await ElMessageBox.prompt(`驳回用血申请 ${row.reqNo}，请填写理由：`, '驳回用血申请', {
+        type: 'warning',
+        confirmButtonText: '确认驳回',
+        cancelButtonText: '取消',
+        inputPlaceholder: '驳回理由（必填）',
+      })
+      note = (value ?? '').trim()
+    } catch {
+      return
+    }
+    if (!note) {
+      ElMessage.warning('请填写驳回理由')
+      return
+    }
+  } else {
+    try {
+      await ElMessageBox.confirm(`确认通过用血申请 ${row.reqNo}？`, '用血审核')
+    } catch {
+      return
+    }
+  }
+  await reviewRequest(row.id, approved, note)
+  ElMessage.success(approved ? '已通过' : '已驳回')
+  fetchList()
 }
 
 const bagVisible = ref(false)
@@ -347,7 +369,12 @@ const crossForm = reactive<{ bagId?: number; crossMethod: string; crossResult: n
 async function openCross(row: BbRequest) {
   currentRow = row
   availableBags.value = await getAvailableBags({ bloodType: row.bloodType, component: row.component })
+  // 一百二十四轮【1】P1：openCross 只重置 bagId——crossMethod/crossResult/note 残留上一次
+  // 打开的值（"不相容"被误带到下一单，血袋被误禁发），补全字段重置
   crossForm.bagId = undefined
+  crossForm.crossMethod = '盐水介质'
+  crossForm.crossResult = 1
+  crossForm.note = ''
   crossVisible.value = true
 }
 
@@ -394,13 +421,23 @@ async function handleIssue() {
 const transVisible = ref(false)
 const transForm = reactive<{ bagId?: number; checker2Id?: number; vitalBefore: string }>({ bagId: undefined, checker2Id: undefined, vitalBefore: '' })
 
-function openTransfusion(row: BbRequest) {
+async function openTransfusion(row: BbRequest) {
   currentRow = row
-  const detail = undefined
   transForm.bagId = undefined
   transForm.checker2Id = undefined
   transForm.vitalBefore = ''
   transVisible.value = true
+  // 一百二十四轮【5】P3：按详情查已发血袋自动预填（原让用户手填袋 ID，错输仅靠后端兜底）
+  try {
+    const detail = await getRequestDetail(row.id)
+    // issues 为已发血记录（bagId 即发血袋）
+    const issued = (detail.issues ?? []) as Array<{ bagId?: number }>
+    if (issued.length > 0 && issued[0].bagId) {
+      transForm.bagId = issued[0].bagId
+    }
+  } catch {
+    // 详情取不到则留空手填（后端 startTransfusion 硬校验兜底）
+  }
 }
 
 async function handleTransfusion() {

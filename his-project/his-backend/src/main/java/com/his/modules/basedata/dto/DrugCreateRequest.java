@@ -27,6 +27,7 @@ public class DrugCreateRequest {
     private String drugName;
 
     /** 通用名 */
+    @jakarta.validation.constraints.Size(max = 64, message = "genericName最长 64 字")
     private String genericName;
 
     /** 规格，如 0.25g×24粒 */
@@ -35,6 +36,7 @@ public class DrugCreateRequest {
     private String spec;
 
     /** 剂型（胶囊/片剂/颗粒/注射液） */
+    @jakarta.validation.constraints.Size(max = 32, message = "dosageForm最长 32 字")
     private String dosageForm;
 
     /** 分类：1 西药 2 中成药 3 中药饮片 */

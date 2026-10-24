@@ -3,6 +3,19 @@
 > 唯一追加式变更日志：每轮修复/变更在顶部追加一节。格式：日期｜commit｜要点。
 > 历史轮次（1~109）的详细记录见 git log 与各轮 commit message；本文件自 110 轮文档整合起维护。
 
+## 2026-10-24 ｜ 124~125 轮（二并发 ×2 + 浏览器/API 走查）
+
+- auth/system/basedata 四类复查 6 条：LoginRequest @Size 收口（超长 username 曾使登录审计
+  全静默丢失）+ saveLoginLog 全字段截断 + failKey TTL 无条件补设（116 轮 ipKey 同款漏修）；
+  DTO @Size 批量补齐 16 处（system 6 + basedata 10，含 doctorName 32/location 64 对齐 DB 列宽）
+- 九页面弹窗交互 12 条：BB 交叉配血表单全字段重置（不相容残留误禁发血 P1）、手工记账 0 元
+  单价校验器（P1）、退押金预览净额口径对齐 D3、出院弹窗费用合计乱序守卫、输血开始预填已发
+  血袋、BB 驳回理由 prompt、手术日期禁过去、AE 发生时间禁未来、核查项未通过禁用登记、
+  转科目标床位 seq 守卫、差异单重报改按 billId 直查（不依赖 50 笔缓存）
+- UI 链适配：ors 填充方式回归文本匹配（el-input-number setter 不更新 v-model，116 轮同坑）
+- 修复链 bug：OrsWorkbench 漏 import computed（checkAllPassed 改动引入，Playwright console
+  抓出 ReferenceError 定位，构建产物引用链核验后修复）
+
 ## 2026-10-24 ｜ 122~123 轮（三并发 ×2 + 浏览器/API 走查）
 
 - e2e 质量专项 12 条：phase2 check39 死断言修复（events 分页第三处适配）、phase3 供应商精确匹配、

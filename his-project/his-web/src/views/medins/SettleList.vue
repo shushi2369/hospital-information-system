@@ -235,7 +235,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Search } from '@element-plus/icons-vue'
-import { getBillPage, type Bill } from '@/api/billing'
+import { getBillPage, type Bill, getBillDetail } from '@/api/billing'
 import { fmtMoney, todayStr } from '@/api/registration'
 import {
   applyInsuranceSettle,
@@ -353,14 +353,20 @@ function openApplyDialog(row: Bill) {
   applyDialogVisible.value = true
 }
 
-/** 一百一十九轮【3】P1：差异单重报——复用申报弹窗（按 billId 定位原账单行） */
-function handleReapply(row: InsuranceSettle) {
-  const bill = bills.value.find((b) => b.id === row.billId)
-  if (!bill) {
-    ElMessage.warning('未找到该申报单对应的账单（可能不在当前收费记录页签），请切换后重试')
-    return
+/** 一百一十九轮【3】P1：差异单重报。一百二十四轮【11】P3：不再依赖顶部最近 50 笔
+ * 账单缓存（跌出缓存则唯一出口不可达）——按 billId 单独取账单详情 */
+async function handleReapply(row: InsuranceSettle) {
+  try {
+    const detail = await getBillDetail(row.billId)
+    const billRow = (detail as { bill?: Bill }).bill
+    if (!billRow?.id) {
+      ElMessage.warning('未找到该申报单对应的账单')
+      return
+    }
+    openApplyDialog(billRow)
+  } catch {
+    ElMessage.warning('账单详情获取失败，请稍后重试')
   }
-  openApplyDialog(bill)
 }
 
 async function handleApplySubmit() {
