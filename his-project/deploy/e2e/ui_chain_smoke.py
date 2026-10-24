@@ -684,13 +684,16 @@ def main():
     def release_test_schedules():
         import subprocess
         sql = ("UPDATE or_schedule s JOIN or_surgery_request r ON r.id=s.request_id "
-               "SET s.status=0, s.slot_active=0, s.updated_at=NOW() "
+               "SET s.status=0, s.slot_active=NULL, s.updated_at=NOW() "
                "WHERE s.status=1 AND (r.surgery_name LIKE '实验术式%' OR r.surgery_name LIKE 'UI链路术式%');")
         mysql_exe = "C:/his-runtime/mysql-8.0.36-winx64/bin/mysql.exe"
         try:
-            subprocess.run([mysql_exe, "-uroot", "-proot123", "his", "-e", sql],
-                           capture_output=True, timeout=30)
-            print("teardown: 测试排台槽位已释放")
+            _r = subprocess.run([mysql_exe, "-uroot", "-proot123", "his", "-e", sql],
+                                capture_output=True, timeout=30)
+            if _r.returncode == 0:
+                print("teardown: 测试排台槽位已释放")
+            else:
+                print("teardown 排台清理失败:", _r.stderr.decode("utf-8", "ignore")[:200])
         except (OSError, subprocess.TimeoutExpired):
             try:
                 subprocess.run(["mysql", "-uroot", "-proot123", "his", "-e", sql],

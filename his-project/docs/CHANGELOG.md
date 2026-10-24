@@ -3,6 +3,17 @@
 > 唯一追加式变更日志：每轮修复/变更在顶部追加一节。格式：日期｜commit｜要点。
 > 历史轮次（1~109）的详细记录见 git log 与各轮 commit message；本文件自 110 轮文档整合起维护。
 
+## 2026-10-24 ｜ 133 轮（单测第三弹 RegistrationService + 排台 teardown 根因修复）
+
+- RegistrationServiceTest ×9：挂号 R1 重复拒/B2 号源满拒 B3/过去日期拒/停诊医生拒/
+  专家号资质拒/成功（号费快照+诊查费+排队号 max+1+合计）、退号错态拒/乐观锁冲突拒/
+  成功置 20——R1~R4 规则首次单测固化
+- **排台 teardown 根因修复（E7.3 复发实锤）**：teardown SQL 把 slot_active 置 0 而
+  释放语义是 NULL——0 撞 uk_schedule_slot2 唯一索引报 Duplicate entry，且
+  subprocess.run 不抛非零退出码，假成功消息掩盖了失败。两处 teardown（verify_course/
+  ui_chain）改 NULL + returncode 检查；存量 10 槽位已用正确 SQL 清理，E7.3 恢复 41/41
+- 单测总数 153→162，全部全绿
+
 ## 2026-10-24 ｜ 132 轮（单测补强第二弹：AlertService/RisService）
 
 - AlertServiceTest ×11：危急值三段状态机（notify 前态/条件断言/成功、confirm 未通知拒/
