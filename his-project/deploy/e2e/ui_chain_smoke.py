@@ -29,7 +29,13 @@ results = []
 # 一百一十三轮 B-2：与 concurrency_test 同型兜底——mysql.exe 全路径仅作者本机存在，
 # 他人环境（含 CI）一跑即崩，降级为 PATH 里的 mysql，再不行仅跳过解锁并告警。
 import subprocess as _sp
+# 一百二十二轮【04】：双降级（全路径 → PATH mysql）——非本机环境静默 no-op 会让
+# E7.3 排台累积防线悄悄失效
 _mysql_exe = "C:/his-runtime/mysql-8.0.36-winx64/bin/mysql.exe"
+try:
+    _sp.run([_mysql_exe, "--version"], capture_output=True, timeout=10)
+except Exception:
+    _mysql_exe = "mysql"
 _sql_unlock = "DELETE FROM bil_daily_settlement WHERE settle_date=CURDATE() AND cashier_id=5"
 try:
     _sp.run([_mysql_exe, "-uroot", "-proot123", "his", "-e", _sql_unlock],
@@ -535,7 +541,7 @@ def main():
 
         # ---------------- ⑪ RIS 链：检查医嘱执行(API) → 预约/开始/Mock影像/书写(UI) → 审核(doctor UI) ----------------
         ris_tok = login("ris.zhang")
-        pid_ri, adm_ri = seed_admission(admin, cashier, uid, "链路影像", "ri", "链路影像诊断", 4)  # seq=7 与 EMC 链身份证撞车
+        pid_ri, adm_ri = seed_admission(admin, cashier, uid, "链路影像", "ri", "链路影像诊断", 4)  # seq 参数与 EMC 链身份证错峰（注释勘误）
         exam_item = api("/basedata/charge-items?category=3&status=1", admin)["data"][0]
         api("/doc/orders", doc_tok2, {"admissionId": adm_ri, "orderClass": 2, "category": 2,
             "items": [{"chargeItemId": exam_item["id"], "quantity": 1}]}, idem="ui-ris-ord-" + uid)
@@ -673,22 +679,26 @@ def main():
 
         browser.close()
 
-        browser.close()
-
-
     # teardown：释放本轮手术排台占用的槽位（一百零七轮防复发：测试排台累积占满
-    # seq 1~10 会击穿 verify_course E7.3 的重试假设；排台无删除端点，SQL 治理）
+    # seq 1~10 会击穿 verify_course E7.3 的重试假设；排台无删除端点，SQL 治理。
+    # 一百二十二轮【04】：双降级对齐 verify_course——非本机环境静默 no-op 会让防线失效）
     def release_test_schedules():
         import subprocess
         sql = ("UPDATE or_schedule s JOIN or_surgery_request r ON r.id=s.request_id "
                "SET s.status=0, s.slot_active=0, s.updated_at=NOW() "
                "WHERE s.status=1 AND (r.surgery_name LIKE '实验术式%' OR r.surgery_name LIKE 'UI链路术式%');")
+        mysql_exe = "C:/his-runtime/mysql-8.0.36-winx64/bin/mysql.exe"
         try:
-            subprocess.run(["C:/his-runtime/mysql-8.0.36-winx64/bin/mysql.exe", "-uroot", "-proot123", "his", "-e", sql],
+            subprocess.run([mysql_exe, "-uroot", "-proot123", "his", "-e", sql],
                            capture_output=True, timeout=30)
             print("teardown: 测试排台槽位已释放")
-        except Exception as _e2:
-            print("teardown 排台清理跳过:", _e2)
+        except (OSError, subprocess.TimeoutExpired):
+            try:
+                subprocess.run(["mysql", "-uroot", "-proot123", "his", "-e", sql],
+                               capture_output=True, timeout=30)
+                print("teardown: 测试排台槽位已释放（PATH mysql）")
+            except Exception as _e2:
+                print("teardown 排台清理跳过（无可用 mysql 客户端）:", _e2)
 
     release_test_schedules()
     failed = [n for n, ok in results if not ok]

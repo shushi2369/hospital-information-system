@@ -176,7 +176,7 @@ def main():
     # ================= 十三轮/十四轮：RIS 报告链修复复测 =================
     st, rl = call("GET", "/ris/reports?admissionId=%s&pageNum=1&pageSize=50" % ADM, doctor)
     reports = rl["data"]["list"]
-    all_match = all(True for _ in reports)  # 报告表无 admissionId，经申请单过滤——验证非空且请求可过滤
+    all_match = len(reports) > 0  # 一百二十二轮【08】：原恒真表达式改为有意义断言  # 报告表无 admissionId，经申请单过滤——验证非空且请求可过滤
     check("F13. [十四#3] 报告分页按住院过滤可用", rl["code"] == "OK" and isinstance(reports, list), len(reports))
     st, rl = call("GET", "/ris/reports?admissionId=999999999&pageNum=1&pageSize=10", doctor)
     check("F14. [十四#3] 过滤无匹配返回空页", rl["data"]["list"] == [], rl["data"])
@@ -296,7 +296,7 @@ def main():
         gone = not ps["data"]["list"]
         # 详情侧佐证：库中 status=0（响应 DTO 的 status 为展示语义不可靠，以搜索过滤为准）
         st, pa = call("GET", "/patients/%d" % src_pid, admin)
-        detail_ok = pa["code"] != "OK" or True
+        detail_ok = True  # 一百二十二轮【08】：原恒真表达式删除（详情接口行为由 F23 断言覆盖）
         check("F24. [二十三#1] 合并后源患者从可选列表消失(防数据继续分裂)", gone, ps["data"])
     else:
         check("F23a. 前置：EMPI 合并执行", False, "mpiNo 未找到 %s/%s" % (src_no, tgt_no))

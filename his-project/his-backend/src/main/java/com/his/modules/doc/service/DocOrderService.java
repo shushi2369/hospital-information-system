@@ -453,12 +453,15 @@ public class DocOrderService {
             throw new BizException(ErrorCode.B6103, "皮试已登记");
         }
         // 并发双登记只有一笔成功——皮试结果不能被后来者覆盖（八十六轮并发审计 P2-1）
+        // 一百二十二轮【3】P3：note 拼入 result（原字段有 @Size 校验却全模块无消费点——契约不符）
+        String resultWithNote = req.getResult()
+                + (req.getNote() == null || req.getNote().isBlank() ? "" : "｜备注：" + req.getNote());
         int registered = execMapper.update(null, new LambdaUpdateWrapper<DocOrderExec>()
                 .eq(DocOrderExec::getId, execId)
                 .eq(DocOrderExec::getStatus, 1)
                 .set(DocOrderExec::getStatus, 2)
                 .set(DocOrderExec::getNurseId, CurrentUser.id())
-                .set(DocOrderExec::getResult, req.getResult()));
+                .set(DocOrderExec::getResult, resultWithNote));
         if (registered != 1) {
             throw new BizException(ErrorCode.B6103, "皮试已登记");
         }

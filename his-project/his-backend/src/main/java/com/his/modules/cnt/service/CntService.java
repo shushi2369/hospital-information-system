@@ -37,6 +37,15 @@ public class CntService {
         if (req.getAdmissionId() == null && req.getVisitId() == null) {
             throw new BizException(ErrorCode.A0001, "住院或门诊就诊至少关联一项");
         }
+        // 一百二十二轮【4】P3：住院/门诊互斥（双挂会让会诊责任归属不清）+ 科室存在性
+        // （原 deptId 不校验，可建指向不存在科室的死单，列表 deptName 恒空永不闭环）
+        if (req.getAdmissionId() != null && req.getVisitId() != null) {
+            throw new BizException(ErrorCode.A0001, "住院与门诊就诊只能关联一项");
+        }
+        var dept = basedataAppService.getDepartment(req.getDeptId());
+        if (dept == null) {
+            throw new BizException(ErrorCode.A0001, "申请科室不存在");
+        }
         if (req.getDeptId() == null) {
             throw new BizException(ErrorCode.A0001, "受邀科室不能为空");
         }

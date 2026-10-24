@@ -56,5 +56,6 @@ export const createCntRequest = (data: {
 export const acceptCntRequest = (id: number) => post<void>(`/cnt/requests/${id}/accept`)
 
 /** 完成会诊（20 → 30，附会诊意见），权限 cnt:execute */
+// 一百二十二轮【2】P3：opinion 改 @RequestBody（查询串传意见会超 header 限制且落 access log）
 export const completeCntRequest = (id: number, opinion: string) =>
-  post<void>(`/cnt/requests/${id}/complete?opinion=${encodeURIComponent(opinion)}`)
+  post<void>(`/cnt/requests/${id}/complete`, { opinion })

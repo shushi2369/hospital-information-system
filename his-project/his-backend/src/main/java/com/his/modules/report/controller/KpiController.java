@@ -23,10 +23,15 @@ import java.util.Map;
 public class KpiController {
     private final KpiService kpiService;
 
-    /** 区间反转直接拒绝：静默返回空集会让"KPI 为 0"被误读成真实业务量（对齐报表口径） */
+    /** 区间反转直接拒绝：静默返回空集会让"KPI 为 0"被误读成真实业务量（对齐报表口径）。
+     *  一百二十二轮【1】P2：跨度上限 366 天——原无上限，from=2000/to=2099 会把
+     *  区间内全部完成手术实体载入内存（资源型风险） */
     private void requireRange(LocalDateTime from, LocalDateTime to) {
         if (from != null && to != null && from.isAfter(to)) {
             throw new com.his.common.BizException(com.his.common.ErrorCode.A0001, "开始时间不能晚于结束时间");
+        }
+        if (from != null && to != null && to.toLocalDate().toEpochDay() - from.toLocalDate().toEpochDay() > 366) {
+            throw new com.his.common.BizException(com.his.common.ErrorCode.A0001, "统计跨度最长 366 天");
         }
     }
 
@@ -57,7 +62,9 @@ public class KpiController {
         return R.ok(kpiService.safety(from, to));
     }
 
-    /** K-04 CSV 导出（csvCell 前导单引号防公式注入，对齐一期报表口径） */
+    /** K-04 CSV 导出（csvCell 前导单引号防公式注入，对齐一期报表口径）。
+     *  一百二十二轮【8】P3：导出属数据出域动作，统一留痕（对齐收入明细导出口径） */
+    @com.his.common.AuditLog(module = "report", action = "导出KPI看板", bizType = "kpi_export")
     @GetMapping("/export")
     @PreAuthorize("@ss.hasPerm('kpi:view')")
     public void export(HttpServletResponse response,

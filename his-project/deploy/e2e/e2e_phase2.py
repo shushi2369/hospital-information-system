@@ -264,7 +264,9 @@ def main():
     st, r = call("GET", "/doc/executions/todo", cashier)
     check("38. 收费员查执行单被拒(A0003)", r["code"] == "A0003", r)
     st, r = call("GET", "/plt/events?bizNo=" + bill_no, admin)
-    check("39. 结算事件链可查询", r["code"] == "OK" and len(r["data"]) >= 1, r)
+    # 一百二十二轮【02】：events 改真分页后原 len(dict)>=2 恒真——改查 list 实际内容
+    ev_list = (r.get("data") or {}).get("list") or [] if isinstance(r.get("data"), dict) else (r.get("data") or [])
+    check("39. 结算事件链可查询", r["code"] == "OK" and len(ev_list) >= 1, r)
     st, r = call("GET", "/mrc/records?archiveStatus=20", mrc_clerk)
     check("40. 病案员只读+归档查询正常", r["code"] == "OK", r)
 

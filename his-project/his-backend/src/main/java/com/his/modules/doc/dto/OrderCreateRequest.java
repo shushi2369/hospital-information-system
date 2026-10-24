@@ -29,5 +29,6 @@ public class OrderCreateRequest {
     private Boolean skinTestFlag;
     @Valid
     @NotEmpty(message = "医嘱明细不能为空")
+    @jakarta.validation.constraints.Size(max = 50, message = "单次开嘱明细最多 50 条")
     private List<OrderItemRequest> items;
 }

@@ -94,6 +94,8 @@ def main():
 
     # ================= B. 会诊 =================
     st, al = call("GET", "/inp/admissions?status=10&pageNum=1&pageSize=5", admin)
+    # 一百二十二轮【06】：前置断言（原静默 IndexError；单独跑/前序套件全出院时整套白跑）
+    assert (al.get("data") or {}).get("list"),         "会诊链前置失败：无在院住院（需先跑产生在院患者的套件或手工建一单）"
     adm = al["data"]["list"][0]
     st, r = call("POST", "/cnt/requests", admin, {"admissionId": adm["id"],
                  "patientId": adm["patientId"], "deptId": 1, "consultDoctorId": 2,

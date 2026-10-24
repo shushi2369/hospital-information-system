@@ -170,8 +170,17 @@ def main():
 
     deliver(admin, 100)
     st, ul = call("GET", "/rpt/uploads?bizType=3&pageSize=50", admin)
+    # 一百二十二轮【12】：payload 按 JSON 解析取 admissionId 精确比较（原子串会误命中 120/1423）
+    # 实测 settle payload 的 admissionId 在 data.admissionId 嵌套（顶层只有 total）
+    def _payload_adm(u):
+        try:
+            pl = json.loads(u.get("payload") or "{}")
+            return (pl.get("data") or {}).get("admissionId") or pl.get("admissionId")
+        except Exception:
+            return None
+    # admissionId 在 payload 里是字符串（String.valueOf），与数字 id 统一转 str 比较
     settle_row = next((u for u in ul["data"]["list"] if u["status"] == 20
-                       and str(adm_id) in (u.get("payload") or "")), None)
+                       and str(_payload_adm(u)) == str(adm_id)), None)
     check("9. 出院结算触发上报（Mock 受理）", settle_row is not None, len(ul["data"]["list"]))
 
     # ---- 6. 统计口径 ----

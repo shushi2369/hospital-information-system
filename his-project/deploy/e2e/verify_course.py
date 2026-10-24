@@ -88,7 +88,11 @@ check("E2.4b 暂存病历", r["code"] == "OK", r)
 st, r = call("POST", "/clinic/visits/%d/diagnoses" % vid, "dr.li",
     {"diagnosisName": "实验诊断", "diagnosisType": 1}, idem="ce2dg-" + uid)
 check("E2.4c 录诊断", r["code"] == "OK", r)
-check("E2.4d 就诊停留 20（E3/E4 需要就诊中）", True)  # 占位断言：真实验证在 E4.6
+# 一百二十二轮【10】：占位改真断言（就诊确实推进到 20）
+st, vst = call("GET", "/clinic/visits/%d" % vid, "dr.li")
+# 响应为扁平结构（status 顶层，无 visit 嵌套）
+check("E2.4d 就诊停留 20（E3/E4 需要就诊中）",
+      vst.get("code") == "OK" and (vst.get("data") or {}).get("status") == 20, vst)
 
 print("===== E3 处方-审核-发药 =====")
 st, r = call("POST", "/clinic/visits/%d/prescriptions" % vid, "dr.li",
@@ -263,12 +267,21 @@ def _release_test_schedules():
     sql = ("UPDATE or_schedule s JOIN or_surgery_request r ON r.id=s.request_id "
            "SET s.status=0, s.slot_active=0, s.updated_at=NOW() "
            "WHERE s.status=1 AND (r.surgery_name LIKE '实验术式%' OR r.surgery_name LIKE 'UI链路术式%');")
+    # 一百二十二轮【04】：双降级（全路径 → PATH mysql）——非本机环境静默 no-op 会让
+    # 排台累积防线悄悄失效
+    mysql_exe = "C:/his-runtime/mysql-8.0.36-winx64/bin/mysql.exe"
     try:
-        subprocess.run(["C:/his-runtime/mysql-8.0.36-winx64/bin/mysql.exe", "-uroot", "-proot123", "his", "-e", sql],
+        subprocess.run([mysql_exe, "-uroot", "-proot123", "his", "-e", sql],
                        capture_output=True, timeout=30)
         print("teardown: 测试排台槽位已释放")
-    except Exception as _e2:
-        print("teardown 排台清理跳过:", _e2)
+    except (OSError, subprocess.TimeoutExpired):
+        try:
+            subprocess.run(["mysql", "-uroot", "-proot123", "his", "-e", sql],
+                           capture_output=True, timeout=30)
+            print("teardown: 测试排台槽位已释放（PATH mysql）")
+        except Exception as _e3:
+            print("teardown 排台清理跳过（无可用 mysql 客户端）:", _e3)
+
 
 # teardown：停用本轮自建收费员（账号卫生三件套；保留行供审计）
 _release_test_schedules()

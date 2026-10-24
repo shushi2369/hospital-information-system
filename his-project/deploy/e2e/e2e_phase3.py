@@ -176,7 +176,8 @@ def main():
                  {"supplierCode": "SUPP3" + uid, "supplierName": "三期供应商" + uid}, idem="p3-sup-" + uid)
     check("20. 新增供应商", r["code"] == "OK", r)
     st, sups = call("GET", "/whse/suppliers", admin)
-    sup_id = [s for s in sups["data"] if "SUPP3" in s.get("supplierCode", "")][0]["id"]
+    # 一百二十二轮【03】：精确匹配（原前缀匹配在持久库第 2 轮起命中历史轮供应商）
+    sup_id = [s for s in sups["data"] if s.get("supplierCode", "") == "SUPP3" + uid][0]["id"]
     st, r = call("POST", "/whse/purchase-orders", admin,
                  {"supplierId": sup_id, "drugId": 2, "quantity": 30, "unitPrice": "18.00",
                   "expectedDate": today}, idem="p3-po-" + uid)
