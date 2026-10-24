@@ -3,6 +3,25 @@
 > 唯一追加式变更日志：每轮修复/变更在顶部追加一节。格式：日期｜commit｜要点。
 > 历史轮次（1~109）的详细记录见 git log 与各轮 commit message；本文件自 110 轮文档整合起维护。
 
+## 2026-10-24 ｜ 130~131 轮（OpenAPI 重生成 + Redis 全景 + 核心服务单测补强）
+
+- OpenAPI 文档重生成（218→229 路径）：原 docs/openapi.json 停在 10-04（105 轮前），
+  缺 110~128 轮新增的 11 个端点（alerts/stats、cdss acknowledge、daily-fees void、
+  mat/suppliers、mrc/borrows、nur/nurses、rpt uploads 族），零僵尸路径。
+  侧端口 8081 临时启 swagger 抓取 /v3/api-docs 全量重写，主服务随即恢复
+- Redis 全景审计：键空间 4 类（sess/idem/login:fail/login:ipfail）+ seq 计数器，
+  idem TTL 24h 自然过期实测健康、seq 带滚动 TTL，无泄漏键；与 runbook §3b 七探针
+  结论对照无新增未演练键空间（ipfail 同属登录链 fail-open 同类）
+- 核心服务单测补强（119 轮盲区清单落地第一弹）：
+  - UserServiceTest 10 用例：内置超管三防线（停用/重置/修改全拒）、非管理员禁授
+    ADMIN 角色、updateStatus 白名单、禁用即踢会话 removeStrict、密码强度三态、
+    建档用户名唯一——112 轮 B01 P0 首次单测固化
+  - CdssServiceTest 9 用例：updateRule null 跳过语义（局部修改不重置停用态——
+    116 轮 P1 回归防护）、显式传值生效、非法 status/乐观锁断言、配伍规则
+    refB 必填且≠refA、过敏关键词必填、类型白名单、建码唯一——120 轮校验首次固化
+- 全路由 UI 冒烟 45/45 复扫通过
+- 子代理连续 5 轮模型并发限额，本轮全部主代理直执行
+
 ## 2026-10-24 ｜ 129 轮（权限矩阵四向对账 + 教学材料复查——零缺陷收敛轮）
 
 - **权限矩阵四向对账（157 码全量）：零缺口**——①代码→DB：无死权限码（唯一差集
