@@ -3,6 +3,16 @@
 > 唯一追加式变更日志：每轮修复/变更在顶部追加一节。格式：日期｜commit｜要点。
 > 历史轮次（1~109）的详细记录见 git log 与各轮 commit message；本文件自 110 轮文档整合起维护。
 
+## 2026-10-24 ｜ 134 轮（单测第四弹：横切工具类守卫）
+
+- UtilGuardsTest ×12：LikeEscapeUtil（%/_/反斜杠三转义 + 顺序正确性 + null/空透传 +
+  中文原样）、JsonEscapeUtil（引号/反斜杠/换行/制表 + 0x01 控制字符  + 端到端
+  往返解析断言——转义产物喂 Jackson readTree 还原原文）、PageQuery（pageSize 双向钳制 +
+  pageNum 负数与 99999999 上限 10000）——横切注入面与分页边界首次固化
+- 单测总数 162→174 全绿
+- Playwright 深走查：已排台行核查弹窗正常打开（手术安全核查双人签名）
+- 十一套回归全绿
+
 ## 2026-10-24 ｜ 133 轮（单测第三弹 RegistrationService + 排台 teardown 根因修复）
 
 - RegistrationServiceTest ×9：挂号 R1 重复拒/B2 号源满拒 B3/过去日期拒/停诊医生拒/
