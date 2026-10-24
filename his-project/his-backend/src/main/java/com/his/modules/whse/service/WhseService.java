@@ -32,6 +32,7 @@ public class WhseService {
     private final WhsePurchaseOrderMapper poMapper;
     private final BasSupplierMapper supplierMapper;
     private final InventoryService inventoryService;
+    private final com.his.modules.basedata.app.BasedataAppService basedataAppService;
     private final com.his.modules.plt.service.PltService pltService;
     private final IdGenerator idGenerator;
 
@@ -72,6 +73,12 @@ public class WhseService {
         BasSupplier supplier = supplierMapper.selectById(req.getSupplierId());
         if (supplier == null || supplier.getStatus() == null || supplier.getStatus() == 0) {
             throw new BizException(ErrorCode.A0001, "供应商不存在或已停用");
+        }
+        // 一百二十六轮 R-1 P2：药品存在+启用校验（113 轮只修了供应商半边——幽灵 drugId
+        // 一路审批放行，入库时 getDrug 为 null 抛错，采购单永久卡 20）
+        var drug = basedataAppService.getDrug(req.getDrugId());
+        if (drug == null || drug.getStatus() == null || drug.getStatus() != 1) {
+            throw new BizException(ErrorCode.A0001, "药品不存在或已停用");
         }
         WhsePurchaseOrder po = new WhsePurchaseOrder();
         po.setPoNo(idGenerator.next("CG"));

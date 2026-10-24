@@ -3,6 +3,20 @@
 > 唯一追加式变更日志：每轮修复/变更在顶部追加一节。格式：日期｜commit｜要点。
 > 历史轮次（1~109）的详细记录见 git log 与各轮 commit message；本文件自 110 轮文档整合起维护。
 
+## 2026-10-24 ｜ 126~127 轮（二并发 ×2 + Playwright 走查）
+
+- 定时任务与工具类专项 12 条：PatientHashRehashTask 双 P1（脏密文中断整批+LIMIT 2000 无游标
+  尾部永不可达→id 游标全量+逐行隔离）；AlertOverdueTask 去重（按 plt 事件查重+ORDER BY）；
+  JsonEscapeUtil 控制字符全覆盖；PageQuery pageNum 上限 10000；调度池 4→6+注释勘误
+- registration/clinic/whse 深水区 9 条：whse 幽灵药品校验（113 轮只修了供应商半边）、
+  clinic complete/saveRecord @Version 断言（双开页面静默丢更新）、过号任务 wrapper 补
+  version bump（123 轮 doc.voidOrder 同源）、voidPrescription 补就诊中校验（R15 旁路）、
+  markCharged 断言对称；退费死链路口径备案（保守口径+B3005 已拦，代码保留为预收费解禁备用）
+- 记录不修：IdGenerator 多实例降级撞号（单机部署）、JDBC socketTimeout（网络分区场景）、
+  效期 30 天预警扫描（《05》R14 待产品确认）、FREQUENCY_SLOTS 双份真相（当前一致）、
+  夜诊跨零点（无此业务）
+- Playwright 走查：核查弹窗禁用联动（拨不通过→禁用/恢复→解禁）实测通过
+
 ## 2026-10-24 ｜ 124~125 轮（二并发 ×2 + 浏览器/API 走查）
 
 - auth/system/basedata 四类复查 6 条：LoginRequest @Size 收口（超长 username 曾使登录审计

@@ -847,7 +847,11 @@ public class BillingService {
                 throw new BizException(ErrorCode.A0008, "检查申请状态已变化，退费已取消，请刷新后重试");
             }
         }
-        // 挂号费+诊查费全退且未完成就诊 → 挂号单置已退号（R5/R9）
+        // 挂号费+诊查费全退且未完成就诊 → 挂号单置已退号（R5/R9）。
+        // 一百二十六轮 R-4 P2 口径备案：就诊存在时 B3005(:354) 只放行 visitStatus==10，
+        // 而 cli_visit 接诊即 20——本分支在"有就诊的账单"上不可达；visit==null 的门诊
+        // 预收费通道（buildPayableItems status==10 分支）开放前，联动无触发面。保留代码
+        // 是为预收费解禁时 R5/R9 联动即刻可用，勿按死代码删除（delete 会埋资金回归）
         List<BilChargeDetail> regDetails = detailById.values().stream()
                 .filter(d -> d.getSourceType() == 1 && (d.getFeeType() == 1 || d.getFeeType() == 2)).toList();
         if (!regDetails.isEmpty() && visit != null && visit.getVisitStatus() != 30

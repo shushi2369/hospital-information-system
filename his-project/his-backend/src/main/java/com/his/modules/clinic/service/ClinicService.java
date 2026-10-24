@@ -146,7 +146,10 @@ public class ClinicService {
         visit.setPresentIllness(req.getPresentIllness());
         visit.setPhysicalExam(req.getPhysicalExam());
         visit.setAdvice(req.getAdvice());
-        visitMapper.updateById(visit);
+        // 一百二十六轮 R-2 P2：暂存同样断言（与 complete 对称——静默 0 行会让医生以为已保存）
+        if (visitMapper.updateById(visit) != 1) {
+            throw new BizException(ErrorCode.A0008, "就诊已被并发修改，请刷新后重试");
+        }
     }
 
     /** 新增诊断（C-04）：首条诊断自动为主诊断 */
@@ -288,6 +291,9 @@ public class ClinicService {
             throw new BizException(ErrorCode.A0001, "处方不存在");
         }
         checkVisitScope(requireVisit(prescription.getVisitId()));
+        // 一百二十六轮 R-6 P3：补就诊中校验（其余写操作都走 requireVisitInProgress——
+        // 完成后作废未收费处方是穿透 R15 只读的旁路；补正需求走管理通道）
+        requireVisitInProgress(prescription.getVisitId());
         boolean voidable = prescription.getStatus() == 10
                 || (prescription.getStatus() == 20 && prescription.getChargeStatus() == 0);
         if (!voidable) {
@@ -357,7 +363,11 @@ public class ClinicService {
         visit.setStatus(30);
         // 截断到秒：DATETIME(0) 对纳秒四舍五入，23:59:59.5 完成就诊会被存成次日零点（T-02 日归属错天）
         visit.setEndTime(LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
-        visitMapper.updateById(visit);
+        // 一百二十六轮 R-2 P2：@Version 断言——双开页面并发暂存时 complete 命中 0 行
+        // 被静默吞掉（接口成功但就诊仍 20，R15 只读未生效且无报错）
+        if (visitMapper.updateById(visit) != 1) {
+            throw new BizException(ErrorCode.A0008, "就诊已被并发修改（如另一页面暂存），请刷新后重试");
+        }
     }
 
     /** 就诊详情聚合（C-11） */

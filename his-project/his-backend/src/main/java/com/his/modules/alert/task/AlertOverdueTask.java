@@ -34,11 +34,19 @@ public class AlertOverdueTask {
 
     private void scan(int status, LocalDateTime before, String label) {
         try {
+            // 一百二十六轮【3】P2：ORDER BY 定序（原无排序时滞留 >200 条尾部单据可能永不被扫）
             List<AlertCritical> rows = alertMapper.selectList(new LambdaQueryWrapper<AlertCritical>()
                     .eq(AlertCritical::getStatus, status)
+                    .orderByAsc(AlertCritical::getId)
                     .last("LIMIT 200"));
             int overdue = 0;
             for (AlertCritical a : rows) {
+                // 去重：同一单同一状态只上报一次（实体无升级标记列——按 plt 事件查重，
+                // 避免 30 分钟一轮重复灌入事件表；查不到事件表时兜底为首次上报）
+                Long reported = pltService.countEvents("alert.overdue", a.getAlertNo());
+                if (reported != null && reported > 0) {
+                    continue;
+                }
                 // 各状态按进入该状态的时刻计时：待确认从通知时间起算、已确认从确认时间起算。
                 // 用 createdAt 会把"滞留很久后才通知"的单据在下一次扫描立刻误判超时
                 LocalDateTime since = status == 20 ? a.getNotifiedAt()

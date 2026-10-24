@@ -15,7 +15,8 @@ public class PageQuery {
 
     public <T> Page<T> toPage() {
         long size = Math.min(Math.max(pageSize, 1), 200);
-        long num = Math.max(pageNum, 1);
+        // 一百二十六轮【11】P3：pageNum 上限 10000——深翻页 OFFSET 无界在大表上是慢查询面
+        long num = Math.min(Math.max(pageNum, 1), 10_000);
         return new Page<>(num, size);
     }
 }

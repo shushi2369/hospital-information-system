@@ -112,6 +112,13 @@ public class PltService {
         return target.getMpiNo();
     }
 
+    /** 按类型+单号查事件数（一百二十六轮【3】：AlertOverdueTask 去重判定用） */
+    public Long countEvents(String eventType, String bizNo) {
+        return eventLogMapper.selectCount(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<PltEventLog>()
+                .eq(PltEventLog::getEventType, eventType)
+                .eq(PltEventLog::getBizNo, bizNo));
+    }
+
     /** 事件落库（业务事务内调用，同事务提交/回滚） */
     @Transactional(propagation = Propagation.REQUIRED)
     public void recordEvent(String eventType, String bizNo, String payload) {

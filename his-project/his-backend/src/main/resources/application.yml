@@ -7,7 +7,7 @@ spring:
     timeout-per-shutdown-phase: 20s
   task:
     scheduling:
-      # 5 个定时任务（rpt 30s 投递 + 4 个日切 cron）共用调度器，默认 pool=1 串行阻塞：
+      # 7 个定时任务（rpt 30s 投递 + 过号/批次效期/床位费/长嘱计划/危急值超时 + 数据保留）共用调度器（一百二十六轮【12】勘误）：
       # 投递一旦变慢/挂起，日切任务全部顺延
       pool:
         size: 4

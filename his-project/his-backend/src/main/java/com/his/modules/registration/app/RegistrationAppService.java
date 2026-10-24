@@ -75,7 +75,12 @@ public class RegistrationAppService {
             return;
         }
         reg.setChargeStatus(1);
-        registrationMapper.updateById(reg);
+        // 一百二十六轮 R-8 P3：@Version 断言（与 charge 内其他联动步对称——静默 0 行
+        // 会让已收费就诊持续出现在待缴费列表，重试撞 B3001）
+        if (registrationMapper.updateById(reg) != 1) {
+            throw new com.his.common.BizException(com.his.common.ErrorCode.A0008,
+                    "挂号单已被并发修改，收费已回滚，请重试");
+        }
     }
 
     /** 已就诊且挂号费未收（收费窗口待缴费列表来源之一） */

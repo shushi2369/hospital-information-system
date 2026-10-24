@@ -28,7 +28,11 @@ public class RegistrationExpireTask {
                 .le(RegRegistration::getRegDate, LocalDate.now())
                 .eq(RegRegistration::getStatus, 10)
                 .set(RegRegistration::getStatus, 40)
-                .set(RegRegistration::getUpdatedAt, LocalDateTime.now()));
+                .set(RegRegistration::getUpdatedAt, LocalDateTime.now())
+                // 一百二十六轮 R-3 P2：wrapper 更新不触发乐观锁插件（entity=null）——
+                // version 不 bump 则并发退号/接诊的 updateById WHERE version=v 仍命中，
+                // 把已过号(40)静默覆写回 20/30，与 123 轮 doc.voidOrder 同源
+                .setSql("version = version + 1"));
         if (updated > 0) {
             log.info("过号任务完成: {} 条历史挂号单置为已过号（含错期补扫）", updated);
         }
