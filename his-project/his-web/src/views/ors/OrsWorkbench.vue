@@ -331,8 +331,31 @@ async function handleCreate() {
 
 async function handleReview(row: OrsRequest, approved: boolean) {
   const action = approved ? '通过' : '驳回'
+  if (!approved) {
+    // 一百一十九轮【1】P1：驳回必须收集理由（后端 133 行必抛，原死按钮 100% 失败）
+    let reason = ''
+    try {
+      const { value } = await ElMessageBox.prompt(`驳回手术申请 ${row.requestNo}，请填写驳回理由：`, '驳回手术申请', {
+        type: 'warning',
+        confirmButtonText: '确认驳回',
+        cancelButtonText: '取消',
+        inputPlaceholder: '驳回理由（必填）',
+      })
+      reason = (value ?? '').trim()
+    } catch {
+      return
+    }
+    if (!reason) {
+      ElMessage.warning('请填写驳回理由')
+      return
+    }
+    await reviewSurgery(row.id, { approved: false, reason })
+    ElMessage.success('已驳回')
+    fetchList()
+    return
+  }
   if (!(await confirmAction(`确认${action}手术申请 ${row.requestNo}？`, '手术审核'))) return
-  await reviewSurgery(row.id, { approved })
+  await reviewSurgery(row.id, { approved: true })
   ElMessage.success(`已${action}`)
   fetchList()
 }

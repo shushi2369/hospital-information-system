@@ -133,6 +133,11 @@ async function handleSubmit() {
     ElMessage.warning('危急下限与危急上限至少填写一项')
     return
   }
+  // 一百一十九轮【10】P3：low>=high 预校验（对齐后端 107 轮 T2/T3 守卫）
+  if (form.lowValue != null && form.highValue != null && form.lowValue >= form.highValue) {
+    ElMessage.warning('危急下限必须小于危急上限')
+    return
+  }
   submitting.value = true
   try {
     await saveThreshold({

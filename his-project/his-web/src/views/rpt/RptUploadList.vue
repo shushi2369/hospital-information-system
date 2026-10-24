@@ -133,7 +133,8 @@ const pretty = (payload: string) => {
 }
 
 async function fetchStats() {
-  stats.value = await getRptStats()
+  try {
+    stats.value = await getRptStats()
   } catch {
     // 一百一十八轮【08】：统计失败置零渲染，不渲染 undefined
     Object.keys(stats.value).forEach((k) => { (stats.value as Record<string, unknown>)[k] = 0 })

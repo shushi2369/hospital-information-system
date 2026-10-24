@@ -173,14 +173,17 @@ public class DocOrderService {
         }
         pltService.recordEvent("order.created", order.getOrderNo(),
                 "{\"admissionId\":" + req.getAdmissionId() + ",\"category\":" + req.getCategory() + "}");
-        // CDSS 后置提示（提示不阻断，REQUIRES_NEW+异常隔离，《18》§2.3）
+        // 事务尾在院复核（对齐摆药/执行 D-03）：出院判空后并发开嘱不得留下已结算住院的活动医嘱
+        // 一百二十轮 F-2：在院断言提前于 cdss.check——REQUIRES_NEW 独立提交先于断言时，
+        // 主事务回滚会让 cdss_hit 永久指向不存在的医嘱（幽灵命中）
+        assertStillInHospital(req.getAdmissionId());
+        // CDSS 后置提示（提示不阻断，REQUIRES_NEW+异常隔离，《18》§2.3）；断言通过后调用，
+        // 留痕指向的医嘱必已提交
         try {
             cdssAppService.check(order, insertedItems);
         } catch (Exception e) {
             pltService.recordEvent("cdss.check.failed", order.getOrderNo(), "{}");
         }
-        // 事务尾在院复核（对齐摆药/执行 D-03）：出院判空后并发开嘱不得留下已结算住院的活动医嘱
-        assertStillInHospital(req.getAdmissionId());
         return order.getOrderNo();
     }
 

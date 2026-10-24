@@ -32,6 +32,16 @@
               <el-button v-if="row.status === 40" v-perm="'bb:transfusion:execute'" link type="primary" @click="openTransfusion(row)">开始输注</el-button>
               <el-button v-if="row.status === 50" v-perm="'bb:transfusion:execute'" link type="success" @click="openFinish(row)">结束</el-button>
               <el-button v-if="[50, 60].includes(row.status)" v-perm="'bb:adverse:report'" link type="danger" @click="openAdverse(row)">不良反应</el-button>
+              <!-- 一百一十九轮【4】P2：补取消入口（后端支持 10/20/30→70，配血被他人先发等卡死场景的出口） -->
+              <el-button
+                v-if="[10, 20, 30].includes(row.status)"
+                v-perm="'bb:request:create'"
+                link
+                type="warning"
+                @click="handleCancelRequest(row)"
+              >
+                取消
+              </el-button>
               <el-button v-perm="'bb:request:query'" link type="info" @click="openDetail(row)">详情</el-button>
             </template>
           </el-table-column>
@@ -449,6 +459,26 @@ const detail = ref<Record<string, unknown> | null>(null)
 async function openDetail(row: BbRequest) {
   detail.value = await getRequestDetail(row.id)
   detailVisible.value = true
+}
+
+/** 一百一十九轮【4】P2：用血申请取消（后端条件更新 10/20/30→70） */
+async function handleCancelRequest(row: BbRequest) {
+  try {
+    await ElMessageBox.confirm(
+      `确认取消用血申请 ${row.reqNo}？取消后该申请终止。`,
+      '取消用血申请',
+      { type: 'warning', confirmButtonText: '确认取消', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  try {
+    await cancelRequest(row.id)
+    ElMessage.success('用血申请已取消')
+    fetchList()
+  } catch {
+    // 拦截器已统一提示
+  }
 }
 
 onMounted(() => { fetchList(); fetchBags() })

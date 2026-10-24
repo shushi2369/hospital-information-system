@@ -105,6 +105,11 @@ public class OrsService {
             request.setAnesthesiaPrice(item.getPrice());
         }
         requestMapper.insert(request);
+        // 一百二十轮 F-3：事务尾在院断言（对齐 doc touchInHospital 范式）——出院钩子读取后
+        // 到本事务提交之间插入的申请单，会随本 UPDATE 0 行整体回滚，不再挂上已出院住院
+        if (!inpAppService.touchInHospital(req.getAdmissionId())) {
+            throw new BizException(ErrorCode.B6003, "患者已出院或结算，手术申请已回滚");
+        }
         pltService.recordEvent("ors.request.created", request.getRequestNo(),
                 "{\"admissionId\":" + req.getAdmissionId() + "}");
         return request.getRequestNo();

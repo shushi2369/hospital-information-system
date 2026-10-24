@@ -156,9 +156,17 @@ export const DOC_TYPE_DEFAULT_SECTIONS: Record<number, string[]> = {
   9: ['内容'],
 }
 
-/** qcIssues 兼容字符串/数组 */
+/** qcIssues 兼容字符串/数组；一百一十九轮【8】P3：JSON 数组字符串先解析（原样显示带方括号引号） */
 export function qcIssuesText(v?: string | string[] | null): string {
   if (!v) return ''
   if (Array.isArray(v)) return v.join('；')
+  if (typeof v === 'string' && v.trim().startsWith('[')) {
+    try {
+      const arr = JSON.parse(v)
+      if (Array.isArray(arr)) return arr.map(String).filter(Boolean).join('；')
+    } catch {
+      // 非 JSON 数组按原文返回
+    }
+  }
   return String(v)
 }

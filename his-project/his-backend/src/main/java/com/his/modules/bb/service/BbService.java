@@ -131,6 +131,10 @@ public class BbService {
         request.setUsePurpose(req.getUsePurpose());
         request.setStatus(10);
         requestMapper.insert(request);
+        // 一百二十轮 F-3：事务尾在院断言（对齐 doc/ors 范式）——出院钩子与开单并发窗口闭合
+        if (!inpAppService.touchInHospital(req.getAdmissionId())) {
+            throw new BizException(ErrorCode.B6003, "患者已出院或结算，用血申请已回滚");
+        }
         pltService.recordEvent("bb.request.created", request.getReqNo(),
                 "{\"admissionId\":" + req.getAdmissionId() + "}");
         return request.getReqNo();

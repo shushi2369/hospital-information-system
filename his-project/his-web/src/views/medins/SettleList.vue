@@ -109,7 +109,7 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="90" align="center" fixed="right">
+            <el-table-column label="操作" width="130" align="center" fixed="right">
               <template #default="{ row }">
                 <el-button
                   v-if="row.status === 10"
@@ -120,7 +120,17 @@
                 >
                   对账
                 </el-button>
-                <span v-else>-</span>
+                <!-- 一百一十九轮【3】P1：差异(30)重报入口——《10》状态机 2.5 的唯一出口，原前端不可达 -->
+                <el-button
+                  v-if="row.status === 30 && diffSettleIds.has(row.id)"
+                  v-perm="'medins:settle:create'"
+                  link
+                  type="warning"
+                  @click="handleReapply(row)"
+                >
+                  重新申报
+                </el-button>
+                <span v-if="row.status !== 10 && row.status !== 30">-</span>
               </template>
             </el-table-column>
           </el-table>
@@ -277,7 +287,13 @@ const settleQuery = reactive({
 /** 已申报账单集合（用于标记申报状态）：必须全量拉取申报单——只看当前页会把
  *  落在后面页的已申报账单误标为"未申报"并放出申报按钮（八十七轮审计 P1-3） */
 const settleFlags = ref<InsuranceSettle[]>([])
-const settledBillIds = computed(() => new Set(settleFlags.value.map((s) => s.billId)))
+// 一百一十九轮【3】P1：排除对账差异(30)的申报单——后端 apply 明确允许差异单重报
+// （《10》状态机 2.5 唯一出口），原实现让差异账单的申报按钮永久消失、重报流程前端不可达
+const settledBillIds = computed(() =>
+  new Set(settleFlags.value.filter((s) => s.status !== 30).map((s) => s.billId))
+)
+/** 对账差异(30)的申报单 → 可重报 */
+const diffSettleIds = computed(() => new Set(settleFlags.value.filter((s) => s.status === 30).map((s) => s.id)))
 
 async function fetchSettleFlags() {
   try {
@@ -337,6 +353,16 @@ function openApplyDialog(row: Bill) {
   applyDialogVisible.value = true
 }
 
+/** 一百一十九轮【3】P1：差异单重报——复用申报弹窗（按 billId 定位原账单行） */
+function handleReapply(row: InsuranceSettle) {
+  const bill = bills.value.find((b) => b.id === row.billId)
+  if (!bill) {
+    ElMessage.warning('未找到该申报单对应的账单（可能不在当前收费记录页签），请切换后重试')
+    return
+  }
+  openApplyDialog(bill)
+}
+
 async function handleApplySubmit() {
   if (!applyRow.value) return
   applySubmitting.value = true
@@ -359,7 +385,8 @@ async function handleApplySubmit() {
 
 // ---------------- 对账 ----------------
 function handleReconcile(row: InsuranceSettle) {
-  ElMessageBox.prompt('对账备注（选填）', '申报单对账', {
+  ElMessageBox.prompt('对账备注（选填，最长 200 字）', '申报单对账', {
+      inputValidator: (v: string) => !v || v.trim().length <= 200 || '备注最长 200 字',
     type: 'warning',
     confirmButtonText: '确认对账',
     cancelButtonText: '取消',

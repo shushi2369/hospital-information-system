@@ -123,13 +123,14 @@
         {{ closeRow.alertNo }}｜{{ closeRow.itemName }}：{{ closeRow.criticalValue }}
       </div>
       <el-form label-width="80px">
-        <el-form-item label="处置意见">
+        <el-form-item label="处置意见" required>
+          <!-- 一百一十九轮【2】P1：后端 #11 已改必填，前端同步（原"选填"文案误导） -->
           <el-input
             v-model="handleNote"
             type="textarea"
             :rows="3"
             maxlength="200"
-            placeholder="选填，如已复测、已调整用药等"
+            placeholder="必填，如已复测、已调整用药等"
           />
         </el-form-item>
       </el-form>
@@ -248,6 +249,10 @@ function openCloseDialog(row: AlertItem) {
 
 async function handleCloseSubmit() {
   if (!closeRow.value) return
+  if (!handleNote.value.trim()) {
+    ElMessage.warning('请填写处置意见后再闭环')
+    return
+  }
   closeSubmitting.value = true
   try {
     await closeAlert(closeRow.value.id, handleNote.value.trim() || undefined)

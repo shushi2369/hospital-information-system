@@ -108,6 +108,14 @@ public class PubService {
             }
         } catch (Exception e) {
             log.warn("传染病自动报卡失败 diagnosis {}: {}", diagnosisName, e.getMessage());
+            // 一百二十轮 F-1：失败事件留痕——法定传染病漏报属合规级后果，原仅 log 无对账锚点
+            try {
+                pltService.recordEvent("pub.card.autoCreate.failed", String.valueOf(visitId),
+                        "{\"diagnosis\":\"" + com.his.infrastructure.util.JsonEscapeUtil.escape(
+                                diagnosisName == null ? "" : diagnosisName) + "\"}");
+            } catch (Exception ignored) {
+                // 平台日志也不可用时仅保留应用日志
+            }
         }
     }
 

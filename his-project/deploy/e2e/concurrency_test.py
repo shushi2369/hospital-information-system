@@ -215,6 +215,8 @@ def main():
                  "phone": "138" + uid}, idem="cc-pt-" + uid)
     check("C9. 前置：建档成功", r["code"] == "OK", r)
     st, pl = call("GET", "/patients?name=" + urllib.parse.quote("并发入院患者" + uid), cashier)
+    # 一百二十轮：前置断言（建档偶发失败时静默 IndexError 难定位）
+    assert r["code"] == "OK" and (pl.get("data") or {}).get("list"),         "并发入院前置失败：建档/查询异常 " + json.dumps(pl, ensure_ascii=False)[:200]
     race_patient = pl["data"]["list"][0]["id"]
     st, wards = call("GET", "/inp/wards", cashier)
     race_ward, race_dept, free = None, None, []
