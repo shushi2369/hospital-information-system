@@ -116,6 +116,8 @@ class DocOrderServiceTest extends UnitTestBase {
         when(inpAppService.addExecFee(any(), any(), any(), any(), any(), any())).thenReturn(555L);
         when(inpAppService.touchInHospital(900L)).thenReturn(true);
         when(orderMapper.update(any(), any())).thenReturn(1);
+        // 一百二十三轮【4】P3：@Version 回写断言配套打桩
+        when(execMapper.updateById(any())).thenReturn(1);
 
         service.execute(5L);
 

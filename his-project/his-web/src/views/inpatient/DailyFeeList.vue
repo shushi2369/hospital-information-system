@@ -156,8 +156,11 @@ async function searchAdmissions(kw: string) {
 const loading = ref(false)
 const groups = ref<DailyFeeGroup[]>([])
 
+let _fetchFeesSeq = 0 // // 一百二十二轮组件级【F2】P1：患者维度加载竞态守卫——旧响应后到不得用上一患者数据填充界面
 async function fetchFees() {
+  const seq = ++_fetchFeesSeq
   if (!admissionId.value) {
+    if (seq !== _fetchFeesSeq) return
     groups.value = []
     return
   }

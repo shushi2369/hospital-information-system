@@ -374,9 +374,12 @@ const execDate = ref(todayStr())
 const execLoading = ref(false)
 const pendingList = ref<ExecItem[]>([])
 
+let _fetchPendingSeq = 0 // // 一百二十二轮组件级【F2】P1：患者维度加载竞态守卫——旧响应后到不得用上一患者数据填充界面
 async function fetchPending() {
+  const seq = ++_fetchPendingSeq
   execLoading.value = true
   try {
+    if (seq !== _fetchPendingSeq) return
     pendingList.value = (await getNurPendingExecutions({ execDate: execDate.value })) ?? []
   } catch {
     pendingList.value = []
@@ -456,8 +459,11 @@ async function fetchNurPatients() {
   }
 }
 
+let _fetchVitalsSeq = 0 // // 一百二十二轮组件级【F2】P1：患者维度加载竞态守卫——旧响应后到不得用上一患者数据填充界面
 async function fetchVitals() {
+  const seq = ++_fetchVitalsSeq
   if (!vitalAdmissionId.value) {
+    if (seq !== _fetchVitalsSeq) return
     vitals.value = []
     return
   }

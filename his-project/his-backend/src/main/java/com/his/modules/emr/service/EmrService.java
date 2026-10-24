@@ -111,9 +111,17 @@ public class EmrService {
             var admission = inpAppService.getAdmission(record.getAdmissionId());
             if (admission != null && admission.getAdmissionTime() != null
                     && record.getRecordTime().isAfter(admission.getAdmissionTime().plusHours(24))) {
+                // 一百二十三轮复核【2】P2：自动打标走合并而非覆盖——退回再提交路径上
+                // record.qcIssues 携带上一轮质控意见，整体覆盖会冲掉退回痕迹（与 B14c 同源）
                 try {
-                    record.setQcIssues(objectMapper.writeValueAsString(
-                            List.of("入院记录超24小时提交（系统自动标记）")));
+                    java.util.LinkedHashSet<String> merged = new java.util.LinkedHashSet<>();
+                    if (record.getQcIssues() != null) {
+                        for (Object o : objectMapper.readValue(record.getQcIssues(), java.util.List.class)) {
+                            merged.add(String.valueOf(o));
+                        }
+                    }
+                    merged.add("入院记录超24小时提交（系统自动标记）");
+                    record.setQcIssues(objectMapper.writeValueAsString(new java.util.ArrayList<>(merged)));
                 } catch (Exception ignored) {
                 }
             }

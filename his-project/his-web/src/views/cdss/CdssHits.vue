@@ -20,7 +20,7 @@
               <!-- 一百一十八轮【04】：处置回写（后端校验开单医生本人；默认坚持开立 → 可标记放弃） -->
               <el-button
                 v-if="row.ignored === 1"
-                v-perm="'cdss:query'"
+                v-perm="'cdss:hit:query'"
                 link
                 type="warning"
                 size="small"

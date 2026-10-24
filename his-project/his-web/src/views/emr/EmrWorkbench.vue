@@ -329,9 +329,13 @@ const records = ref<EmrRecord[]>([])
 const total = ref(0)
 const query = reactive({ pageNum: 1, pageSize: 10 })
 
+let _fetchRecordsSeq = 0 // // 一百二十二轮组件级【F2】P1：患者维度加载竞态守卫——旧响应后到不得用上一患者数据填充界面
 async function fetchRecords() {
+  const seq = ++_fetchRecordsSeq
   if (!admissionId.value) {
+    if (seq !== _fetchRecordsSeq) return
     records.value = []
+    if (seq !== _fetchRecordsSeq) return
     total.value = 0
     return
   }

@@ -547,19 +547,26 @@ const ageText = computed(() => {
   return age === null ? '' : `${age} 岁`
 })
 
+// 一百二十二轮组件级【F1】P1：detail 加载竞态守卫——接诊队列快速点击患者 A→B 时
+// A 的慢响应后到会用 A 的主诉/病历填充 B 的工作台，"暂存病历"即跨患者临床数据错写
+let detailSeq = 0
+
 async function loadDetail() {
+  const seq = ++detailSeq
   if (!visitId.value) {
     detail.value = null
     return
   }
   detailLoading.value = true
   try {
-    detail.value = await getVisitDetail(visitId.value)
+    const res = await getVisitDetail(visitId.value)
+    if (seq !== detailSeq) return
+    detail.value = res
     fillRecordForm()
   } catch {
-    detail.value = null
+    if (seq === detailSeq) detail.value = null
   } finally {
-    detailLoading.value = false
+    if (seq === detailSeq) detailLoading.value = false
   }
 }
 

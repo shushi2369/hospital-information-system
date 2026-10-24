@@ -548,9 +548,13 @@ const filterCategory = ref<number | undefined>(undefined)
 const filterStatus = ref<number | undefined>(undefined)
 const orderQuery = reactive({ pageNum: 1, pageSize: 10 })
 
+let _fetchOrdersSeq = 0 // // 一百二十二轮组件级【F2】P1：患者维度加载竞态守卫——旧响应后到不得用上一患者数据填充界面
 async function fetchOrders() {
+  const seq = ++_fetchOrdersSeq
   if (!admissionId.value) {
+    if (seq !== _fetchOrdersSeq) return
     orders.value = []
+    if (seq !== _fetchOrdersSeq) return
     orderTotal.value = 0
     return
   }

@@ -3,6 +3,23 @@
 > 唯一追加式变更日志：每轮修复/变更在顶部追加一节。格式：日期｜commit｜要点。
 > 历史轮次（1~109）的详细记录见 git log 与各轮 commit message；本文件自 110 轮文档整合起维护。
 
+## 2026-10-24 ｜ 122~123 轮（三并发 ×2 + 浏览器/API 走查）
+
+- e2e 质量专项 12 条：phase2 check39 死断言修复（events 分页第三处适配）、phase3 供应商精确匹配、
+  teardown mysql 双降级对齐、phase4b 前置 assert、check37 恒真修复（userId 动态解析）、
+  死代码删除、E2.4d 占位改真断言、双 browser.close、phase5 payload 精确匹配（连修两处：data 嵌套 + 字符串类型）
+- cnt/doc/rpt 9 条：KPI 跨度钳制 366 天、cnt complete 改 @RequestBody DTO（+前端适配）、
+  cnt create 科室校验+住院门诊互斥、doc items @Size(50)、skinTest note 拼入 result、KPI 导出留痕
+- 修复复核 9 条（117~119 轮回归）：床位启停 expect 分派补 3 态备案、HMAC 预检查双候选（同证双档 P1）、
+  日结复查 READ_COMMITTED、entry 守卫 FOR UPDATE、per-IP expire 无条件补设、幂等锁 CAS、
+  闭环率排除系统关闭行、resetAuthState 注释对齐
+- 组件级 6 条：VisitWorkbench loadDetail 竞态守卫（跨患者病历错写 P1）、InpOrders/Emr/DailyFee/Nursing
+  患者维度加载守卫、doc.voidOrder wrapper 补 version bump（医嘱复活 P1）、emr submit 自动打标合并、
+  exec 回写断言、CDSS 处置按钮权限码勘误（cdss:query→cdss:hit:query，原 v-perm 移除按钮）
+- 跨模块并发链 5 条：ors/bb 开单事务尾断言、cdss.check 移位、报卡失败留痕、
+  addDiagnosis visit 断言（待验证记录）、Hikari 池耗尽（待验证记录）
+- 单测：CryptoUtil +3 HMAC 用例、DocOrderServiceTest updateById 打桩配套；**116 项单测全绿**
+
 ## 2026-10-24 ｜ 120~121 轮（三并发/二并发 + 浏览器）
 
 - 剩余业务页面 12 条：plt 事件分页补全、MPI 合并入口（不可逆警示 confirm）、CDSS 规则表单类型依赖字段、

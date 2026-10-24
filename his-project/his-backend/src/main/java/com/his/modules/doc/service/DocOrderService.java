@@ -311,7 +311,10 @@ public class DocOrderService {
                         c == null ? order.getCategory() : c.getCategory(),
                         item.getItemName(), item.getQuantity(), item.getUnitPrice(), exec.getId());
                 exec.setChargeDetailId(feeId);
-                execMapper.updateById(exec);
+                // 一百二十三轮复核【4】P3：@Version 回写断言（费用已插但 linkage 丢失=静默半写）
+                if (execMapper.updateById(exec) != 1) {
+                    throw new BizException(ErrorCode.B6106, "执行单回写失败，本次执行已回滚");
+                }
             }
         }
         if (order.getStatus() == 20) {
@@ -429,11 +432,15 @@ public class DocOrderService {
         if (order.getStatus() == 30 || order.getStatus() == 40) {
             throw new BizException(ErrorCode.B6106, "已执行的医嘱不可作废");
         }
+        // 一百二十三轮复核【1】P1：wrapper 更新补 version bump——乐观锁插件只对
+        // updateById(entity) 生效，wrapper 不 bump 则 review 的 updateById 旧快照可把
+        // 已作废医嘱覆写回 20（复活并可发药，用药安全级），与 ors.cancel 同源
         int voided = orderMapper.update(null, new LambdaUpdateWrapper<DocOrder>()
                 .eq(DocOrder::getId, orderId)
                 .in(DocOrder::getStatus, 10, 20)
                 .set(DocOrder::getStatus, 60)
-                .set(DocOrder::getVoidReason, req.getReason()));
+                .set(DocOrder::getVoidReason, req.getReason())
+                .setSql("version = version + 1"));
         if (voided != 1) {
             throw new BizException(ErrorCode.B6106, "已执行的医嘱不可作废");
         }
