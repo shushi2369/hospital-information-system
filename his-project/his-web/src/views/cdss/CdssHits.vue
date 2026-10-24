@@ -15,6 +15,22 @@
             </template>
           </el-table-column>
           <el-table-column prop="hitTime" label="命中时间" width="160" align="center" show-overflow-tooltip />
+          <el-table-column label="操作" width="110" align="center">
+            <template #default="{ row }">
+              <!-- 一百一十八轮【04】：处置回写（后端校验开单医生本人；默认坚持开立 → 可标记放弃） -->
+              <el-button
+                v-if="row.ignored === 1"
+                v-perm="'cdss:query'"
+                link
+                type="warning"
+                size="small"
+                @click="handleAcknowledge(row)"
+              >
+                标记放弃
+              </el-button>
+              <span v-else>-</span>
+            </template>
+          </el-table-column>
         </el-table>
         <div class="pagination-bar">
           <el-pagination v-model:current-page="query.pageNum" v-model:page-size="query.pageSize"
@@ -56,7 +72,16 @@
           </el-select>
         </el-form-item>
         <el-form-item label="参照A ID" required><el-input-number v-model="ruleForm.refAId" :min="1" :precision="0" style="width: 100%" /></el-form-item>
-        <el-form-item label="参照B ID/上限"><el-input-number v-model="ruleForm.refBId" :min="0" :precision="0" style="width: 100%" /></el-form-item>
+        <!-- 一百一十八轮【03】P1：类型依赖字段——配伍(1)/年龄(3) 参照B 后端必填，过敏(4) 需关键词 -->
+        <el-form-item
+          :label="ruleForm.ruleType === 3 ? '年龄上限' : '参照B ID'"
+          :required="ruleForm.ruleType === 1 || ruleForm.ruleType === 3"
+        >
+          <el-input-number v-if="ruleForm.ruleType !== 4" v-model="ruleForm.refBId" :min="1" :precision="0" style="width: 100%" />
+        </el-form-item>
+        <el-form-item v-if="ruleForm.ruleType === 4" label="过敏关键词" required>
+          <el-input v-model="ruleForm.allergyKeyword" placeholder="患者过敏史包含该关键词即命中" />
+        </el-form-item>
         <el-form-item label="提示文案" required><el-input v-model="ruleForm.message" type="textarea" :rows="2" /></el-form-item>
       </el-form>
       <template #footer>
@@ -69,9 +94,9 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
-import { createRule, cdssTypeLabel, CDSS_TYPE_OPTIONS, getHitPage, getRulePage, type CdssHit, type CdssRule } from '@/api/cdss'
+import { acknowledgeHit, createRule, cdssTypeLabel, CDSS_TYPE_OPTIONS, getHitPage, getRulePage, type CdssHit, type CdssRule } from '@/api/cdss'
 
 const auth = useUserStore()
 // 与后端 @PreAuthorize('cdss:rule:manage') 同口径——硬编码 ADMIN 会让持码角色永远看不到维护页签
@@ -104,21 +129,56 @@ async function fetchRules() {
 const ruleVisible = ref(false)
 function resetRuleForm() {
   Object.assign(ruleForm, { ruleCode: '', ruleType: 2, refAId: undefined, refBId: undefined, message: '' })
+  ruleForm.allergyKeyword = ''
 }
-const ruleForm = reactive<{ ruleCode: string; ruleType: number; refAId?: number; refBId?: number; message: string }>({ ruleCode: '', ruleType: 2, refAId: undefined, refBId: undefined, message: '' })
+const ruleForm = reactive<{ ruleCode: string; ruleType: number; refAId?: number; refBId?: number; allergyKeyword: string; message: string }>({ ruleCode: '', ruleType: 2, refAId: undefined, refBId: undefined, allergyKeyword: '', message: '' })
 
 async function handleCreateRule() {
   if (!ruleForm.ruleCode || !ruleForm.refAId || !ruleForm.message) {
     ElMessage.warning('请完整填写规则')
     return
   }
+  // 一百一十八轮【03】P1：类型依赖前端校验（与后端 validateRuleFields 同口径）
+  if ((ruleForm.ruleType === 1 || ruleForm.ruleType === 3) && !ruleForm.refBId) {
+    ElMessage.warning(ruleForm.ruleType === 1 ? '配伍规则必须填写参照B（且不得与参照A相同）' : '年龄规则必须填写年龄上限')
+    return
+  }
+  if (ruleForm.ruleType === 1 && ruleForm.refAId === ruleForm.refBId) {
+    ElMessage.warning('配伍规则的参照A与参照B不得相同')
+    return
+  }
+  if (ruleForm.ruleType === 4 && !ruleForm.allergyKeyword.trim()) {
+    ElMessage.warning('过敏映射规则必须填写过敏关键词')
+    return
+  }
   await createRule({
     ruleCode: ruleForm.ruleCode, ruleType: ruleForm.ruleType, refAId: ruleForm.refAId,
-    refBId: ruleForm.refBId, message: ruleForm.message,
+    refBId: ruleForm.refBId, allergyKeyword: ruleForm.allergyKeyword.trim() || undefined,
+    message: ruleForm.message,
   })
   ElMessage.success('规则已创建')
   ruleVisible.value = false
   fetchRules()
+}
+
+/** 一百一十八轮【04】：处置回写——标记"提示后放弃"（后端校验开单医生本人，A0003 兜底） */
+async function handleAcknowledge(row: CdssHit) {
+  try {
+    await ElMessageBox.confirm(
+      `确认将该提示标记为"提示后放弃"？请在病历中记录评估依据。`,
+      'CDSS 处置确认',
+      { type: 'warning', confirmButtonText: '确认放弃', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  try {
+    await acknowledgeHit(row.id, false)
+    ElMessage.success('已标记为提示后放弃')
+    fetchHits()
+  } catch {
+    // 拦截器已统一提示
+  }
 }
 
 onMounted(() => { fetchHits(); if (canManageRule.value) fetchRules() })

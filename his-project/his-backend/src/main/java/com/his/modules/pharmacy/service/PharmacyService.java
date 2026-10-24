@@ -290,22 +290,31 @@ public class PharmacyService {
                         .like(query.getReturnNo() != null && !query.getReturnNo().isBlank(),
                                 PhrReturnOrder::getReturnNo, LikeEscapeUtil.escape(query.getReturnNo()))
                         .orderByDesc(PhrReturnOrder::getId));
-        Map<Long, String> rxNoById = new HashMap<>();
-        for (PhrReturnOrder order : page.getRecords()) {
-            var rx = clinicAppService.getPrescriptionView(order.getPrescriptionId());
-            if (rx != null) {
-                rxNoById.put(order.getPrescriptionId(), rx.getRxNo());
-            }
+        // 一百一十九轮复核【2】P2：rxNo/dispenseNo/患者名三组批查（原每行 4-5 次单查，
+        // 与 dispenseOrderPage 同型 N+1——118 轮修一半漏了本方法）
+        List<Long> rxIds = page.getRecords().stream().map(PhrReturnOrder::getPrescriptionId)
+                .filter(java.util.Objects::nonNull).distinct().toList();
+        Map<Long, String> rxNoById = rxIds.isEmpty() ? new HashMap<>()
+                : clinicAppService.prescriptionRxNoByIds(rxIds);
+        List<Long> dispenseIds = page.getRecords().stream().map(PhrReturnOrder::getDispenseOrderId)
+                .filter(java.util.Objects::nonNull).distinct().toList();
+        Map<Long, String> dispenseNoById = dispenseIds.isEmpty() ? new HashMap<>()
+                : dispenseOrderMapper.selectBatchIds(dispenseIds).stream()
+                        .collect(java.util.stream.Collectors.toMap(
+                                PhrDispenseOrder::getId, PhrDispenseOrder::getDispenseNo));
+        List<Long> ptIds = page.getRecords().stream().map(PhrReturnOrder::getPatientId)
+                .filter(java.util.Objects::nonNull).distinct().toList();
+        Map<Long, String> patientNameById = new HashMap<>();
+        for (var pt : patientAppService.listByIds(ptIds)) {
+            patientNameById.put(pt.getId(), pt.getName());
         }
         return PageResult.of(page, order -> {
             ReturnOrderVO vo = new ReturnOrderVO();
             vo.setId(order.getId());
             vo.setReturnNo(order.getReturnNo());
             vo.setRxNo(rxNoById.get(order.getPrescriptionId()));
-            var dispense = dispenseOrderMapper.selectById(order.getDispenseOrderId());
-            vo.setDispenseNo(dispense == null ? null : dispense.getDispenseNo());
-            var patient = patientAppService.getById(order.getPatientId());
-            vo.setPatientName(patient == null ? null : patient.getName());
+            vo.setDispenseNo(dispenseNoById.get(order.getDispenseOrderId()));
+            vo.setPatientName(patientNameById.get(order.getPatientId()));
             vo.setReason(order.getReason());
             vo.setReturnTime(order.getReturnTime());
             vo.setOperatorName(systemAppService.getUsername(order.getOperatorId()));

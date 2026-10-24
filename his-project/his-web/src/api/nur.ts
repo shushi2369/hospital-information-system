@@ -72,7 +72,7 @@ export const VITAL_RANGES = {
   respiration: { min: 5, max: 60 },
   bpHigh: { min: 40, max: 260 },
   bpLow: { min: 20, max: 180 },
-  spo2: { min: 0, max: 100 },
+  spo2: { min: 50, max: 100 },
   painScore: { min: 0, max: 10 },
 } as const
 

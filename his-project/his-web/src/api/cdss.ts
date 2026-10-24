@@ -41,7 +41,7 @@ export function getRulePage(params: { pageNum?: number; pageSize?: number; ruleT
   return get<PageResult<CdssRule>>('/cdss/rules', params)
 }
 
-export function createRule(data: { ruleCode: string; ruleType: number; refAId: number; refBId?: number; level?: number; message: string }) {
+export function createRule(data: { ruleCode: string; ruleType: number; refAId: number; refBId?: number; allergyKeyword?: string; level?: number; message: string }) {
   return post<string>('/cdss/rules', data)
 }
 
@@ -52,3 +52,7 @@ export function updateRule(id: number, data: { ruleType: number; refAId: number;
 export function getHitPage(params: { pageNum?: number; pageSize?: number; orderId?: number }) {
   return get<PageResult<CdssHit>>('/cdss/hits', params)
 }
+
+/** 一百一十八轮【04】：命中处置回写（ignored=false 表示提示后放弃开立；后端校验开单医生本人） */
+export const acknowledgeHit = (id: number, ignored: boolean) =>
+  post<void>(`/cdss/hits/${id}/acknowledge?ignored=${ignored}`)

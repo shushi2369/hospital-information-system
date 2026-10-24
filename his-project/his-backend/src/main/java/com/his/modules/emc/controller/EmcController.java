@@ -94,7 +94,7 @@ public class EmcController {
     }
 
     @GetMapping("/nodes")
-    @PreAuthorize("@ss.hasPerm('emc:visit:query')")
+    @PreAuthorize("@ss.hasPerm('emc:visit:query') or @ss.hasPerm('emc:timepoint:record')")
     public R<List<com.his.modules.emc.entity.EmcNodeDict>> nodes() {
         return R.ok(emcService.listNodes());
     }

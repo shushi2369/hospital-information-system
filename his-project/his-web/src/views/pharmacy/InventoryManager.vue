@@ -294,7 +294,7 @@
           />
         </el-form-item>
         <el-form-item label="供应商">
-          <el-input v-model="inboundForm.supplier" placeholder="选填" maxlength="128" />
+          <el-input v-model="inboundForm.supplier" placeholder="选填" maxlength="64" />
         </el-form-item>
       </el-form>
       <template #footer>

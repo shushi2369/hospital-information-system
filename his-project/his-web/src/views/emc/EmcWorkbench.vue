@@ -91,10 +91,10 @@
         <el-form-item label="生命体征">
           <div class="vital-row">
             <el-input-number v-model="triageForm.bodyTemp" :min="30" :max="45" :precision="1" placeholder="体温" controls-position="right" style="width: 90px" />
-            <el-input-number v-model="triageForm.pulse" :min="0" :max="300" :precision="0" placeholder="脉搏" controls-position="right" style="width: 90px" />
-            <el-input-number v-model="triageForm.respiration" :min="0" :max="60" :precision="0" placeholder="呼吸" controls-position="right" style="width: 90px" />
+            <el-input-number v-model="triageForm.pulse" :min="20" :max="300" :precision="0" placeholder="脉搏" controls-position="right" style="width: 90px" />
+            <el-input-number v-model="triageForm.respiration" :min="5" :max="60" :precision="0" placeholder="呼吸" controls-position="right" style="width: 90px" />
             <el-input v-model="triageForm.bloodPressure" placeholder="血压 120/80" style="width: 120px" />
-            <el-input-number v-model="triageForm.spo2" :min="0" :max="100" :precision="0" placeholder="血氧" controls-position="right" style="width: 90px" />
+            <el-input-number v-model="triageForm.spo2" :min="50" :max="100" :precision="0" placeholder="血氧" controls-position="right" style="width: 90px" />
           </div>
         </el-form-item>
         <el-form-item label="分诊级别" required>
@@ -307,6 +307,11 @@ function resetTriageForm() {
   Object.assign(triageForm, { patientId: undefined, chiefComplaint: '', bodyTemp: undefined, pulse: undefined, respiration: undefined, bloodPressure: '', spo2: undefined, triageLevel: 3, centerType: undefined, greenChannel: false })
 }
 async function handleTriage() {
+  // 一百一十八轮【06】P2：绿通病例必须进五大中心（原绿通+无中心照常登记，病例不进中心列表）
+  if (triageForm.greenChannel && !triageForm.centerType) {
+    ElMessage.warning('绿色通道病例必须选择预判中心')
+    return
+  }
   if (!triageForm.patientId || !triageForm.chiefComplaint) {
     ElMessage.warning('请填写患者与主诉')
     return

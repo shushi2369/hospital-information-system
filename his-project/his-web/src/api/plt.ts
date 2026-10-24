@@ -55,7 +55,14 @@ export interface PltEventQuery {
   bizNo?: string
   startDate?: string
   endDate?: string
+  /** 一百一十八轮【01】：真分页参数（后端 116 轮起支持） */
+  pageNum?: number
+  pageSize?: number
 }
+
+/** 一百一十八轮【02】：MPI 合并（源置已合并、关联归属转移，不可自动逆） */
+export const mergeMpiIndex = (sourceMpiNo: string, targetMpiNo: string) =>
+  post<string>('/plt/index/merge', { sourceMpiNo, targetMpiNo })
 
 // ---------------- 接口 ----------------
 

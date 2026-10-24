@@ -100,7 +100,10 @@ public class LongOrderPlanTask {
             for (DocOrderItem item : items) {
                 for (String slot : slots) {
                     // 一百一十八轮性能【6】：去掉预查 selectCount（uk_exec + DuplicateKeyException
-                    // 已兜底，预查冗余且每 item×slot 多 1 查）；并发冲突走 catch 跳过
+                    // 已兜底，预查冗余且每 item×slot 多 1 查）
+                    // 一百一十九轮复核【1】P1：dup 捕获下沉到单条 insert——外层 catch 跳过的是
+                    // "该单全部剩余 slot/明细"，部分缺口在重跑时永不补齐（ uk 拦首条即中断）
+                    try {
                     DocOrderExec exec = new DocOrderExec();
                     exec.setOrderId(order.getId());
                     exec.setItemId(item.getId());
@@ -109,12 +112,13 @@ public class LongOrderPlanTask {
                     exec.setExecType(2);
                     exec.setBedNo(bedNo);
                     exec.setStatus(1);
-                    execMapper.insert(exec);
-                    created++;
+                        execMapper.insert(exec);
+                        created++;
+                    } catch (org.springframework.dao.DuplicateKeyException e) {
+                        log.info("长嘱执行单已存在，跳过 order={} slot={}", order.getId(), slot);
+                    }
                 }
             }
-          } catch (org.springframework.dao.DuplicateKeyException e) {
-              log.info("长嘱执行单与手工创建并发冲突，跳过 order={}", order.getId());
           } catch (Exception e) {
               log.error("长嘱执行单生成失败 order={}", order.getId(), e);
           }

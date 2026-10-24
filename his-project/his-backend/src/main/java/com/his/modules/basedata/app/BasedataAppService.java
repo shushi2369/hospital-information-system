@@ -156,8 +156,16 @@ public class BasedataAppService {
         if (doctorIds == null || doctorIds.isEmpty()) {
             return Map.of();
         }
+        // 一百一十九轮复核【4】：科室预取——toDoctorDTO 内部逐医生科室单查（隐蔽 N+1）
+        Map<Long, Department> deptById = departmentMapper.selectList(null).stream()
+                .collect(java.util.stream.Collectors.toMap(Department::getId, d -> d));
         return doctorMapper.selectBatchIds(doctorIds).stream()
-                .collect(java.util.stream.Collectors.toMap(Doctor::getId, this::toDoctorDTO));
+                .collect(java.util.stream.Collectors.toMap(Doctor::getId, doctor -> {
+                    DoctorDTO dto = toDoctorDTO(doctor);
+                    Department dept = deptById.get(doctor.getDeptId());
+                    dto.setDeptName(dept == null ? null : dept.getDeptName());
+                    return dto;
+                }));
     }
 
     /** 按编码取收费项目（诊查费取数口径，见 application.yml his.registration.*） */

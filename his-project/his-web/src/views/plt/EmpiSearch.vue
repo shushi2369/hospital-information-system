@@ -61,12 +61,52 @@
       <el-table-column prop="mergedInto" label="并入索引" min-width="150" show-overflow-tooltip>
         <template #default="{ row }">{{ row.mergedInto || '-' }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="90" align="center" fixed="right">
+      <el-table-column label="操作" width="140" align="center" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="openDetail(row)">详情</el-button>
+          <!-- 一百一十八轮【02】：补合并入口（后端 POST /plt/index/merge 一直存在但无 UI，
+               重复档案无法闭环）。仅正常态(mergeFlag=0)可作源 -->
+          <el-button
+            v-if="row.mergeFlag === 0"
+            v-perm="'plt:index:merge'"
+            link
+            type="warning"
+            @click="openMergeDialog(row)"
+          >
+            合并
+          </el-button>
         </template>
       </el-table-column>
     </el-table>
+
+    <!-- 合并弹窗（一百一十八轮【02】） -->
+    <el-dialog v-model="mergeDialogVisible" title="患者主索引合并" width="480px" destroy-on-close>
+      <el-alert
+        type="warning"
+        :closable="false"
+        show-icon
+        title="合并不可自动逆：源索引置为已合并，其关联患者与事件归属转移至目标索引。"
+      />
+      <el-form label-width="110px" style="margin-top: 12px">
+        <el-form-item label="源主索引">
+          <el-input :model-value="mergeSource?.mpiNo" disabled />
+        </el-form-item>
+        <el-form-item label="目标主索引" required>
+          <el-select v-model="mergeTargetNo" filterable placeholder="选择保留的目标索引" style="width: 100%">
+            <el-option
+              v-for="m in mergeTargets"
+              :key="m.mpiNo"
+              :value="m.mpiNo"
+              :label="`${m.mpiNo}｜${m.patientName || '患者' + m.patientId}`"
+            />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="mergeDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="mergeSubmitting" @click="handleMergeSubmit">确认合并</el-button>
+      </template>
+    </el-dialog>
 
     <!-- 分页 -->
     <div class="pagination-bar">
@@ -140,6 +180,19 @@
           <template #default="{ row }">{{ row.createdAt || '-' }}</template>
         </el-table-column>
       </el-table>
+
+      <div class="pagination-bar">
+        <el-pagination
+          v-model:current-page="eventQuery.pageNum"
+          v-model:page-size="eventQuery.pageSize"
+          :total="eventTotal"
+          :page-sizes="[10, 20, 50]"
+          layout="total, sizes, prev, pager, next"
+          background
+          @size-change="() => { eventQuery.pageNum = 1; fetchEvents() }"
+          @current-change="handleEventPageChange"
+        />
+      </div>
     </div>
 
     <!-- 主索引详情抽屉 -->
@@ -174,6 +227,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import { genderLabel } from '@/api/patient'
 import { mergeFlagLabel, payloadText, searchMpiIndex, getMpiDetail, getPltEvents, type MpiIndex, type MpiDetail, type PltEvent } from '@/api/plt'
@@ -249,7 +303,11 @@ const eventRange = ref<[string, string] | null>(null)
 const eventQuery = reactive({
   eventType: '',
   bizNo: '',
+  // 一百一十八轮【01】：事件区补真分页（原第 51 条起永久不可见）
+  pageNum: 1,
+  pageSize: 10,
 })
+const eventTotal = ref(0)
 
 async function fetchEvents() {
   eventLoading.value = true
@@ -259,8 +317,11 @@ async function fetchEvents() {
       bizNo: eventQuery.bizNo.trim() || undefined,
       startDate: eventRange.value?.[0] || undefined,
       endDate: eventRange.value?.[1] || undefined,
+      pageNum: eventQuery.pageNum,
+      pageSize: eventQuery.pageSize,
     })
     events.value = page.list ?? []
+    eventTotal.value = page.total ?? 0
   } catch {
     events.value = []
   } finally {
@@ -268,10 +329,66 @@ async function fetchEvents() {
   }
 }
 
+function handleEventPageChange() {
+  fetchEvents()
+}
+
+// ---------------- 一百一十八轮【02】：MPI 合并 ----------------
+const mergeDialogVisible = ref(false)
+const mergeSubmitting = ref(false)
+const mergeSource = ref<MpiIndex | null>(null)
+const mergeTargetNo = ref('')
+const mergeTargets = ref<MpiIndex[]>([])
+
+function openMergeDialog(row: MpiIndex) {
+  mergeSource.value = row
+  mergeTargetNo.value = ''
+  // 目标候选：正常态索引且非自身（先拉第一页 50 条供选，目标量大时可搜索）
+  mergeDialogVisible.value = true
+  searchMpiIndex({ pageNum: 1, pageSize: 50 })
+    .then((res) => {
+      mergeTargets.value = (res.list ?? []).filter(
+        (m) => m.mpiNo !== row.mpiNo && m.mergeFlag === 0
+      )
+    })
+    .catch(() => {
+      mergeTargets.value = []
+    })
+}
+
+async function handleMergeSubmit() {
+  if (!mergeSource.value) return
+  if (!mergeTargetNo.value) {
+    ElMessage.warning('请选择保留的目标主索引')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确认将 ${mergeSource.value.mpiNo} 合并至 ${mergeTargetNo.value}？源索引将置为已合并，关联归属转移且不可自动逆。`,
+      '患者主索引合并',
+      { type: 'warning', confirmButtonText: '确认合并', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  mergeSubmitting.value = true
+  try {
+    await mergeMpiIndex(mergeSource.value.mpiNo, mergeTargetNo.value)
+    ElMessage.success('合并完成')
+    mergeDialogVisible.value = false
+    fetchList()
+  } catch {
+    // 拦截器已统一提示
+  } finally {
+    mergeSubmitting.value = false
+  }
+}
+
 function handleEventReset() {
   eventQuery.eventType = ''
   eventQuery.bizNo = ''
   eventRange.value = null
+  eventQuery.pageNum = 1
   fetchEvents()
 }
 

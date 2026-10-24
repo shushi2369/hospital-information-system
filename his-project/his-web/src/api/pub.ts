@@ -29,6 +29,8 @@ export const PUB_CARD_STATUS_OPTIONS = [
   { value: 20, label: '待审核' },
   { value: 30, label: '待回执' },
   { value: 40, label: '已反馈' },
+  // 一百一十九轮复核【3】：对齐 DDL 与 PubService（退回卡在列表可见，原显示裸 50）
+  { value: 50, label: '已退回' },
 ]
 
 export function pubCardStatusLabel(status: number): string {

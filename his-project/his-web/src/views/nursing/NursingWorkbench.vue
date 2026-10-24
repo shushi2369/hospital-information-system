@@ -514,6 +514,11 @@ function openVitalDialog() {
 async function handleVitalSubmit() {
   const valid = await vitalFormRef.value?.validate().catch(() => false)
   if (!valid || !vitalAdmissionId.value) return
+  // 一百一十八轮【05】P2：舒张压≥收缩压前端拦截（与后端交叉校验对齐）
+  if (vitalForm.bpHigh != null && vitalForm.bpLow != null && Number(vitalForm.bpLow) >= Number(vitalForm.bpHigh)) {
+    ElMessage.warning('舒张压应小于收缩压')
+    return
+  }
   vitalSubmitting.value = true
   try {
     await createVitalSign({

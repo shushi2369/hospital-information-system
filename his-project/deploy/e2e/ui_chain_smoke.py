@@ -206,6 +206,8 @@ def main():
                 "birthDate": "1990-01-01", "idCardNo": "34010419900103" + uid[-4:],
                 "phone": "134" + uid[:8]}, idem="ui-jz-pt-" + uid)
         pl = api("/patients?name=" + urllib.parse.quote("链路接诊" + uid), cashier)
+        # 一百一十九轮：前置断言（原静默 IndexError，建档偶发失败时难以定位）
+        assert pl.get("code") == "OK" and (pl.get("data") or {}).get("list"),             "接诊链前置失败：患者建档/查询异常 " + json.dumps(pl, ensure_ascii=False)[:200]
         pid2 = pl["data"]["list"][0]["id"]
         r = api("/registrations", cashier, {"patientId": pid2, "doctorId": 2,
                 "regDate": time.strftime("%Y-%m-%d"), "period": 1, "regType": 1}, idem="ui-jz-reg-" + uid)
