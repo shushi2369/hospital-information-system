@@ -102,7 +102,9 @@
         <el-form-item label="手术日期" required><el-date-picker v-model="scheduleForm.surgeryDate"
               :disabled-date="(d: Date) => d.getTime() < Date.now() - 864e5" type="date" value-format="YYYY-MM-DD" style="width: 100%" /></el-form-item>
         <el-form-item label="台次" required><el-input-number v-model="scheduleForm.seqNo" :min="1" :max="10" style="width: 100%" /></el-form-item>
-        <el-form-item label="主刀医生ID" required><el-input-number v-model="scheduleForm.surgeonId" :min="1" :precision="0" style="width: 100%" /></el-form-item>
+        <el-form-item label="主刀医生" required>
+          <RemotePicker v-model="scheduleForm.surgeonId" kind="doctor" placeholder="输入姓名检索主刀医生" />
+        </el-form-item>
         <!-- 一百四十九轮 D-31：时间窗——原弹窗无时间字段，后端时间窗/主刀双占用校验成死代码 -->
         <el-form-item label="开始时间">
           <el-time-picker v-model="scheduleForm.startTime" value-format="HH:mm:ss" placeholder="选填" style="width: 100%" />
@@ -130,7 +132,9 @@
             <el-radio-button v-if="currentRow?.status === 50" :value="3">离室前</el-radio-button>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="第二签名"><el-input-number v-model="checkForm.checker2Id" :min="1" :precision="0" placeholder="第二签名人用户ID" style="width: 100%" /></el-form-item>
+        <el-form-item label="第二签名">
+          <RemotePicker v-model="checkForm.checker2Id" kind="staff" placeholder="第二签名人（姓名/账号）" />
+        </el-form-item>
       </el-form>
       <el-table :data="checkForm.items" border size="small" max-height="320">
         <el-table-column label="核查项">
@@ -232,6 +236,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import RemotePicker from '@/components/RemotePicker.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'

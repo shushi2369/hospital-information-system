@@ -8755,6 +8755,96 @@
         }
       }
     },
+    "/api/v1/common/staff-search": {
+      "get": {
+        "tags": [
+          "common-search-controller"
+        ],
+        "operationId": "staffSearch",
+        "parameters": [
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RListMapStringObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/common/patient-search": {
+      "get": {
+        "tags": [
+          "common-search-controller"
+        ],
+        "operationId": "patientSearch",
+        "parameters": [
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RListMapStringObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/common/doctor-search": {
+      "get": {
+        "tags": [
+          "common-search-controller"
+        ],
+        "operationId": "doctorSearch",
+        "parameters": [
+          {
+            "name": "keyword",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RListMapStringObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/clinic/visits": {
       "get": {
         "tags": [

@@ -56,7 +56,7 @@ def login(username):
 
 def main():
     uid = str(int(time.time() * 1000))[-8:]
-    id_card = "34010419900101" + "2" + "%03d" % (abs(hash(uid)) % 1000)  # 顺序码哈希化防跨运行碰撞（D-3 归一后 B1001）
+    id_card = "34010419900101" + "2" + "%03d" % (int(__import__("hashlib").md5(uid.encode()).hexdigest(), 16) % 1000)  # md5 派生防撞（hash() 值域小今日已两撞）
     phone = "139" + uid
     today = time.strftime("%Y-%m-%d")
 

@@ -180,7 +180,9 @@
 
     <el-dialog v-model="issueVisible" title="发血（取血护士签收）" width="440px" destroy-on-close>
       <el-form :model="issueForm" label-width="110px">
-        <el-form-item label="取血护士ID" required><el-input-number v-model="issueForm.receiverId" :min="1" :precision="0" style="width: 100%" /></el-form-item>
+        <el-form-item label="取血护士" required>
+          <RemotePicker v-model="issueForm.receiverId" kind="staff" placeholder="输入姓名/账号检索护士" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="issueVisible = false">取消</el-button>
@@ -192,7 +194,9 @@
       <el-form :model="transForm" label-width="120px">
         <el-form-item label="血袋ID" required><el-input-number v-model="transForm.bagId" :min="1" :precision="0" style="width: 100%" /></el-form-item>
         <el-form-item label="核对签1（本人）"><el-input :model-value="currentUserName" disabled /></el-form-item>
-        <el-form-item label="核对签2 ID" required><el-input-number v-model="transForm.checker2Id" :min="1" :precision="0" style="width: 100%" /></el-form-item>
+        <el-form-item label="核对签2" required>
+          <RemotePicker v-model="transForm.checker2Id" kind="staff" placeholder="双人核对第二人（姓名/账号）" />
+        </el-form-item>
         <el-form-item label="输血前体征"><el-input v-model="transForm.vitalBefore" placeholder="T/P/R/BP JSON 或文本" /></el-form-item>
       </el-form>
       <template #footer>
@@ -270,6 +274,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import RemotePicker from '@/components/RemotePicker.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   bbStatusTagType, bbStatusLabel, bloodTypeLabel, componentLabel, rhLabel,

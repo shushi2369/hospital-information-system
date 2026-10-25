@@ -85,7 +85,7 @@
         <el-form-item label="患者ID" required>
           <!-- 一百零七轮：曾改患者搜索下拉，因分诊护士无患者列表权限+e2e 程序化操作不兼容回退手输；
                V55 已补 EMC_NURSE 患者 只读权限，后续可再启下拉 -->
-          <el-input-number v-model="triageForm.patientId" :min="1" :precision="0" aria-label="患者ID" style="width: 100%" />
+          <RemotePicker v-model="triageForm.patientId" kind="patient" placeholder="输入姓名/建档号检索患者" />
         </el-form-item>
         <el-form-item label="主诉" required><el-input v-model="triageForm.chiefComplaint" placeholder="如 胸痛 30 分钟" /></el-form-item>
         <el-form-item label="生命体征">
