@@ -37,9 +37,8 @@
 
     <el-dialog v-model="regVisible" title="体检登记" width="440px" destroy-on-close>
       <el-form :model="regForm" label-width="90px">
-        <el-form-item label="患者ID" required>
-          <!-- 一百零七轮：曾改患者搜索下拉，e2e 程序化操作不兼容回退手输；V55 已补 PE_USER 只读权限 -->
-          <el-input-number v-model="regForm.patientId" :min="1" :precision="0" style="width: 100%" />
+        <el-form-item label="患者" required>
+          <RemotePicker v-model="regForm.patientId" kind="patient" placeholder="输入姓名/建档号检索患者" />
         </el-form-item>
         <el-form-item label="套餐" required>
           <el-select v-model="regForm.packageId" style="width: 100%">
@@ -145,6 +144,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import RemotePicker from '@/components/RemotePicker.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   createPackage, finishPe, getPackagePage, getRecordDetail, getRecordPage,

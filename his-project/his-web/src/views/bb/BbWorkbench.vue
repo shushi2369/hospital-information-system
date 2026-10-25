@@ -104,7 +104,9 @@
     <el-dialog v-model="reqVisible" title="用血申请" width="500px" destroy-on-close>
       <el-form :model="reqForm" label-width="100px">
         <el-form-item label="就诊ID" required><el-input-number v-model="reqForm.admissionId" :min="1" :precision="0" style="width: 100%" /></el-form-item>
-        <el-form-item label="患者ID" required><el-input-number v-model="reqForm.patientId" :min="1" :precision="0" style="width: 100%" /></el-form-item>
+        <el-form-item label="患者" required>
+          <RemotePicker v-model="reqForm.patientId" kind="patient" placeholder="输入姓名/建档号检索患者" />
+        </el-form-item>
         <el-form-item label="血型" required>
           <el-select v-model="reqForm.bloodType" style="width: 100%">
             <el-option v-for="o in BB_BLOOD_TYPE" :key="o.value" :value="o.value" :label="o.label" />
