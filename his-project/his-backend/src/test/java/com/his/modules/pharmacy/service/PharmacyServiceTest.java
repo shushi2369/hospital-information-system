@@ -205,7 +205,41 @@ class PharmacyServiceTest extends UnitTestBase {
         req.setComment("OK");
         svc().review(60L, req);
         verify(clinicAppService).reviewPrescription(60L, true, 1L, "OK");
-        verify(reviewRecordMapper).insert(any());
+        // 留痕内容断言：pass→1（非 2）、处方号与意见落库（弱用例修复）
+        ArgumentCaptor<com.his.modules.pharmacy.entity.PhrReviewRecord> captor =
+                ArgumentCaptor.forClass(com.his.modules.pharmacy.entity.PhrReviewRecord.class);
+        verify(reviewRecordMapper).insert(captor.capture());
+        assertEquals(1, captor.getValue().getReviewAction());
+        assertEquals(60L, captor.getValue().getPrescriptionId());
+        assertEquals("OK", captor.getValue().getComment());
+    }
+
+    @Test
+    void review_reject_writesAction2() {
+        ReviewRequest req = new ReviewRequest();
+        req.setPass(false);
+        svc().review(60L, req);
+        verify(clinicAppService).reviewPrescription(60L, false, 1L, null);
+        ArgumentCaptor<com.his.modules.pharmacy.entity.PhrReviewRecord> captor =
+                ArgumentCaptor.forClass(com.his.modules.pharmacy.entity.PhrReviewRecord.class);
+        verify(reviewRecordMapper).insert(captor.capture());
+        assertEquals(2, captor.getValue().getReviewAction());
+    }
+
+    @Test
+    void dispense_expiryTodayBatch_skipped() {
+        // 行锁复检边界：效期=今天视为过期（!isAfter(now)）必须跳过，只发后续效期批
+        when(clinicAppService.getPrescriptionForDispense(60L)).thenReturn(rx(20, 1, "3"));
+        when(dispenseOrderMapper.selectCount(any())).thenReturn(0L);
+        when(idGenerator.next("FY")).thenReturn("FY003");
+        InvInventoryBatch expiringToday = batch(1, 1, "99", LocalDate.now());
+        InvInventoryBatch good = batch(2, 1, "5", LocalDate.now().plusDays(10));
+        stubPickable(expiringToday, good);
+
+        svc().dispense(60L);
+
+        verify(batchMapper, never()).updateById(eq(expiringToday));
+        assertEquals(0, new BigDecimal("2").compareTo(good.getQuantity()));
     }
 
     @Test

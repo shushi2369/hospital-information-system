@@ -163,6 +163,21 @@ class MedinsServiceTest extends UnitTestBase {
     }
 
     @Test
+    void apply_raceDuplicateKey_throws() {
+        // 防并发双申报的唯一兜底：uk 撞击 → B6401
+        when(billMapper.selectById(500L)).thenReturn(bill(10, "1000", "0"));
+        when(settleMapper.selectOne(any())).thenReturn(null);
+        stubAdmission();
+        when(idGenerator.next("YB")).thenReturn("YB001");
+        when(gateway.apply(any(), anyInt()))
+                .thenReturn(new MedInsuranceGateway.ApplyResult(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO));
+        when(settleMapper.insert(any(MedinsSettle.class)))
+                .thenThrow(new org.springframework.dao.DuplicateKeyException("uk"));
+        BizException e = assertThrows(BizException.class, () -> svc().apply(500L, 1));
+        assertEquals(ErrorCode.B6401, e.getErrorCode());
+    }
+
+    @Test
     void reconcile_settleNotFound_throws() {
         when(settleMapper.selectById(7L)).thenReturn(null);
         BizException e = assertThrows(BizException.class, () -> svc().reconcile(7L, null));

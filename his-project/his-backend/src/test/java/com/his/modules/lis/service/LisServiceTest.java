@@ -20,6 +20,7 @@ import com.his.modules.lis.mapper.LisResultMapper;
 import com.his.modules.lis.mapper.LisSpecimenMapper;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -133,11 +134,15 @@ class LisServiceTest extends UnitTestBase {
     @Test
     void receive_happy_toTesting() {
         when(requestMapper.selectById(70L)).thenReturn(request(20));
-        when(specimenMapper.selectOne(any())).thenReturn(new LisSpecimen());
+        LisSpecimen specimen = new LisSpecimen();
+        when(specimenMapper.selectOne(any())).thenReturn(specimen);
         when(requestMapper.update(isNull(), any())).thenReturn(1);
 
         assertDoesNotThrow(() -> svc().receive(70L));
-        verify(specimenMapper).updateById(any(LisSpecimen.class));
+        // 标本须同步置已接收(2)
+        ArgumentCaptor<LisSpecimen> captor = ArgumentCaptor.forClass(LisSpecimen.class);
+        verify(specimenMapper).updateById(captor.capture());
+        assertEquals(2, captor.getValue().getStatus());
     }
 
     @Test
@@ -257,7 +262,11 @@ class LisServiceTest extends UnitTestBase {
         String reportNo = svc().publish(70L, 1, null);
 
         assertEquals("BG001", reportNo);
-        verify(reportMapper).insert(any(LisReport.class));
+        // 汇总须真实列出危急项（弱用例修复：名字承诺 summary 断言）
+        org.mockito.ArgumentCaptor<LisReport> captor =
+                org.mockito.ArgumentCaptor.forClass(LisReport.class);
+        verify(reportMapper).insert(captor.capture());
+        assertTrue(captor.getValue().getResultSummary().contains("血钾"));
         verify(pltService).recordEvent(eq("lis.report.published"), eq("BG001"), anyString());
     }
 }

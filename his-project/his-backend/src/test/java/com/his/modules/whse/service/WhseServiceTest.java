@@ -244,6 +244,9 @@ class WhseServiceTest extends UnitTestBase {
         when(poMapper.selectById(15L)).thenReturn(po(20));
         when(poMapper.update(isNull(), any())).thenReturn(1);
         assertDoesNotThrow(() -> svc().cancel(15L));
+
+        // 10→40 与 20→40 两次条件更新必须真实发生（空洞用例修复：删掉写逻辑不再绿）
+        verify(poMapper, times(2)).update(isNull(), any());
     }
 
     @Test

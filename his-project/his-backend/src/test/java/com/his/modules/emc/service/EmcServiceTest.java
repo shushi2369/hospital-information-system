@@ -26,6 +26,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -331,5 +332,42 @@ class EmcServiceTest extends UnitTestBase {
         req.setOutcome(1);
         BizException e = assertThrows(BizException.class, () -> svc().close(10L, req));
         assertTrue(e.getMessage().contains("已关档"));
+    }
+
+    @Test
+    void timeline_onTargetBoundary_elapsedEqualsTarget() {
+        // 达标口径（国考计算）：onTarget = elapsed <= targetMinutes —— 恰等达标、超 1 分钟不达标
+        LocalDateTime start = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.MINUTES).minusHours(1);
+        EmcVisit v = visit(10, start);
+        when(visitMapper.selectById(10L)).thenReturn(v);
+
+        EmcNodeDict onEdge = node(1, 1);
+        onEdge.setNodeName("到院");
+        onEdge.setTargetMinutes(30);
+        EmcNodeDict overEdge = node(1, 1);
+        overEdge.setNodeCode("N_ECG");
+        overEdge.setNodeName("心电图");
+        overEdge.setTargetMinutes(30);
+        EmcNodeDict notRecorded = node(1, 1);
+        notRecorded.setNodeCode("N_CTCPA");
+        notRecorded.setNodeName("CT");
+        when(nodeDictMapper.selectList(any())).thenReturn(List.of(onEdge, overEdge, notRecorded));
+
+        EmcTimepoint tpEdge = new EmcTimepoint();
+        tpEdge.setNodeCode("N_ARRIVE");
+        tpEdge.setNodeTime(start.plusMinutes(30));
+        EmcTimepoint tpOver = new EmcTimepoint();
+        tpOver.setNodeCode("N_ECG");
+        tpOver.setNodeTime(start.plusMinutes(31));
+        when(timepointMapper.selectList(any())).thenReturn(List.of(tpEdge, tpOver));
+
+        java.util.List<java.util.Map<String, Object>> rows = svc().timeline(10L);
+
+        assertEquals(3, rows.size());
+        assertEquals(Boolean.TRUE, rows.get(0).get("onTarget"));
+        assertEquals(30L, rows.get(0).get("elapsedMinutes"));
+        assertEquals(Boolean.FALSE, rows.get(1).get("onTarget"));
+        assertEquals(31L, rows.get(1).get("elapsedMinutes"));
+        assertNull(rows.get(2).get("onTarget"));
     }
 }

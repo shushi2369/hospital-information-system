@@ -1,12 +1,13 @@
 # 交接文档（HANDOVER）
 
-> 新接手者按本文 30 分钟完成上手。最后更新：2026-10-24（120~121 轮后）。
+> 新接手者按本文 30 分钟完成上手。最后更新：2026-10-25（142 轮后）。
 > 配套阅读顺序：本文 → [docs/README.md](README.md)（文档地图）→ [README.md](README.md)（业务全景）。
 
 ## 1. 一句话认知
 
 教学用医院信息系统（求职作品集 + 课程实验）：Spring Boot 3.2 模块化单体（30 模块）+ Vue 3.4 + MySQL 8 + Redis，
-门诊→住院→手术→检验→危急值→用血→医保→区域上报全闭环；**363 项回归全绿**（API e2e 255 + UI 链 44 + 并发 31 + 教学 41 + 单测），CI 每次推送全量回归。
+门诊→住院→手术→检验→危急值→用血→医保→区域上报全闭环；
+**768 项回归全绿**（API e2e 十套 362：验收 42 + 七期 255 + 修复回归 34 + 并发 31；UI 链 44 + 教学核验 41 + 单测 321），CI 每次推送全量回归。
 
 ## 2. 本机环境（Windows）
 
@@ -41,14 +42,15 @@ cp -r dist/* /c/his-runtime/frontend/
 
 ```bash
 cd deploy/e2e
+python e2e_acceptance.py        # 全链路验收（CI 十套之首，本地勿漏）
 python e2e_phase2.py && python e2e_phase3.py && python e2e_phase3b.py && python e2e_phase3c.py
 python e2e_phase4.py && python e2e_phase4b.py && python e2e_phase5.py && python fix_regression.py
 python ui_chain_smoke.py        # 需本机 Chrome/Playwright
 python concurrency_test.py && python verify_course.py
 ```
 
-- 基线：45 / 28 / 57 / 45 / 43 / 28 / 9 / 34 / 44 / 31 / 41 全绿。
-- 十套共享一库、顺序执行；`verify_course` 与 `ui_chain_smoke` 的 teardown 会自动释放测试排台与账号。
+- 基线：42（验收）/ 45 / 28 / 57 / 45 / 43 / 28 / 9 / 34（API 十套）+ 44（UI）/ 31（并发）/ 41（教学）全绿。
+- 十一套共享一库、顺序执行；`verify_course` 与 `ui_chain_smoke` 的 teardown 会自动释放测试排台与账号。
 - CI：`.github/workflows/ci.yml` 推送触发（单测 → 前端构建 → 一致性巡检 → 十套 e2e fail-fast）。
 
 ## 5. 账号矩阵

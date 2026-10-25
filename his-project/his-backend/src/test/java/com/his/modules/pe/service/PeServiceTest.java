@@ -18,6 +18,7 @@ import com.his.modules.plt.service.PltService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -135,6 +136,10 @@ class PeServiceTest extends UnitTestBase {
         req.setItems(List.of(new com.his.modules.pe.dto.PePackageRequest.PackageItem()));
 
         assertDoesNotThrow(() -> svc().updatePackage(5L, req));
+        // 改动必须真实落库（弱用例修复：stub 即忘 → 落库证据）
+        ArgumentCaptor<PePackage> captor = ArgumentCaptor.forClass(PePackage.class);
+        verify(packageMapper).updateById(captor.capture());
+        assertEquals("改版套餐", captor.getValue().getName());
     }
 
     @Test
@@ -160,6 +165,10 @@ class PeServiceTest extends UnitTestBase {
         String no = svc().register(req);
 
         assertEquals("TJ001", no);
+        // 状态 10（待检查）必须真实落库（弱用例修复）
+        ArgumentCaptor<PeRecord> captor = ArgumentCaptor.forClass(PeRecord.class);
+        verify(recordMapper).insert(captor.capture());
+        assertEquals(10, captor.getValue().getStatus());
         verify(pltService).recordEvent(eq("pe.record.registered"), eq("TJ001"), anyString());
     }
 
@@ -237,6 +246,23 @@ class PeServiceTest extends UnitTestBase {
         when(recordMapper.updateById(any(PeRecord.class))).thenReturn(1);
 
         assertDoesNotThrow(() -> svc().finish(9L));
+        // 20→30 状态翻转必须有落库证据（弱用例修复：分项齐全链路唯一无证据一跳）
+        ArgumentCaptor<PeRecord> captor = ArgumentCaptor.forClass(PeRecord.class);
+        verify(recordMapper).updateById(captor.capture());
+        assertEquals(30, captor.getValue().getStatus());
+    }
+
+    @Test
+    void saveResult_raceDuplicateKey_throws() {
+        // 并发双录撞 uk_peresult：预检窗口兜底 → A0008
+        when(recordMapper.selectById(9L)).thenReturn(record(20));
+        when(packageMapper.selectById(5L)).thenReturn(pkg(1));
+        when(resultMapper.selectOne(any())).thenReturn(null);
+        when(resultMapper.insert(any()))
+                .thenThrow(new org.springframework.dao.DuplicateKeyException("uk"));
+        BizException e = assertThrows(BizException.class,
+                () -> svc().saveResult(9L, resultReq(1L)));
+        assertEquals(ErrorCode.A0008, e.getErrorCode());
     }
 
     @Test

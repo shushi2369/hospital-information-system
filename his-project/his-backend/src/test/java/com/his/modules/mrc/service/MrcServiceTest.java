@@ -148,6 +148,8 @@ class MrcServiceTest extends UnitTestBase {
         when(recordMapper.update(isNull(), any())).thenReturn(1);
 
         assertDoesNotThrow(() -> svc().giveBack(900L));
+        // 两次写都必须发生：借阅单 1→2 + 病案 30→20（弱用例修复：删掉任一写不再绿）
+        verify(borrowMapper).update(isNull(), any());
         verify(recordMapper).update(isNull(), any());
     }
 }

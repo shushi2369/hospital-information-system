@@ -155,7 +155,7 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot123 his < his-project/deploy/db/ci_seed.sql
         env:
           MYSQL_PWD: root123
-      - name: Run API e2e suites (318 assertions, fail-fast)
+      - name: Run API e2e suites (362 assertions, fail-fast)
         run: |
           cd his-project/deploy/e2e
           for s in e2e_acceptance e2e_phase2 e2e_phase3 e2e_phase3b e2e_phase3c e2e_phase4 e2e_phase4b e2e_phase5 concurrency_test fix_regression; do
