@@ -32,6 +32,8 @@ class AlertServiceTest extends UnitTestBase {
     private final AlertCriticalMapper alertMapper = mock(AlertCriticalMapper.class);
     private final InpAppService inpAppService = mock(InpAppService.class);
     private final BasedataAppService basedataAppService = mock(BasedataAppService.class);
+    private final com.his.modules.patient.app.PatientAppService patientAppService =
+            mock(com.his.modules.patient.app.PatientAppService.class);
     private final PltService pltService = mock(PltService.class);
     private final IdGenerator idGen = mock(IdGenerator.class);
     private final com.his.modules.system.app.SystemAppService systemAppService =
@@ -42,8 +44,8 @@ class AlertServiceTest extends UnitTestBase {
             mock(com.his.modules.ris.mapper.RisRequestMapper.class);
 
     private AlertService svc() {
-        return new AlertService(alertMapper, inpAppService, basedataAppService, pltService,
-                idGen, systemAppService, lisRequestMapper, risRequestMapper);
+        return new AlertService(alertMapper, inpAppService, basedataAppService, patientAppService,
+                pltService, idGen, systemAppService, lisRequestMapper, risRequestMapper);
     }
 
     private AlertCritical alert(Long id, int status) {

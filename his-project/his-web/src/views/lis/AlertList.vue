@@ -39,7 +39,13 @@
           <span class="critical-value">{{ row.criticalValue }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="patientId" label="患者ID" width="80" align="center" />
+      <el-table-column label="患者" min-width="150" show-overflow-tooltip>
+        <!-- 一百四十五轮 U-5：危急值处置必须直接核对患者——原列表只有裸患者ID -->
+        <template #default="{ row }">
+          <span v-if="row.patientName" class="alert-patient">{{ row.patientName }}</span>
+          <span v-else class="option-sub">ID {{ row.patientId ?? '-' }}</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="admissionId" label="就诊ID" width="80" align="center">
         <template #default="{ row }">{{ row.admissionId ?? '-' }}</template>
       </el-table-column>
@@ -278,6 +284,16 @@ onMounted(fetchList)
 .critical-value {
   color: #f56c6c;
   font-weight: 700;
+}
+
+/* 一百四十五轮 U-5：患者姓名加粗强调，危急值处置第一眼核对对象 */
+.alert-patient {
+  font-weight: 700;
+}
+
+.option-sub {
+  color: #909399;
+  font-size: 12px;
 }
 
 .close-line {

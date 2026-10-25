@@ -37,6 +37,7 @@ public class AlertService {
     private final AlertCriticalMapper alertMapper;
     private final InpAppService inpAppService;
     private final com.his.modules.basedata.app.BasedataAppService basedataAppService;
+    private final com.his.modules.patient.app.PatientAppService patientAppService;
     private final PltService pltService;
     private final IdGenerator idGenerator;
     private final com.his.modules.system.app.SystemAppService systemAppService;
@@ -118,6 +119,19 @@ public class AlertService {
         for (AlertCritical a : page.getRecords()) {
             a.setNotifiedNurseName(names.get(a.getNotifiedNurse()));
             a.setConfirmedDoctorName(names.get(a.getConfirmedDoctor()));
+        }
+        // 患者姓名批量回填（一百四十五轮 U-5）：危急值处置页必须直接可核对患者，
+        // 原列表只有 patientId 裸数字，医生打电话/处置前还得去别处查是谁
+        java.util.List<Long> patientIds = page.getRecords().stream()
+                .map(AlertCritical::getPatientId).filter(java.util.Objects::nonNull).distinct().toList();
+        if (!patientIds.isEmpty()) {
+            Map<Long, String> patientNames = new java.util.HashMap<>();
+            for (com.his.modules.patient.app.PatientDTO p : patientAppService.listByIds(patientIds)) {
+                patientNames.put(p.getId(), p.getName());
+            }
+            for (AlertCritical a : page.getRecords()) {
+                a.setPatientName(patientNames.get(a.getPatientId()));
+            }
         }
         return PageResult.of(page);
     }

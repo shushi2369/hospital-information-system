@@ -28,7 +28,7 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="100" align="center" fixed="right">
+      <el-table-column label="操作" width="130" align="center" fixed="right">
         <template #default="{ row }">
           <el-button
             v-if="row.status === 10"
@@ -38,6 +38,15 @@
             @click="handleStart(row)"
           >
             接诊
+          </el-button>
+          <!-- 一百四十五轮 U-4：已接诊/已完成行提供查看入口（完成态工作台自动只读） -->
+          <el-button
+            v-else-if="row.visitId"
+            link
+            type="primary"
+            @click="router.push({ path: '/clinic/workbench', query: { visitId: String(row.visitId) } })"
+          >
+            查看
           </el-button>
         </template>
       </el-table-column>
@@ -68,7 +77,10 @@ const startingId = ref<number | null>(null)
 async function fetchQueue() {
   loading.value = true
   try {
-    queue.value = toList<Registration>(await getClinicQueue())
+    // 一百四十五轮 U-3：待接诊(10)置顶——医生上班第一眼看到的是"还有谁等我"
+    const list = toList<Registration>(await getClinicQueue())
+    list.sort((a, b) => (a.status ?? 99) - (b.status ?? 99) || a.queueNo - b.queueNo)
+    queue.value = list
   } finally {
     loading.value = false
   }

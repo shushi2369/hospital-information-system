@@ -25,6 +25,9 @@ public class AlertCritical extends BaseEntity {
     private String notifiedNurseName;
     @com.baomidou.mybatisplus.annotation.TableField(exist = false)
     private String confirmedDoctorName;
+    /** 展示字段（不入库）：患者姓名——危急值处置须直接核对患者（一百四十五轮 U-5） */
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private String patientName;
     private java.time.LocalDateTime notifiedAt;
     private Long confirmedDoctor;
     private java.time.LocalDateTime confirmedAt;

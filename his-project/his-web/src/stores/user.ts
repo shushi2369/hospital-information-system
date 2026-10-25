@@ -40,6 +40,26 @@ function findFirstPagePath(nodes: MenuNode[]): string {
   return ''
 }
 
+/** 角色首选落地页候选（按序匹配菜单，命中第一个存在的为止；未列出角色走菜单树第一项）。
+ *  一百四十五轮 U-3：医生登录原落在菜单排序最前的检验工作台，首屏科室错位 */
+const ROLE_HOME_CANDIDATES: Record<string, string[]> = {
+  DOCTOR: ['/clinic/queue', '/clinic/workbench'],
+  NURSE: ['/nursing/workbench'],
+  CASHIER: ['/registration/*', '/billing/*'],
+}
+
+function hasPagePath(nodes: MenuNode[], pattern: string): boolean {
+  const exact = !pattern.endsWith('/*')
+  const prefix = pattern.slice(0, -2)
+  for (const node of nodes) {
+    if (node.menuType === 2) {
+      if (exact ? node.fullPath === pattern : (node.fullPath ?? '').startsWith(prefix)) return true
+    }
+    if (node.children && hasPagePath(node.children, pattern)) return true
+  }
+  return false
+}
+
 export const useUserStore = defineStore('user', {
   state: (): UserState => ({
     token: localStorage.getItem(TOKEN_KEY) || '',
@@ -53,6 +73,11 @@ export const useUserStore = defineStore('user', {
     realName: (state) => state.userInfo?.realName || state.userInfo?.username || '',
     /** 第一个可见页面菜单的完整路径，用于 / 重定向 */
     firstMenuPath(state): string {
+      const roles = state.userInfo?.roleCodes ?? []
+      const wanted = ROLE_HOME_CANDIDATES[roles[0] ?? ''] ?? []
+      for (const p of wanted) {
+        if (hasPagePath(state.menus, p)) return p
+      }
       return findFirstPagePath(state.menus)
     },
   },

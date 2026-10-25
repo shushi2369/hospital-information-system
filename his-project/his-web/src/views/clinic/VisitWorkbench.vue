@@ -28,7 +28,14 @@
         <el-table-column label="时段" width="60" align="center">
           <template #default="{ row }">{{ periodLabel(row.period) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="100" align="center">
+        <el-table-column label="状态" width="70" align="center">
+          <template #default="{ row }">
+            <el-tag size="small" :type="regStatusTagType(row.status)">
+              {{ regStatusLabel(row.status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="110" align="center">
           <template #default="{ row }">
             <el-button
               v-if="row.status === 10"
@@ -38,6 +45,15 @@
               @click="handleStart(row)"
             >
               {{ startedMap[row.id] ? '继续接诊' : '接诊' }}
+            </el-button>
+            <!-- 一百四十五轮 U-4：已接诊/已完成行提供查看入口（完成态自动只读） -->
+            <el-button
+              v-else-if="row.visitId"
+              link
+              type="primary"
+              @click="router.replace({ query: { ...route.query, visitId: String(row.visitId) } })"
+            >
+              查看
             </el-button>
           </template>
         </el-table-column>
@@ -259,7 +275,26 @@
     <el-dialog v-model="diagDialogVisible" title="新增诊断" width="460px" destroy-on-close append-to-body>
       <el-form ref="diagFormRef" :model="diagForm" :rules="diagRules" label-width="90px">
         <el-form-item label="诊断名称" prop="diagnosisName">
-          <el-input v-model="diagForm.diagnosisName" placeholder="请输入诊断名称" maxlength="128" />
+          <!-- 一百四十五轮 U-6：接 ICD-10 字典远程搜索——原为纯手填自由文本，
+               编码靠医生记忆，诊断名称不规范会导致统计/上报口径废掉 -->
+          <el-select
+            v-model="diagForm.diagnosisName"
+            filterable
+            remote
+            clearable
+            :remote-method="searchIcdOptions"
+            :loading="icdLoading"
+            placeholder="输入关键词检索 ICD-10（如：肺炎）"
+            style="width: 100%"
+            @change="onIcdPicked"
+          >
+            <el-option
+              v-for="opt in icdOptions"
+              :key="opt.id"
+              :label="`${opt.name}（${opt.code}）`"
+              :value="opt.name"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item label="诊断编码" prop="diagnosisCode">
           <el-input v-model="diagForm.diagnosisCode" placeholder="选填，如 ICD-10 编码" maxlength="32" />
@@ -467,7 +502,8 @@ import {
   type VisitDiagnosis,
 } from '@/api/clinic'
 import { genderLabel, calcAge } from '@/api/patient'
-import { fmtMoney, periodLabel, regTypeLabel, type Registration } from '@/api/registration'
+import { searchIcd10, type Icd10Item as Icd10Entry } from '@/api/mrc'
+import { fmtMoney, periodLabel, regStatusTagType, regStatusLabel, regTypeLabel, type Registration } from '@/api/registration'
 import { toList } from '@/api/request'
 
 const route = useRoute()
@@ -503,7 +539,11 @@ function markStarted(regId: number, visitId: number) {
 async function fetchQueue() {
   queueLoading.value = true
   try {
-    queue.value = toList<Registration>(await getClinicQueue())
+    // 一百四十五轮 U-3：待接诊(10)置顶，其余按状态升序——原样返回时满屏已就诊把
+    // 待诊患者挤到中间，医生要肉眼扫按钮
+    const list = toList<Registration>(await getClinicQueue())
+    list.sort((a, b) => (a.status ?? 99) - (b.status ?? 99) || a.queueNo - b.queueNo)
+    queue.value = list
   } finally {
     queueLoading.value = false
   }
@@ -551,7 +591,7 @@ const ageText = computed(() => {
 // A 的慢响应后到会用 A 的主诉/病历填充 B 的工作台，"暂存病历"即跨患者临床数据错写
 let detailSeq = 0
 
-async function loadDetail() {
+async function loadDetail(resetForm = false) {
   const seq = ++detailSeq
   if (!visitId.value) {
     detail.value = null
@@ -562,7 +602,12 @@ async function loadDetail() {
     const res = await getVisitDetail(visitId.value)
     if (seq !== detailSeq) return
     detail.value = res
-    fillRecordForm()
+    // 一百四十五轮 U-1：仅换患者/归档重载时回填表单——诊断/处方开立后的 loadDetail
+    // 不再覆盖医生未暂存的病历内容（原实现无条件 fillRecordForm，服务端空病历
+    // 会把正在编辑的主诉/现病史清空，医生切个页签半天工作蒸发）
+    if (resetForm || isRecordFormEmpty()) {
+      fillRecordForm()
+    }
   } catch {
     if (seq === detailSeq) detail.value = null
   } finally {
@@ -570,7 +615,12 @@ async function loadDetail() {
   }
 }
 
-watch(visitId, () => loadDetail())
+watch(visitId, () => loadDetail(true))
+
+function isRecordFormEmpty(): boolean {
+  return !recordForm.chiefComplaint && !recordForm.presentIllness
+    && !recordForm.physicalExam && !recordForm.advice
+}
 
 // ---------------- ① 病历 ----------------
 const recordForm = reactive({
@@ -611,6 +661,17 @@ const completing = ref(false)
 
 function handleComplete() {
   if (!detail.value) return
+  // 一百四十五轮 U-2：先校验必填再弹确认框——原顺序先弹"确认归档"后报必填缺失，
+  // 医生确认完才知道病历没写完
+  const missing: string[] = []
+  if (!recordForm.chiefComplaint.trim()) missing.push('主诉')
+  if (!recordForm.presentIllness.trim()) missing.push('现病史')
+  if (!detail.value.diagnoses?.length) missing.push('诊断')
+  if (missing.length) {
+    ElMessage.warning(`病历不完整，请先填写：${missing.join('、')}`)
+    activeTab.value = 'record'
+    return
+  }
   ElMessageBox.confirm(
     '提交后就诊将完成归档，病历内容不可再修改，确认提交？',
     '提交病历',
@@ -621,7 +682,7 @@ function handleComplete() {
       try {
         await completeVisit(detail.value!.id)
         ElMessage.success('病历已提交，就诊完成')
-        await loadDetail()
+        await loadDetail(true)
         fetchQueue()
       } catch {
         // B2003 病历不完整等已在拦截器中统一提示
@@ -651,7 +712,36 @@ function openDiagDialog() {
   diagForm.diagnosisName = ''
   diagForm.diagnosisCode = ''
   diagForm.diagnosisType = 1
+  icdOptions.value = []
   diagDialogVisible.value = true
+}
+
+// ---------------- ICD-10 字典检索（一百四十五轮 U-6） ----------------
+const icdOptions = ref<Icd10Entry[]>([])
+const icdLoading = ref(false)
+
+async function searchIcdOptions(keyword: string) {
+  if (!keyword || !keyword.trim()) {
+    icdOptions.value = []
+    return
+  }
+  icdLoading.value = true
+  try {
+    icdOptions.value = (await searchIcd10(keyword.trim())) ?? []
+  } catch {
+    // 字典接口异常时退化为自由输入，不阻断诊断书写
+    icdOptions.value = []
+  } finally {
+    icdLoading.value = false
+  }
+}
+
+/** 从下拉选中诊断：名称反查选项自动带出编码；手输自由文本时保留手填编码框 */
+function onIcdPicked(name: string) {
+  const hit = icdOptions.value.find((o) => o.name === name)
+  if (hit) {
+    diagForm.diagnosisCode = hit.code
+  }
 }
 
 async function handleDiagSubmit() {
