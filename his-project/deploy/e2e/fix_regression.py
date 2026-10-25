@@ -195,7 +195,7 @@ def main():
     ris_req = [x for x in reqs["data"]["list"] if x["orderId"] == exam_order["id"]][0]
     ris_id = ris_req["id"]
     call("POST", "/ris/requests/%d/appoint" % ris_id, admin,
-         {"deviceId": 1, "apptTime": today + "T18:00:00"}, idem="fx-r3-" + uid)
+         {"deviceId": 1, "apptTime": today + "T18:%02d:00" % (int(uid[-2:]) % 60)}, idem="fx-r3-" + uid)
     call("POST", "/ris/requests/%d/start" % ris_id, admin, idem="fx-r4-" + uid)
     call("POST", "/ris/requests/%d/images" % ris_id, admin, {"fetch": True}, idem="fx-r5-" + uid)
     call("POST", "/ris/requests/%d/finish" % ris_id, admin, idem="fx-r6-" + uid)

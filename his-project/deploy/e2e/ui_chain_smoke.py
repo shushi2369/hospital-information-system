@@ -574,7 +574,8 @@ def main():
         page.wait_for_timeout(600)
         page.locator(".el-select-dropdown:visible .el-select-dropdown__item").first.click()
         page.wait_for_timeout(400)
-        dlg_ri.locator(".el-date-editor input").first.fill(time.strftime("%Y-%m-%d") + " 09:00:00")
+        # 一百四十九轮：时段 uid 派生——固定 09:00 在 D-15 同设备同时段校验下必撞历史预约
+        dlg_ri.locator(".el-date-editor input").first.fill(time.strftime("%Y-%m-%d") + " 10:%02d:00" % (int(uid[-2:]) % 60))
         page.keyboard.press("Enter")
         page.wait_for_timeout(400)
         dlg_ri.get_by_role("button", name="提交").click()

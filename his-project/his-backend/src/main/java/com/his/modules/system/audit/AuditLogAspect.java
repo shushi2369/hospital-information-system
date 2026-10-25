@@ -37,20 +37,25 @@ public class AuditLogAspect {
     public Object around(ProceedingJoinPoint pjp, AuditLog auditLog) throws Throwable {
         long start = System.currentTimeMillis();
         String resultCode = "OK";
+        Object result;
         try {
-            return pjp.proceed();
+            result = pjp.proceed();
         } catch (BizException e) {
             resultCode = e.getErrorCode().getCode();
+            save(pjp, auditLog, resultCode, System.currentTimeMillis() - start, null);
             throw e;
         } catch (Throwable e) {
             resultCode = "C9001";
+            save(pjp, auditLog, resultCode, System.currentTimeMillis() - start, null);
             throw e;
-        } finally {
-            save(pjp, auditLog, resultCode, System.currentTimeMillis() - start);
         }
+        // 一百四十九轮 D-19：成功路径一并落库，且响应 data 为单号字符串（SF…/GH…/TJ… 等）
+        // 时回填 bizId——原实现从不写 biz_id，日志页按单号检索是死功能
+        save(pjp, auditLog, resultCode, System.currentTimeMillis() - start, result);
+        return result;
     }
 
-    private void save(ProceedingJoinPoint pjp, AuditLog auditLog, String resultCode, long costMs) {
+    private void save(ProceedingJoinPoint pjp, AuditLog auditLog, String resultCode, long costMs, Object result) {
         try {
             MethodSignature signature = (MethodSignature) pjp.getSignature();
             SysOperationLog entity = new SysOperationLog();
@@ -78,6 +83,10 @@ public class AuditLogAspect {
                 entity.setUserAgent(ua != null && ua.length() > 256 ? ua.substring(0, 256) : ua);
             }
             entity.setCostMs((int) costMs);
+            // D-19：成功响应 data 为单号字符串时回填 bizId（失败路径 result=null 不回填）
+            if (result instanceof com.his.common.R<?> r && r.getData() instanceof String bizId && !bizId.isBlank()) {
+                entity.setBizId(bizId);
+            }
             // INSERT 异步化（九十轮生命周期审计）：实体在请求线程构建（traceId/用户上下文/UA 均需请求态），
             // 落库提交到 auditExecutor——150 个 @AuditLog 端点每次省一次同步写。
             // MDC 快照随任务传递：executor 线程没有请求上下文，不传则异步失败日志丢 traceId 无法关联请求

@@ -228,11 +228,14 @@ def main():
 
     wrong_device = 3 if modality in (1, 2) else 1
     right_device = {1: 1, 2: 2, 3: 3}.get(modality, 1)
+    # 一百四十九轮：预约时段改 uid 派生——原固定 T14:00 在 D-15 同设备同时段冲突校验
+    # 上线后必撞历史预约（测试数据缺陷，非产品缺陷）；15 点 + uid 分钟保证跨运行不重
+    appt_slot = today + "T15:%02d:00" % (int(uid[-2:]) % 60)
     st, r = call("POST", "/ris/requests/%d/appoint" % ris_id, ris_tech,
-                 {"deviceId": wrong_device, "apptTime": today + "T14:00:00"}, idem="p3b-apw-" + uid)
+                 {"deviceId": wrong_device, "apptTime": appt_slot}, idem="p3b-apw-" + uid)
     check("26. 设备类别不匹配预约拦截", r["code"] != "OK", r)
     st, r = call("POST", "/ris/requests/%d/appoint" % ris_id, ris_tech,
-                 {"deviceId": right_device, "apptTime": today + "T14:00:00"}, idem="p3b-ap-" + uid)
+                 {"deviceId": right_device, "apptTime": appt_slot}, idem="p3b-ap-" + uid)
     check("27. 预约成功(20)", r["code"] == "OK", r)
     st, r = call("POST", "/ris/requests/%d/start" % ris_id, ris_tech, idem="p3b-rs-" + uid)
     check("28. 开始检查(30)", r["code"] == "OK", r)

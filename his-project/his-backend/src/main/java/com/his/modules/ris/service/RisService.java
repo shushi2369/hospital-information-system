@@ -189,6 +189,15 @@ public class RisService {
         if (exists != null && exists > 0) {
             throw new BizException(ErrorCode.A0001, "该申请已预约");
         }
+        // 一百四十九轮 D-15：同设备同时段占用校验——原零冲突校验，三单同设备同时刻
+        // 全部预约成功（检查当天才发现撞台）。status 1 待检查/2 检查中均算占用（3 已作废释放）
+        Long occupied = appointmentMapper.selectCount(new LambdaQueryWrapper<RisAppointment>()
+                .eq(RisAppointment::getDeviceId, req.getDeviceId())
+                .eq(RisAppointment::getApptTime, req.getApptTime())
+                .in(RisAppointment::getStatus, 1, 2));
+        if (occupied != null && occupied > 0) {
+            throw new BizException(ErrorCode.A0001, "该设备该时段已预约，请更换时段或设备");
+        }
         RisAppointment appointment = new RisAppointment();
         appointment.setRequestId(id);
         appointment.setDeviceId(req.getDeviceId());

@@ -382,4 +382,24 @@ public class CdssService {
             }
         }
     }
+
+    /**
+     * 门诊处方 CDSS 轻量守门（一百四十九轮 D-14）：住院医嘱走 check() 写 cdss_hit，
+     * 门诊开方此前完全绕过 CDSS——过敏史"开药即查"在主路径失效。
+     * 返回提醒列表（提醒不阻断，前端确认后可继续提交）；不做完整规则引擎，
+     * type=4 过敏原精确映射与配伍引擎仍以住院侧为准（defer）。
+     */
+    public java.util.List<String> checkOutpatientRx(Long visitId, Long patientId, Long doctorId,
+                                                    java.util.List<Long> drugIds) {
+        java.util.List<String> warnings = new ArrayList<>();
+        if (patientId == null || drugIds == null || drugIds.isEmpty()) {
+            return warnings;
+        }
+        com.his.modules.patient.app.PatientDTO patient = patientAppService.getById(patientId);
+        if (patient != null && patient.getAllergyHistory() != null && !patient.getAllergyHistory().isBlank()) {
+            warnings.add("患者存在过敏史记录：" + patient.getAllergyHistory() + "，请核对用药");
+        }
+        // 同就诊重复用药提醒 defer（规则引擎无该类型，见 149 轮 CHANGELOG）
+        return warnings;
+    }
 }

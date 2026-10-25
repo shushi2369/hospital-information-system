@@ -91,6 +91,17 @@ public class PubService {
                     if (cardMapper.selectCount(exists) > 0) {
                         continue;
                     }
+                    // 一百四十九轮 D-16：跨就诊/住院查重（疾控按病例管理，重报属合规问题）——
+                    // 原仅按单次就诊/住院去重，两个就诊各存同病种诊断会生成两张卡。
+                    // 同患者+同病种+未订正(≠50)+近一年诊断 → 不再重复报卡
+                    Long patientDup = cardMapper.selectCount(new LambdaQueryWrapper<PubInfectiousCard>()
+                            .eq(PubInfectiousCard::getPatientId, patientId)
+                            .eq(PubInfectiousCard::getDiseaseName, d.getDiseaseName())
+                            .ne(PubInfectiousCard::getStatus, 50)
+                            .ge(PubInfectiousCard::getDiagnoseDate, java.time.LocalDate.now().minusYears(1)));
+                    if (patientDup != null && patientDup > 0) {
+                        continue;
+                    }
                     PubInfectiousCard card = new PubInfectiousCard();
                     card.setCardNo(idGenerator.next("CR"));
                     card.setVisitId(visitId);

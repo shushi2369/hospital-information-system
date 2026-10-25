@@ -56,3 +56,7 @@ export function getHitPage(params: { pageNum?: number; pageSize?: number; orderI
 /** 一百一十八轮【04】：命中处置回写（ignored=false 表示提示后放弃开立；后端校验开单医生本人） */
 export const acknowledgeHit = (id: number, ignored: boolean) =>
   post<void>(`/cdss/hits/${id}/acknowledge?ignored=${ignored}`)
+
+/** 门诊处方 CDSS 轻量守门（一百四十九轮 D-14）：开方确认前调用，提醒不阻断 */
+export const outpatientCheck = (visitId: number, patientId: number, drugIds: number[]) =>
+  get<string[]>('/cdss/outpatient-check', { visitId, patientId, drugIds: drugIds.join(',') })

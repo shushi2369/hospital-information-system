@@ -103,6 +103,11 @@ public class PeService {
     /** 详情聚合（P-03）：登记 + 分项 + 报告 */
     public Map<String, Object> detail(Long id) {
         PeRecord record = requireRecord(id);
+        // 一百四十九轮 D-18：详情回填患者姓名（原列表有、详情恒 null，前端需自行补显）
+        if (record.getPatientId() != null) {
+            com.his.modules.patient.app.PatientDTO p = patientAppService.getById(record.getPatientId());
+            record.setPatientName(p == null ? null : p.getName());
+        }
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("record", record);
         PePackage pkg = packageMapper.selectById(record.getPackageId());

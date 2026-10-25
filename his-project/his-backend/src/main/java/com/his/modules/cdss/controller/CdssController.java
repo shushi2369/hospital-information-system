@@ -57,4 +57,15 @@ public class CdssController {
     public R<PageResult<CdssHit>> hits(CdssQuery query) {
         return R.ok(cdssService.hitPage(query));
     }
+
+    /** 门诊处方 CDSS 轻量守门（一百四十九轮 D-14）：开方前确认弹窗数据源，提醒不阻断 */
+    @GetMapping("/outpatient-check")
+    @PreAuthorize("@ss.hasPerm('clinic:prescription:create')")
+    public R<java.util.List<String>> outpatientCheck(
+            @RequestParam(required = false) Long visitId,
+            @RequestParam Long patientId,
+            @RequestParam java.util.List<Long> drugIds) {
+        return R.ok(cdssService.checkOutpatientRx(visitId, patientId,
+                com.his.infrastructure.security.CurrentUser.id(), drugIds));
+    }
 }

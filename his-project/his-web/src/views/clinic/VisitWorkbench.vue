@@ -470,7 +470,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, h, onMounted, reactive, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Refresh } from '@element-plus/icons-vue'
@@ -503,6 +503,7 @@ import {
   type VisitDiagnosis,
 } from '@/api/clinic'
 import { genderLabel, calcAge } from '@/api/patient'
+import { outpatientCheck } from '@/api/cdss'
 import { searchIcd10, type Icd10Item as Icd10Entry } from '@/api/mrc'
 import { fmtMoney, periodLabel, regStatusTagType, regStatusLabel, regTypeLabel, type Registration } from '@/api/registration'
 import { toList } from '@/api/request'
@@ -915,6 +916,24 @@ async function handleRxSubmit() {
   const invalid = touched.find((r) => !isRowValid(r))
   if (invalid) {
     ElMessage.warning('请将已填写的明细行补充完整（药品/剂量/频次/用法/天数/数量）')
+    return
+  }
+  // 一百四十九轮 D-14：开方前 CDSS 门诊守门（过敏史提醒），提醒不阻断
+  try {
+    const warnings = await outpatientCheck(
+      detail.value.id,
+      detail.value.patient.id,
+      touched.map((r) => r.drugId as number),
+    )
+    if (warnings && warnings.length > 0) {
+      await ElMessageBox.confirm(
+        h('div', null, warnings.map((w) => h('p', { style: 'color:#e6a23c;margin:4px 0' }, w))),
+        'CDSS 用药提醒',
+        { type: 'warning', confirmButtonText: '已知悉，继续开立', cancelButtonText: '返回修改' },
+      )
+    }
+  } catch {
+    // 用户点"返回修改"或守门接口异常——守门失败不阻断开方（与住院侧"提醒不阻断"口径一致）
     return
   }
   rxSubmitting.value = true

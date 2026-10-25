@@ -337,7 +337,7 @@ def main():
           {"n": len(reqs["data"]["list"]), "statuses": [x["status"] for x in reqs["data"]["list"]]})
     op_id = op_req["id"]
     st, r = call("POST", "/ris/requests/%d/appoint" % op_id, ris_tech, {
-        "deviceId": 1, "apptTime": today + "T19:00:00"}, idem="p4-op6-" + uid)
+        "deviceId": 1, "apptTime": today + "T19:%02d:00" % (int(uid[-2:]) % 60)}, idem="p4-op6-" + uid)
     check("35. [门诊闭环] 预约", r["code"] == "OK", r)
     call("POST", "/ris/requests/%d/start" % op_id, ris_tech, idem="p4-op7-" + uid)
     call("POST", "/ris/requests/%d/images" % op_id, ris_tech, {"fetch": True}, idem="p4-op8-" + uid)
