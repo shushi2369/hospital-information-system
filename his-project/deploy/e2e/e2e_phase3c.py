@@ -214,6 +214,12 @@ def main():
     st, wards3c = call("GET", "/inp/wards", admin)
     for w in wards3c["data"]:
         st, beds3c = call("GET", "/inp/beds?wardId=%s&bedStatus=1" % w["id"], admin)
+        # 一百四十九轮：无空床自建（对齐 phase2/phase4 自愈模式）——床位被历史在院
+        # 数据占满时 adm3c 静默为 None，CDSS 医嘱开立报"住院不能为空"
+        if not beds3c["data"]:
+            call("POST", "/inp/beds", admin, {"wardId": w["id"], "bedNo": "P3C-" + uid + "-" + str(w["id"]),
+                 "chargeItemId": 10}, idem="p3c-bed-" + uid + "-" + str(w["id"]))
+            st, beds3c = call("GET", "/inp/beds?wardId=%s&bedStatus=1" % w["id"], admin)
         if beds3c["data"]:
             st, r = call("POST", "/inp/admissions", admin, {"patientId": pt3c,
                          "deptId": w["deptId"], "wardId": w["id"], "bedId": beds3c["data"][0]["id"],

@@ -157,7 +157,9 @@ export function defaultChecklist(type: number): CheckItem[] {
       '交接内容确认',
     ],
   }
-  return (items[type] ?? []).map((item) => ({ item, result: true }))
+  // 一百四十九轮 D-21：默认未勾选——原默认全"通过"，未做任何核对也能秒过双人核查，
+  // 且后端对 false 项硬拦，默认真值使"逐项核对"形同虚设
+  return (items[type] ?? []).map((item) => ({ item, result: false }))
 }
 
 export function getRequestPage(params: OrsRequestQuery) {
@@ -196,6 +198,9 @@ export function scheduleSurgery(
     anesthetistId?: number
     circulatingNurseId?: number
     scrubNurseId?: number
+    /** 一百四十九轮 D-31：时间窗（ISO 带日期时间）——148 轮后端双占用校验依赖此字段 */
+    startTime?: string
+    endTime?: string
   },
 ) {
   return post<string>(`/ors/requests/${id}/schedule`, data)

@@ -13,6 +13,8 @@ public class PatientUpdateRequest {
     @Pattern(regexp = "\\d{11}", message = "手机号须为 11 位数字")
     private String phone;
     private String address;
+    @jakarta.validation.constraints.Size(max = 256, message = "过敏史最多 256 字")
     private String allergyHistory;
+    @jakarta.validation.constraints.Size(max = 256, message = "既往史最多 256 字")
     private String pastHistory;
 }

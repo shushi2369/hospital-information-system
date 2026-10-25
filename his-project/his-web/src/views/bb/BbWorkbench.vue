@@ -4,6 +4,15 @@
       <el-tab-pane label="用血申请" name="req">
         <div class="table-toolbar">
           <span class="toolbar-title">用血申请单</span>
+          <!-- 一百四十九轮 D-29：加状态筛选——217 条 22 页混排待办无从一眼确认 -->
+          <el-radio-group v-model="query.status" size="small" @change="handleSearch">
+            <el-radio-button :value="undefined">全部</el-radio-button>
+            <el-radio-button :value="10">待审核</el-radio-button>
+            <el-radio-button :value="20">待配血</el-radio-button>
+            <el-radio-button :value="30">待发血</el-radio-button>
+            <el-radio-button :value="40">待输注</el-radio-button>
+            <el-radio-button :value="50">输注中</el-radio-button>
+          </el-radio-group>
           <el-button v-perm="'bb:request:create'" type="danger" @click="resetReqForm(); reqVisible = true">用血申请</el-button>
           <el-button v-perm="'bb:bags:manage'" link type="primary" @click="resetBagForm(); bagVisible = true">血袋入库</el-button>
         </div>
@@ -63,7 +72,14 @@
             <template #default="{ row }">{{ componentLabel(row.component) }}</template>
           </el-table-column>
           <el-table-column prop="volumeMl" label="容量ml" width="90" align="center" />
-          <el-table-column prop="expireDate" label="失效日期" width="110" align="center" />
+          <el-table-column label="失效日期" width="130" align="center">
+            <template #default="{ row }">
+              <!-- 一百四十九轮 D-30：过期/临期血袋显性标识——原与正常袋同样式平铺 -->
+              <span :style="bagExpireStyle(row)">
+                {{ row.expireDate }}{{ isBagExpired(row) ? '（已过期）' : bagExpiringSoon(row) ? '（临期）' : '' }}
+              </span>
+            </template>
+          </el-table-column>
           <el-table-column label="状态" width="90" align="center">
             <template #default="{ row }">
               <el-tag size="small" :type="row.status === 1 ? 'success' : 'info'">
@@ -77,6 +93,11 @@
             </template>
           </el-table-column>
         </el-table>
+        <div class="pagination-bar">
+          <el-pagination v-model:current-page="bagQuery.pageNum" v-model:page-size="bagQuery.pageSize"
+            :total="bagTotal" :page-sizes="[20, 50]" background
+            layout="total, sizes, prev, pager, next" @current-change="fetchBags" @size-change="() => { bagQuery.pageNum = 1; fetchBags() }" />
+        </div>
       </el-tab-pane>
     </el-tabs>
 
@@ -126,7 +147,7 @@
             <el-option v-for="o in BB_COMPONENT" :key="o.value" :value="o.value" :label="o.label" />
           </el-select>
         </el-form-item>
-        <el-form-item label="失效日期" required><el-date-picker v-model="bagForm.expireDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" /></el-form-item>
+        <el-form-item label="失效日期" required><el-date-picker v-model="bagForm.expireDate" type="date" value-format="YYYY-MM-DD" :disabled-date="(d: Date) => d.getTime() < Date.now() - 86400000" style="width: 100%" /></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="bagVisible = false">取消</el-button>
@@ -268,12 +289,17 @@ const bagLoading = ref(false)
 const list = ref<BbRequest[]>([])
 const bags = ref<BbBag[]>([])
 const total = ref(0)
-const query = reactive({ pageNum: 1, pageSize: 10 })
+const query = reactive({ pageNum: 1, pageSize: 10, status: undefined as number | undefined })
+
+function handleSearch() {
+  query.pageNum = 1
+  fetchList()
+}
 
 async function fetchList() {
   loading.value = true
   try {
-    const res = await getRequestPage({ pageNum: query.pageNum, pageSize: query.pageSize })
+    const res = await getRequestPage({ pageNum: query.pageNum, pageSize: query.pageSize, status: query.status })
     list.value = res.list ?? []
     total.value = res.total ?? 0
   } finally { loading.value = false }
@@ -281,9 +307,25 @@ async function fetchList() {
 async function fetchBags() {
   bagLoading.value = true
   try {
-    const res = await getBagPage({ pageNum: 1, pageSize: 50, status: 1 })
+    const res = await getBagPage({ pageNum: bagQuery.pageNum, pageSize: bagQuery.pageSize, status: 1, bloodType: bagQuery.bloodType })
     bags.value = res.list ?? []
+    bagTotal.value = res.total ?? 0
   } finally { bagLoading.value = false }
+}
+
+/** 一百四十九轮 D-30 配套：库存分页/血型筛选 + 效期标识 */
+const bagQuery = reactive({ pageNum: 1, pageSize: 20, bloodType: undefined as number | undefined })
+const bagTotal = ref(0)
+function isBagExpired(row: { expireDate?: string | null }) {
+  return !!row.expireDate && row.expireDate < new Date().toISOString().slice(0, 10)
+}
+function bagExpiringSoon(row: { expireDate?: string | null }) {
+  if (!row.expireDate) return false
+  const diff = (new Date(row.expireDate).getTime() - Date.now()) / 86400000
+  return diff >= 0 && diff <= 7
+}
+function bagExpireStyle(row: { expireDate?: string | null }) {
+  return isBagExpired(row) ? 'color:#f56c6c;font-weight:700' : bagExpiringSoon(row) ? 'color:#e6a23c' : ''
 }
 
 const reqVisible = ref(false)

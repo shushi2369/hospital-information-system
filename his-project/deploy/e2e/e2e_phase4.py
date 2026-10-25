@@ -70,8 +70,14 @@ def main():
     pid4 = pl4["data"]["list"][0]["id"]
     adm4 = None
     st, wards4 = call("GET", "/inp/wards", admin)
+    # 一百四十九轮：无空床时自建（同 phase2 自愈模式）——演示库床位被历史在院数据占满时
+    # adm4 会静默为 None，用血申请等下游步骤全部错位
     for w in wards4["data"]:
         st, beds4 = call("GET", "/inp/beds?wardId=%s&bedStatus=1" % w["id"], admin)
+        if not beds4["data"]:
+            call("POST", "/inp/beds", admin, {"wardId": w["id"], "bedNo": "P4-" + uid + "-" + str(w["id"]),
+                 "chargeItemId": 10}, idem="p4-bed-" + uid + "-" + str(w["id"]))
+            st, beds4 = call("GET", "/inp/beds?wardId=%s&bedStatus=1" % w["id"], admin)
         if beds4["data"]:
             st, r = call("POST", "/inp/admissions", admin, {"patientId": pid4,
                          "deptId": w["deptId"], "wardId": w["id"], "bedId": beds4["data"][0]["id"],

@@ -54,12 +54,14 @@ public class RegistrationService {
         if (req.getRegDate().isBefore(LocalDate.now())) {
             throw new BizException(ErrorCode.A0001, "不能挂过去日期的号");
         }
-        patientAppService.requireActive(req.getPatientId());
-        // R2：事务内锁定医生行后再计数，防并发超发
+        // R2：锁定医生行必须先于一切普通读——REPEATABLE READ 下一致性快照建立于事务
+        // 第一条普通读，锁后校验若走旧快照会看不到并发已提交的挂号（实测 5 并发 4 笔
+        // 重复放行）。FOR UPDATE 是当前读，先行获取既串行化又使后续读可见已提交行
         DoctorDTO doctor = basedataAppService.lockDoctor(req.getDoctorId());
         if (doctor == null || doctor.getStatus() == 0) {
             throw new BizException(ErrorCode.A0001, "医生不存在或已停用");
         }
+        patientAppService.requireActive(req.getPatientId());
         // R1：防重复挂号（应用层校验而非唯一索引，保证退号后可重新挂号）
         Long dup = registrationMapper.countValidByPatient(
                 req.getPatientId(), req.getDoctorId(), req.getRegDate(), req.getPeriod());

@@ -99,7 +99,7 @@ def seed_admission(admin, cashier, uid, name_prefix, ascii_tag, diagnosis, seq):
     """患者 + 床位 + 入院登记，返回 (patientId, admissionId)。seq 用于同轮多患者去重；
     幂等键一律 ASCII（HTTP 头不允许非 latin-1 字符）"""
     cr = api("/patients", cashier, {"name": name_prefix + uid, "gender": 1,
-        "birthDate": "1990-01-01", "idCardNo": "3401041990010%s%d" % (uid[-4:], seq),
+        "birthDate": "1990-01-01", "idCardNo": "34010419900101%s" % (1000 + (abs(hash((uid, seq))) % 9000)),  # 顺序码哈希化：uid[-4:] 跨运行碰撞会触发 D-3 归一后 B1001
         "phone": "13%d%s" % (seq % 10, uid[:8])}, idem="ui-adm-pt-" + ascii_tag + uid)
     pl = api("/patients?name=" + urllib.parse.quote(name_prefix + uid), cashier)
     if not pl.get("data", {}).get("list"):
@@ -144,7 +144,7 @@ def main():
         # ---------------- ③ PHI 脱敏 ----------------
         # API 建一个手机号已知的患者（服务端 toResponse 已脱敏，前端 mask.ts 二次防线）
         raw_phone = "138" + uid[:8]
-        raw_idcard = "34010419900101" + uid[-4:]
+        raw_idcard = "34010419900101" + "%04d" % (1000 + (abs(hash(("raw", uid))) % 9000))  # 哈希化防跨运行碰撞
         r = api("/patients", cashier, {"name": "链路脱敏" + uid, "gender": 1,
                 "birthDate": "1990-01-01", "idCardNo": raw_idcard,
                 "phone": raw_phone}, idem="ui-pt-" + uid)
@@ -174,7 +174,7 @@ def main():
         # ---------------- ① 收费 UI wiring ----------------
         # API 造数：患者→挂号→接诊→处方（已收费前置）
         r = api("/patients", cashier, {"name": "链路收费" + uid, "gender": 1,
-                "birthDate": "1990-01-01", "idCardNo": "34010419900102" + uid[-4:],
+                "birthDate": "1990-01-01", "idCardNo": "34010419900102%s" % (1000 + (abs(hash(("phi", uid))) % 9000)),
                 "phone": "136" + uid[:8]}, idem="ui-ch-pt-" + uid)
         pl = api("/patients?name=" + urllib.parse.quote("链路收费" + uid), cashier)
         pid = first(pl["data"]["list"], "收费链患者查询:链路收费" + uid)["id"]
@@ -217,7 +217,7 @@ def main():
         doctor = login("dr.li")
         # 用 API 再造一单挂号+接诊前置
         r = api("/patients", cashier, {"name": "链路接诊" + uid, "gender": 1,
-                "birthDate": "1990-01-01", "idCardNo": "34010419900103" + uid[-4:],
+                "birthDate": "1990-01-01", "idCardNo": "34010419900104%s" % (1000 + (abs(hash(("emc", uid))) % 9000)),
                 "phone": "134" + uid[:8]}, idem="ui-jz-pt-" + uid)
         pl = api("/patients?name=" + urllib.parse.quote("链路接诊" + uid), cashier)
         # 一百一十九轮：前置断言（原静默 IndexError，建档偶发失败时难以定位）

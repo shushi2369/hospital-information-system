@@ -30,6 +30,8 @@ public class PatientCreateRequest {
     private String phone;
     @Size(max = 128, message = "地址最长 128 字")
     private String address;
+    @jakarta.validation.constraints.Size(max = 256, message = "过敏史最多 256 字")
     private String allergyHistory;
+    @jakarta.validation.constraints.Size(max = 256, message = "既往史最多 256 字")
     private String pastHistory;
 }

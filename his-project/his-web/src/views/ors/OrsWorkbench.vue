@@ -103,6 +103,13 @@
               :disabled-date="(d: Date) => d.getTime() < Date.now() - 864e5" type="date" value-format="YYYY-MM-DD" style="width: 100%" /></el-form-item>
         <el-form-item label="台次" required><el-input-number v-model="scheduleForm.seqNo" :min="1" :max="10" style="width: 100%" /></el-form-item>
         <el-form-item label="主刀医生ID" required><el-input-number v-model="scheduleForm.surgeonId" :min="1" :precision="0" style="width: 100%" /></el-form-item>
+        <!-- 一百四十九轮 D-31：时间窗——原弹窗无时间字段，后端时间窗/主刀双占用校验成死代码 -->
+        <el-form-item label="开始时间">
+          <el-time-picker v-model="scheduleForm.startTime" value-format="HH:mm:ss" placeholder="选填" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="结束时间">
+          <el-time-picker v-model="scheduleForm.endTime" value-format="HH:mm:ss" placeholder="选填（填开始后建议必填）" style="width: 100%" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="scheduleVisible = false">取消</el-button>
@@ -372,7 +379,7 @@ async function handleReview(row: OrsRequest, approved: boolean) {
 }
 
 const scheduleVisible = ref(false)
-const scheduleForm = reactive({ roomId: undefined as number | undefined, surgeryDate: '', seqNo: 1, surgeonId: undefined as number | undefined })
+const scheduleForm = reactive({ roomId: undefined as number | undefined, surgeryDate: '', seqNo: 1, surgeonId: undefined as number | undefined, startTime: '' as string, endTime: '' as string })
 let currentRow: OrsRequest | null = null
 
 async function openSchedule(row: OrsRequest) {
@@ -384,6 +391,8 @@ async function openSchedule(row: OrsRequest) {
   scheduleForm.surgeryDate = row.plannedDate
   scheduleForm.seqNo = 1
   scheduleForm.surgeonId = undefined
+  scheduleForm.startTime = ''
+  scheduleForm.endTime = ''
   scheduleVisible.value = true
 }
 
@@ -392,11 +401,19 @@ async function handleSchedule() {
     ElMessage.warning('请完整填写排台信息')
     return
   }
+  if (scheduleForm.startTime && !scheduleForm.endTime) {
+    ElMessage.warning('已填开始时间，请同时填写结束时间')
+    return
+  }
   await scheduleSurgery(currentRow.id, {
     roomId: scheduleForm.roomId,
     surgeryDate: scheduleForm.surgeryDate,
     seqNo: scheduleForm.seqNo,
     surgeonId: scheduleForm.surgeonId,
+    startTime: scheduleForm.startTime
+      ? `${scheduleForm.surgeryDate}T${scheduleForm.startTime}` : undefined,
+    endTime: scheduleForm.endTime
+      ? `${scheduleForm.surgeryDate}T${scheduleForm.endTime}` : undefined,
   })
   ElMessage.success('排台成功')
   scheduleVisible.value = false

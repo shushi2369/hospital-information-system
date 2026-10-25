@@ -11,7 +11,7 @@
           刷新
         </el-button>
       </div>
-      <el-table v-loading="billLoading" :data="billRows" border stripe size="small">
+      <el-table v-loading="billLoading" :data="bills" border stripe size="small">
         <el-table-column prop="billNo" label="收费单号" min-width="150" show-overflow-tooltip />
         <el-table-column prop="patientName" label="患者" min-width="90" show-overflow-tooltip />
         <el-table-column label="总金额" width="100" align="right">
