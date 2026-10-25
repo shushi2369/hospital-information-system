@@ -385,8 +385,10 @@ async function handleRegister() {
       '挂号成功',
       { type: 'success', confirmButtonText: '知道了' }
     ).catch(() => {})
-    // 重置患者与医生便于连续挂号
+    // 重置患者与医生便于连续挂号（一百四十八轮 D-12：同步清科室——原科室残留
+    // 而医生已清空回"请先选择科室"，两个下拉状态矛盾）
     regForm.patientId = undefined
+    regForm.deptId = undefined
     regForm.doctorId = undefined
     fetchList()
   } catch {

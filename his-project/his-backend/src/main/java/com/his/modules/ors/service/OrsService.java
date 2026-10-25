@@ -166,6 +166,28 @@ public class OrsService {
         if (clash != null && clash > 0) {
             throw new BizException(ErrorCode.A0001, "该手术间台次已被占用");
         }
+        // 一百四十八轮 D-2：时间窗/主刀双占用校验——原只按 (室,日,台次) 查重，
+        // 同室同时刻可排两台、同一主刀可跨手术间同时段双开，手术当天才发现撞台
+        if (req.getStartTime() != null && req.getEndTime() != null) {
+            for (OrsSchedule s : scheduleMapper.selectList(new LambdaQueryWrapper<OrsSchedule>()
+                    .eq(OrsSchedule::getSurgeryDate, req.getSurgeryDate())
+                    .eq(OrsSchedule::getStatus, 1))) {
+                if (s.getStartTime() == null || s.getEndTime() == null) {
+                    continue;
+                }
+                boolean overlap = req.getStartTime().isBefore(s.getEndTime())
+                        && s.getStartTime().isBefore(req.getEndTime());
+                if (!overlap) {
+                    continue;
+                }
+                if (req.getRoomId().equals(s.getRoomId())) {
+                    throw new BizException(ErrorCode.A0001, "该手术间该时段已排台（时间窗重叠），请调整时间或台次");
+                }
+                if (req.getSurgeonId() != null && req.getSurgeonId().equals(s.getSurgeonId())) {
+                    throw new BizException(ErrorCode.A0001, "主刀医生该时段已在其他手术间排台，禁止同时段双开");
+                }
+            }
+        }
         OrsSchedule schedule = new OrsSchedule();
         schedule.setScheduleNo(idGenerator.next("PT"));
         schedule.setRequestId(id);

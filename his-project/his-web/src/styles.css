@@ -279,7 +279,9 @@ html.dark {
 }
 
 /* ===== 布局 ===== */
-.layout-root { background: var(--ak-bg-root); }
+/* 一百四十八轮 D-9：外壳最小高度铺满视口——短内容页（如体征管理空态）时
+   侧边栏/页头背景在半屏截断，下方露灰色死区，弹窗遮罩观感破碎 */
+.layout-root { background: var(--ak-bg-root); min-height: 100vh; }
 
 .layout-aside {
   background: var(--ak-aside-bg) !important;

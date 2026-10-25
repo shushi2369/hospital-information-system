@@ -302,6 +302,8 @@ function fillBirthFromIdCard() {
   if (!form.birthDate) form.birthDate = birth
   // 性别码（倒数第二位）奇男偶女；仅在用户未改过默认值时回填，避免覆盖已选项
   if (form.gender === 1 && Number(id.charAt(16)) % 2 === 0) form.gender = 2
+  // 回填生效后清除出生日期字段的旧校验错误，避免用户误以为仍需手选
+  formRef.value?.clearValidate('birthDate')
 }
 
 async function handleSubmit() {

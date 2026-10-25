@@ -68,9 +68,10 @@ public class PharmacyService {
     private final InvStockMovementMapper movementMapper;
     private final IdGenerator idGenerator;
 
-    /** 审核队列（F-01） */
-    public List<RxDisplayDTO> reviewQueue() {
-        return clinicAppService.listPrescriptionsByStatus(10, null);
+    /** 审核队列（F-01）：status 10 待审核 / 20 已通过——原忽略参数恒返待审核，
+     *  药师切"已通过"看到的仍是待审核处方（一百四十八轮 D-4） */
+    public List<RxDisplayDTO> reviewQueue(Integer status) {
+        return clinicAppService.listPrescriptionsByStatus(status == null ? 10 : status, null);
     }
 
     /** 处方审核（F-02）：状态 10 才可审核（B4008），写审核留痕 */

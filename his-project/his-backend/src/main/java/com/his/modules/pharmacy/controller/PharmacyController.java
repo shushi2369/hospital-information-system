@@ -18,6 +18,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -35,8 +36,8 @@ public class PharmacyController {
 
     @GetMapping("/prescriptions")
     @PreAuthorize("@ss.hasPerm('pharmacy:review:query')")
-    public R<List<RxDisplayDTO>> reviewQueue() {
-        return R.ok(pharmacyService.reviewQueue());
+    public R<List<RxDisplayDTO>> reviewQueue(@RequestParam(required = false) Integer status) {
+        return R.ok(pharmacyService.reviewQueue(status));
     }
 
     @PostMapping("/prescriptions/{id}/review")

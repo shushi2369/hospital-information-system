@@ -525,6 +525,22 @@ async function handleVitalSubmit() {
     ElMessage.warning('舒张压应小于收缩压')
     return
   }
+  // 一百四十八轮 D-8：提交前逐字段范围校验并指名超范围字段——原仅灰色区间小字标注，
+  // 后端虽拦 A0001 但护士不知道哪一项敲错（体温 50 保存被还原却无字段级提示）
+  const VITAL_LABELS: Record<string, string> = {
+    temperature: '体温', pulse: '脉搏', respiration: '呼吸',
+    bpHigh: '收缩压', bpLow: '舒张压', spo2: '血氧', painScore: '疼痛评分',
+  }
+  for (const key of Object.keys(VITAL_LABELS)) {
+    const raw = (vitalForm as Record<string, unknown>)[key]
+    if (raw === null || raw === undefined || raw === '') continue
+    const range = VITAL_RANGES[key as keyof typeof VITAL_RANGES]
+    const v = Number(raw)
+    if (Number.isFinite(v) && (v < range.min || v > range.max)) {
+      ElMessage.warning(`${VITAL_LABELS[key]} 超出范围（${range.min} ~ ${range.max}），请核对`)
+      return
+    }
+  }
   vitalSubmitting.value = true
   try {
     await createVitalSign({

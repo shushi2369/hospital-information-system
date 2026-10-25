@@ -111,6 +111,13 @@ public class CryptoUtil {
     /** 过渡期查询候选：存量行仍为无盐 SHA-256，新行为 HMAC——按双候选 IN 查询兼容，
      *  启动补偿任务（PatientHashRehashTask）会把存量逐步重算为 HMAC，届时可移除 sha256 候选 */
     public List<String> idCardHashCandidates(String idCardNo) {
-        return List.of(hmacSha256Hex(idCardNo), sha256Hex(idCardNo));
+        String normalized = normalizeIdCard(idCardNo);
+        return List.of(hmacSha256Hex(normalized), sha256Hex(normalized));
+    }
+
+    /** 身份证归一（一百四十八轮 D-3）：trim + 末位小写 x 统一大写 X——
+     *  原按原始串算哈希，"…x"与"…X"各自建档形成同一自然人双档案（EMPI 分裂） */
+    public String normalizeIdCard(String idCardNo) {
+        return idCardNo == null ? null : idCardNo.trim().toUpperCase();
     }
 }

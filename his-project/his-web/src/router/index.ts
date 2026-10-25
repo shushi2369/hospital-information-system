@@ -130,6 +130,10 @@ router.beforeEach(async (to) => {
     // （收藏/历史）不属于新角色时原样放行会渲染 404，应落到新角色自己的首页
     const resolved = router.resolve({ path: to.path, query: to.query, hash: to.hash })
     if (resolved.matched.length === 0 || resolved.name === 'NotFound') {
+      // 一百四十八轮 D-11：静默跳回首页让用户误以为导航失败——明示原因
+      import('element-plus').then(({ ElMessage }) => {
+        ElMessage.warning('无权访问该页面或页面不存在，已返回首页')
+      })
       return store.firstMenuPath ? { path: store.firstMenuPath, replace: true } : true
     }
     // 重新解析目标路由（原目标此刻可能匹配的是 NotFound 兜底）

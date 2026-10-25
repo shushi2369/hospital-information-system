@@ -59,6 +59,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(R.fail(ErrorCode.A0001, "请求体格式错误"));
     }
 
+    /** 一百四十八轮 D-7：@RequestParam 缺失原落入兜底 500"系统繁忙"，误导排障——语义是 400 缺参 */
+    @ExceptionHandler(org.springframework.web.bind.MissingServletRequestParameterException.class)
+    public ResponseEntity<R<Object>> handleMissingParam(org.springframework.web.bind.MissingServletRequestParameterException e) {
+        return ResponseEntity.badRequest().body(R.fail(ErrorCode.A0001, "缺少必要参数：" + e.getParameterName()));
+    }
+
     /** 六十二轮：数据库完整性冲突（字段超长/非空/外键等）翻译为友好 400，不再冒充 C9001 系统繁忙 */
     @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
     public ResponseEntity<R<Object>> handleIntegrity(org.springframework.dao.DataIntegrityViolationException e) {

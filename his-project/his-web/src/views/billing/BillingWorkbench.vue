@@ -522,7 +522,10 @@ const unpaidTableRef = ref()
 async function fetchUnpaid() {
   unpaidLoading.value = true
   try {
-    unpaidList.value = toList<UnpaidVisit>(await getUnpaidVisits())
+    // 一百四十八轮 D-13：最新就诊置顶——原接口顺序新单排尾，收费员逐行扫视找单
+    const list = toList<UnpaidVisit>(await getUnpaidVisits())
+    list.sort((a, b) => (b.visitId ?? 0) - (a.visitId ?? 0))
+    unpaidList.value = list
   } finally {
     unpaidLoading.value = false
   }

@@ -132,8 +132,12 @@ public class BillingService {
     public BillResponse charge(ChargeRequest req) {
         requireDailySettleOpen();
         BillingVisitDTO visit = requireVisit(req.getVisitId());
+        // 一百四十八轮 D-1：仅当存在"未退净额>0"的账单才拦重复收费——原一票否决
+        // （该就诊有任何账单即 B3001）导致退费后新开处方的应收永远收不进来
+        // （payable 显示应收、charge 报已收费，自相矛盾且无补收通道）
         if (billMapper.selectCount(new LambdaQueryWrapper<BilChargeBill>()
-                .eq(BilChargeBill::getVisitId, req.getVisitId())) > 0) {
+                .eq(BilChargeBill::getVisitId, req.getVisitId())
+                .apply("(payable_amount - refund_amount) > 0")) > 0) {
             throw new BizException(ErrorCode.B3001);
         }
         List<PayableResultDTO.PayableItem> items = buildPayableItems(visit);

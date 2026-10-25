@@ -51,7 +51,7 @@
               v-else-if="row.visitId"
               link
               type="primary"
-              @click="router.replace({ query: { ...route.query, visitId: String(row.visitId) } })"
+              @click="guardUnsavedThen(() => router.replace({ query: { ...route.query, visitId: String(row.visitId) } }))"
             >
               查看
             </el-button>
@@ -471,7 +471,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Refresh } from '@element-plus/icons-vue'
 import { getChargeItemListCached, getDrugPage, type ChargeItem, type Drug } from '@/api/basedata'
@@ -550,23 +550,58 @@ async function fetchQueue() {
   }
 }
 
+// 一百四十八轮 D-5：切换患者前拦截未暂存修改——145 轮只修了"开单不覆盖"，
+// 主动切换仍会静默丢弃正在编辑的病历
+const savedRecordSnapshot = ref('')
+
+function recordSnapshot() {
+  return JSON.stringify([
+    recordForm.chiefComplaint,
+    recordForm.presentIllness,
+    recordForm.physicalExam,
+    recordForm.advice,
+  ])
+}
+
+function hasUnsavedRecord(): boolean {
+  return !!detail.value && savedRecordSnapshot.value !== recordSnapshot()
+}
+
+async function guardUnsavedThen(action: () => void | Promise<void>) {
+  if (hasUnsavedRecord()) {
+    try {
+      await ElMessageBox.confirm(
+        '当前病历有未暂存的修改，切换患者后将丢失，是否继续？',
+        '未保存提醒',
+        { type: 'warning', confirmButtonText: '丢弃并切换', cancelButtonText: '留在本页' },
+      )
+    } catch {
+      return
+    }
+  }
+  await action()
+}
+
 async function handleStart(row: Registration) {
   // 已接诊过（后端队列返回 visitId 或本会话标记）：直接回工作台继续
   const known = row.visitId ?? startedMap[row.id]
   if (known) {
-    await router.replace({ query: { ...route.query, visitId: String(known) } })
+    await guardUnsavedThen(() =>
+      router.replace({ query: { ...route.query, visitId: String(known) } }))
     return
   }
-  startingId.value = row.id
-  try {
-    const res = await startVisit(row.id)
-    markStarted(row.id, res)
-    await router.replace({ query: { ...route.query, visitId: String(res) } })
-  } catch {
-    // B2001 就诊已完成等错误已在拦截器中统一提示
-  } finally {
-    startingId.value = null
-  }
+  await guardUnsavedThen(async () => {
+    startingId.value = row.id
+    try {
+      const res = await startVisit(row.id)
+      markStarted(row.id, res)
+      await router.replace({ query: { ...route.query, visitId: String(res) } })
+    } catch {
+      // B2001 就诊已完成等错误已在拦截器中统一提示
+    } finally {
+      startingId.value = null
+    }
+  })
 }
 
 // ---------------- 就诊详情加载 ----------------
@@ -637,6 +672,7 @@ function fillRecordForm() {
   recordForm.presentIllness = detail.value?.presentIllness ?? ''
   recordForm.physicalExam = detail.value?.physicalExam ?? ''
   recordForm.advice = detail.value?.advice ?? ''
+  savedRecordSnapshot.value = recordSnapshot()
 }
 
 async function handleSaveRecord() {
@@ -649,6 +685,7 @@ async function handleSaveRecord() {
       physicalExam: recordForm.physicalExam || undefined,
       advice: recordForm.advice || undefined,
     })
+    savedRecordSnapshot.value = recordSnapshot()
     ElMessage.success('病历暂存成功')
   } catch {
     // 拦截器已统一提示
@@ -681,7 +718,17 @@ function handleComplete() {
     .then(async () => {
       completing.value = true
       try {
+        // 一百四十八轮 D-6：提交即归档当前屏幕内容——先静默暂存再完成。
+        // 原实现校验/归档都基于最后一次"暂存"的服务端快照，医生补填的内容
+        // 不点"暂存病历"就永远进不了归档，报错与所见矛盾
+        await saveVisitRecord(detail.value!.id, {
+          chiefComplaint: recordForm.chiefComplaint || undefined,
+          presentIllness: recordForm.presentIllness || undefined,
+          physicalExam: recordForm.physicalExam || undefined,
+          advice: recordForm.advice || undefined,
+        })
         await completeVisit(detail.value!.id)
+        savedRecordSnapshot.value = recordSnapshot()
         ElMessage.success('病历已提交，就诊完成')
         await loadDetail(true)
         fetchQueue()
@@ -973,6 +1020,21 @@ async function handleExamSubmit() {
     examSubmitting.value = false
   }
 }
+
+// 一百四十八轮 D-5 补充：路由级离开守卫（切菜单/回队列等跨页离开同样拦截）
+onBeforeRouteLeave(async () => {
+  if (!hasUnsavedRecord()) return true
+  try {
+    await ElMessageBox.confirm(
+      '当前病历有未暂存的修改，离开后将丢失，是否继续？',
+      '未保存提醒',
+      { type: 'warning', confirmButtonText: '丢弃并离开', cancelButtonText: '留在本页' },
+    )
+  } catch {
+    return false
+  }
+  return true
+})
 
 onMounted(() => {
   loadStarted()
