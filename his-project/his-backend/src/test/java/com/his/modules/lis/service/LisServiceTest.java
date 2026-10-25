@@ -185,6 +185,29 @@ class LisServiceTest extends UnitTestBase {
     }
 
     @Test
+    void entry_atHighBoundary_triggersCritical() {
+        // 一百五十三轮 A5：闭区间口径——恰等于上限即危急（原严格 > 使界限值逃过警报）
+        when(requestMapper.selectOne(any())).thenReturn(request(30));
+        ResultEntryRequest req = new ResultEntryRequest();
+        req.setRequestId(70L);
+        req.setFetch(false);
+        req.setRows(List.of(row("血钾", "5.5", 1)));
+        when(thresholdMapper.selectOne(any())).thenReturn(threshold("5.5", null));
+        assertEquals(1, svc().entry(req));
+    }
+
+    @Test
+    void entry_atLowBoundary_triggersCritical() {
+        when(requestMapper.selectOne(any())).thenReturn(request(30));
+        ResultEntryRequest req = new ResultEntryRequest();
+        req.setRequestId(70L);
+        req.setFetch(false);
+        req.setRows(List.of(row("血钾", "3.5", 1)));
+        when(thresholdMapper.selectOne(any())).thenReturn(threshold("5.5", "3.5"));
+        assertEquals(1, svc().entry(req));
+    }
+
+    @Test
     void entry_blankValue_noCriticalNoNpe() {
         // 114 轮修复固化：空结果不再 NPE 回滚整次录入，仅不判危急
         when(requestMapper.selectOne(any())).thenReturn(request(30));

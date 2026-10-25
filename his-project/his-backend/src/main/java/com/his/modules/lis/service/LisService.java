@@ -247,10 +247,13 @@ public class LisService {
         }
         try {
             BigDecimal v = new BigDecimal(value.trim());
-            if (threshold.getHighValue() != null && v.compareTo(threshold.getHighValue()) > 0) {
+            // 一百五十三轮 A5：危急值判定改闭区间口径（≥上限 / ≤下限 即危急）——
+            // 原严格 > / < 使恰等于界限值（如血钾 6.50 = 上限 6.50）逃过警报，
+            // 临床危急值惯例是"达到界限即报"
+            if (threshold.getHighValue() != null && v.compareTo(threshold.getHighValue()) >= 0) {
                 return 1;
             }
-            if (threshold.getLowValue() != null && v.compareTo(threshold.getLowValue()) < 0) {
+            if (threshold.getLowValue() != null && v.compareTo(threshold.getLowValue()) <= 0) {
                 return 1;
             }
             return 0;
