@@ -141,7 +141,8 @@ LEFT JOIN cli_visit v ON q.visit_id = v.id WHERE q.visit_id IS NOT NULL AND v.id
 SELECT 'orphan_cnt_admission' AS chk, q.id FROM cnt_request q
 LEFT JOIN inp_admission a ON q.admission_id = a.id WHERE q.admission_id IS NOT NULL AND a.id IS NULL LIMIT 5;
 SELECT 'orphan_cnt_doctor' AS chk, q.id FROM cnt_request q
-LEFT JOIN bas_doctor d ON q.consult_doctor_id = d.id WHERE d.id IS NULL LIMIT 5;
+LEFT JOIN bas_doctor d ON q.consult_doctor_id = d.id
+WHERE q.consult_doctor_id IS NOT NULL AND d.id IS NULL LIMIT 5;
 
 -- 18. 不良事件：事件 → 科室
 SELECT 'orphan_ae_department' AS chk, e.id FROM ae_event e
