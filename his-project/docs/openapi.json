@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://localhost:8081",
+      "url": "http://localhost:8080",
       "description": "Generated server url"
     }
   ],
@@ -3582,6 +3582,37 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/RInteger"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/lis/requests/{requestId}/void": {
+      "post": {
+        "tags": [
+          "lis-controller"
+        ],
+        "operationId": "voidRequest",
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RVoid"
                 }
               }
             }
@@ -7645,6 +7676,17 @@
           "pharmacy-controller"
         ],
         "operationId": "reviewQueue",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -8805,6 +8847,58 @@
         }
       }
     },
+    "/api/v1/cdss/outpatient-check": {
+      "get": {
+        "tags": [
+          "cdss-controller"
+        ],
+        "operationId": "outpatientCheck",
+        "parameters": [
+          {
+            "name": "visitId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "patientId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "drugIds",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "format": "int64"
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RListString"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/cdss/hits": {
       "get": {
         "tags": [
@@ -9274,9 +9368,13 @@
             "type": "string"
           },
           "allergyHistory": {
+            "maxLength": 256,
+            "minLength": 0,
             "type": "string"
           },
           "pastHistory": {
+            "maxLength": 256,
+            "minLength": 0,
             "type": "string"
           }
         }
@@ -10731,9 +10829,13 @@
             "type": "string"
           },
           "allergyHistory": {
+            "maxLength": 256,
+            "minLength": 0,
             "type": "string"
           },
           "pastHistory": {
+            "maxLength": 256,
+            "minLength": 0,
             "type": "string"
           }
         }
@@ -12032,6 +12134,8 @@
         "type": "object",
         "properties": {
           "items": {
+            "maxItems": 50,
+            "minItems": 0,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PrescriptionItemRequest"
@@ -16760,6 +16864,9 @@
           "status": {
             "type": "integer",
             "format": "int32"
+          },
+          "patientName": {
+            "type": "string"
           }
         }
       },
@@ -17849,6 +17956,9 @@
             "type": "integer",
             "format": "int32"
           },
+          "patientName": {
+            "type": "string"
+          },
           "version": {
             "type": "integer",
             "format": "int32"
@@ -18760,6 +18870,26 @@
           }
         }
       },
+      "RListString": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "traceId": {
+            "type": "string"
+          }
+        }
+      },
       "CdssHit": {
         "type": "object",
         "properties": {
@@ -19632,6 +19762,9 @@
             "type": "string"
           },
           "confirmedDoctorName": {
+            "type": "string"
+          },
+          "patientName": {
             "type": "string"
           },
           "notifiedAt": {
