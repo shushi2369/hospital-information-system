@@ -85,16 +85,16 @@
         <el-form-item label="患者ID" required>
           <!-- 一百零七轮：曾改患者搜索下拉，因分诊护士无患者列表权限+e2e 程序化操作不兼容回退手输；
                V55 已补 EMC_NURSE 患者 只读权限，后续可再启下拉 -->
-          <el-input-number v-model="triageForm.patientId" :min="1" :precision="0" style="width: 100%" />
+          <el-input-number v-model="triageForm.patientId" :min="1" :precision="0" aria-label="患者ID" style="width: 100%" />
         </el-form-item>
         <el-form-item label="主诉" required><el-input v-model="triageForm.chiefComplaint" placeholder="如 胸痛 30 分钟" /></el-form-item>
         <el-form-item label="生命体征">
           <div class="vital-row">
-            <el-input-number v-model="triageForm.bodyTemp" :min="30" :max="45" :precision="1" placeholder="体温" controls-position="right" style="width: 90px" />
-            <el-input-number v-model="triageForm.pulse" :min="20" :max="300" :precision="0" placeholder="脉搏" controls-position="right" style="width: 90px" />
-            <el-input-number v-model="triageForm.respiration" :min="5" :max="60" :precision="0" placeholder="呼吸" controls-position="right" style="width: 90px" />
+            <el-input-number v-model="triageForm.bodyTemp" :min="30" :max="45" :precision="1" placeholder="体温" aria-label="体温" controls-position="right" style="width: 90px" />
+            <el-input-number v-model="triageForm.pulse" :min="20" :max="300" :precision="0" placeholder="脉搏" aria-label="脉搏" controls-position="right" style="width: 90px" />
+            <el-input-number v-model="triageForm.respiration" :min="5" :max="60" :precision="0" placeholder="呼吸" aria-label="呼吸" controls-position="right" style="width: 90px" />
             <el-input v-model="triageForm.bloodPressure" placeholder="血压 120/80" style="width: 120px" />
-            <el-input-number v-model="triageForm.spo2" :min="50" :max="100" :precision="0" placeholder="血氧" controls-position="right" style="width: 90px" />
+            <el-input-number v-model="triageForm.spo2" :min="50" :max="100" :precision="0" placeholder="血氧" aria-label="血氧" controls-position="right" style="width: 90px" />
           </div>
         </el-form-item>
         <el-form-item label="分诊级别" required>
