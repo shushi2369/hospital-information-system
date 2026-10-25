@@ -7,7 +7,7 @@
 
 教学用医院信息系统（求职作品集 + 课程实验）：Spring Boot 3.2 模块化单体（30 模块）+ Vue 3.4 + MySQL 8 + Redis，
 门诊→住院→手术→检验→危急值→用血→医保→区域上报全闭环；
-**768 项回归全绿**（API e2e 十套 362：验收 42 + 七期 255 + 修复回归 34 + 并发 31；UI 链 44 + 教学核验 41 + 单测 321），CI 每次推送全量回归。
+**769 项回归全绿**（API e2e 十套 363：验收 43 + 七期 255 + 修复回归 34 + 并发 31；UI 链 44 + 教学核验 41 + 单测 321），CI 每次推送全量回归。
 
 ## 2. 本机环境（Windows）
 
@@ -49,7 +49,7 @@ python ui_chain_smoke.py        # 需本机 Chrome/Playwright
 python concurrency_test.py && python verify_course.py
 ```
 
-- 基线：42（验收）/ 45 / 28 / 57 / 45 / 43 / 28 / 9 / 34（API 十套）+ 44（UI）/ 31（并发）/ 41（教学）全绿。
+- 基线：43（验收）/ 45 / 28 / 57 / 45 / 43 / 28 / 9 / 34（API 十套）+ 44（UI）/ 31（并发）/ 41（教学）全绿。
 - 十一套共享一库、顺序执行；`verify_course` 与 `ui_chain_smoke` 的 teardown 会自动释放测试排台与账号。
 - CI：`.github/workflows/ci.yml` 推送触发（单测 → 前端构建 → 一致性巡检 → 十套 e2e fail-fast）。
 

@@ -262,7 +262,7 @@ GROUP BY id_card_hash HAVING c > 1 LIMIT 5;
 SELECT '作废医嘱有待执行单' AS chk, o.id AS order_id, o.order_no
 FROM doc_order o
 WHERE o.status = 60
-  AND EXISTS (SELECT 1 FROM doc_order_exec e WHERE e.order_id = o.id AND e.status = 1) AS chk;
+  AND EXISTS (SELECT 1 FROM doc_order_exec e WHERE e.order_id = o.id AND e.status = 1);
 
 -- 已开始手术（40 术中/50 复苏/60 完成）三方核查（麻醉前+切皮前）必齐
 -- （OrsService.start 硬门禁的落库不变量；70 取消不适用）

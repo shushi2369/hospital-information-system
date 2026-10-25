@@ -12,7 +12,7 @@ import urllib.parse
 import urllib.request
 import urllib.error
 
-BASE = (sys.argv[1] if len(sys.argv) > 1 else "http://localhost") + "/api/v1"
+BASE = (sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8080") + "/api/v1"
 PASSWORD = "His@2026"
 results = []
 
