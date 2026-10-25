@@ -33,6 +33,7 @@ public class AdmissionFeeTask {
     private final InpBedMapper bedMapper;
     private final InpDailyFeeMapper dailyFeeMapper;
     private final BasedataAppService basedataAppService;
+    private final com.his.modules.inp.service.InpService inpService;
 
     @Scheduled(cron = "0 20 0 * * ?")
     public void recordBedFees() {
@@ -100,6 +101,9 @@ public class AdmissionFeeTask {
                 if (inserted == 0) {
                     continue;
                 }
+                // 一百五十二轮 D-36：床位费也可能是压垮押金的一笔——落账后做押金不足跨越检测
+                java.math.BigDecimal unpaidAfter = inpService.unpaidFeeTotal(admission.getId());
+                inpService.warnDepositShortage(admission, unpaidAfter.subtract(item.getPrice()), unpaidAfter);
             } catch (org.springframework.dao.DuplicateKeyException e) {
                 // uk_df_bed_fee（V52）：启动补偿与 cron 竞态窗口的唯一索引兜底
                 continue;

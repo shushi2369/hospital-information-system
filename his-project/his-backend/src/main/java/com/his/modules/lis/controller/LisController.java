@@ -58,6 +58,16 @@ public class LisController {
         return R.ok(lisService.collect(requestId));
     }
 
+    /** 申请作废（一百五十二轮 D-34）：仅待采集/已采集可作废 */
+    @PostMapping("/requests/{requestId}/void")
+    @PreAuthorize("@ss.hasPerm('lab:specimen:collect')")
+    @Idempotent
+    @AuditLog(module = "lis", action = "申请作废", bizType = "lis_request")
+    public R<Void> voidRequest(@PathVariable Long requestId) {
+        lisService.voidRequest(requestId);
+        return R.ok();
+    }
+
     @PostMapping("/specimens/{requestId}/receive")
     @PreAuthorize("@ss.hasPerm('lab:specimen:collect')")
     @Idempotent

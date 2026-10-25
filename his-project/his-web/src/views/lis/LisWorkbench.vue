@@ -94,6 +94,16 @@
           >
             接收
           </el-button>
+          <!-- 一百五十二轮 D-34：开错申请的作废出口（原只能白白做检查/收费） -->
+          <el-button
+            v-if="row.status === 10 || row.status === 20"
+            v-perm="'lab:specimen:collect'"
+            link
+            type="danger"
+            @click="handleVoid(row)"
+          >
+            作废
+          </el-button>
           <el-button
             v-if="row.status === 30"
             v-perm="'lab:result:entry'"
@@ -243,6 +253,7 @@ import {
   abnormalTagType,
   publishReport,
   receiveSpecimen,
+  voidRequest,
   type LisReportDetail,
   type LisRequest,
 } from '@/api/lis'
@@ -296,6 +307,25 @@ function handleSizeChange() {
 }
 
 // ---------------- 标本采集 / 接收 ----------------
+async function handleVoid(row: LisRequest) {
+  try {
+    await ElMessageBox.confirm(
+      `确认作废申请单 ${row.requestNo}？已采集的标本将一并废弃，该操作不可恢复。`,
+      '申请作废',
+      { type: 'warning', confirmButtonText: '确认作废', cancelButtonText: '取消' },
+    )
+  } catch {
+    return
+  }
+  try {
+    await voidRequest(row.id)
+    ElMessage.success(`申请 ${row.requestNo} 已作废`)
+    fetchList()
+  } catch {
+    // 拦截器已统一提示
+  }
+}
+
 async function handleCollect(row: LisRequest) {
   try {
     await ElMessageBox.confirm(`确认采集申请单 ${row.requestNo} 的标本？`, '标本采集', {

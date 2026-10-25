@@ -134,6 +134,33 @@ public class LisService {
         }
     }
 
+    /**
+     * 申请作废（L-XX，一百五十二轮 D-34）：状态机设计里 50=作废 从未落地——
+     * 开错申请只能白白做检查/收费。仅待采集(10)/已采集(20)可作废（已上机/已报告不可，
+     * 结果与报告已有法律效力）；已采集的标本随申请置 3（作废废弃）。
+     */
+    @Transactional
+    public void voidRequest(Long requestId) {
+        LisRequest request = requireRequestForUpdate(requestId);
+        if (request.getStatus() != 10 && request.getStatus() != 20) {
+            throw new BizException(ErrorCode.A0001, "仅待采集/已采集的申请可作废（检验中/已报告不可）");
+        }
+        LisSpecimen specimen = specimenMapper.selectOne(new LambdaQueryWrapper<LisSpecimen>()
+                .eq(LisSpecimen::getRequestId, requestId).last("LIMIT 1"));
+        if (specimen != null && request.getStatus() == 20) {
+            specimen.setStatus(3); // 3=随申请作废废弃（区别于 1 已采集/2 已接收）
+            specimenMapper.updateById(specimen);
+        }
+        int updated = requestMapper.update(null, new LambdaUpdateWrapper<LisRequest>()
+                .eq(LisRequest::getId, requestId)
+                .in(LisRequest::getStatus, 10, 20)
+                .set(LisRequest::getStatus, 50));
+        if (updated != 1) {
+            throw new BizException(ErrorCode.A0008, "检验申请状态已变化，请刷新后重试");
+        }
+        pltService.recordEvent("lis.request.voided", request.getRequestNo(), "{}");
+    }
+
     /** 结果录入（L-05）：Mock 仪器取数或手工行；危急判定 → 危急值 */
     @Transactional
     public int entry(ResultEntryRequest req) {

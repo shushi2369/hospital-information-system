@@ -289,7 +289,9 @@ public class InpService {
     /** 手工记账（I-10）：仅"在院"；行锁与出院串行，防出院判空后补记费用 */
     @Transactional
     public Long addManualFee(Long admissionId, ManualFeeRequest req) {
-        inpAppService.requireInHospitalForUpdate(admissionId);
+        InpAdmission admission = inpAppService.requireInHospitalForUpdate(admissionId);
+        // 一百五十二轮 D-36：记账前未结合计（用于押金不足跨越检测）
+        BigDecimal unpaidBefore = unpaidFeeTotal(admissionId);
         InpDailyFee fee = new InpDailyFee();
         fee.setAdmissionId(admissionId);
         fee.setFeeDate(LocalDate.now());
@@ -303,7 +305,30 @@ public class InpService {
         fee.setChargeStatus(0);
         fee.setStatus(1);
         dailyFeeMapper.insert(fee);
+        warnDepositShortage(admission, unpaidBefore, unpaidBefore.add(fee.getAmount()));
         return fee.getId();
+    }
+
+    /**
+     * 押金不足提醒（一百五十二轮 D-36，《10》B6004 设计口径"提醒不阻断"——
+     * B6004 错误码定义后全链路零实现，差额全靠收银台线下多退少补，押金账本无人看管）。
+     * 跨越触发：未结费用首次越过押金总额时落平台事件一次，避免每笔记账刷屏。
+     */
+    public void warnDepositShortage(InpAdmission admission, BigDecimal unpaidBefore, BigDecimal unpaidAfter) {
+        if (admission == null || unpaidAfter == null) {
+            return;
+        }
+        BigDecimal deposit = admission.getDepositTotal() == null ? BigDecimal.ZERO : admission.getDepositTotal();
+        if (unpaidBefore.compareTo(deposit) <= 0 && unpaidAfter.compareTo(deposit) > 0) {
+            pltService.recordEvent("inp.deposit.insufficient", admission.getAdmissionNo(),
+                    "{\"unpaid\":" + unpaidAfter + ",\"deposit\":" + deposit + "}");
+        }
+    }
+
+    public BigDecimal unpaidFeeTotal(Long admissionId) {
+        return inpAppService.listUnpaidDailyFees(admissionId).stream()
+                .map(com.his.modules.inp.app.DailyFeeDTO::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     /** 手工记账冲正（一百一十五轮 D-06）：inp_daily_fee 原本"只进不出"——

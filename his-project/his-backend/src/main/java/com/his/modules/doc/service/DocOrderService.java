@@ -227,6 +227,14 @@ public class DocOrderService {
         if (order.getStatus() == 30 || order.getStatus() == 40) {
             throw new BizException(ErrorCode.B4003, "该医嘱已摆药/执行");
         }
+        // 一百五十二轮 D-33：停止/作废态给出真实原因——原统一报"未审核"，
+        // 已停止医嘱再摆药提示完全失真（药师误以为审核流程问题去催审核）
+        if (order.getStatus() == 50) {
+            throw new BizException(ErrorCode.B6102, "医嘱已停止，不能摆药");
+        }
+        if (order.getStatus() == 60) {
+            throw new BizException(ErrorCode.B6102, "医嘱已作废，不能摆药");
+        }
         if (order.getStatus() != 20) {
             throw new BizException(ErrorCode.B6102);
         }

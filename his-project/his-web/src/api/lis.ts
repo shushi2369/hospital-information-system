@@ -131,6 +131,9 @@ export const getRequestPage = (params: LisRequestQuery) =>
 /** 申请单详情 */
 export const getRequestDetail = (id: number) => get<LisRequest>(`/lis/requests/${id}`)
 
+/** 申请作废（一百五十二轮 D-34）：仅待采集/已采集可作废（50=作废） */
+export const voidRequest = (id: number) => post<void>(`/lis/requests/${id}/void`)
+
 /** 标本采集（10 → 20），返回 { requestNo, specimenNo } */
 export const collectSpecimen = (requestId: number) =>
   post<{ requestNo: string; specimenNo: string }>(`/lis/specimens/collect?requestId=${requestId}`)

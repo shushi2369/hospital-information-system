@@ -27,9 +27,17 @@ class AdmissionFeeTaskTest extends UnitTestBase {
     private final InpBedMapper bedMapper = mock(InpBedMapper.class);
     private final InpDailyFeeMapper dailyFeeMapper = mock(InpDailyFeeMapper.class);
     private final BasedataAppService basedataAppService = mock(BasedataAppService.class);
+    private final com.his.modules.inp.service.InpService inpService =
+            mock(com.his.modules.inp.service.InpService.class);
 
     private final AdmissionFeeTask task = new AdmissionFeeTask(
-            admissionMapper, bedMapper, dailyFeeMapper, basedataAppService);
+            admissionMapper, bedMapper, dailyFeeMapper, basedataAppService, inpService);
+
+    @org.junit.jupiter.api.BeforeEach
+    void stubFeeTotal() {
+        lenient().when(inpService.unpaidFeeTotal(any()))
+                .thenReturn(java.math.BigDecimal.ZERO);
+    }
 
     private InpAdmission admission() {
         InpAdmission a = new InpAdmission();
