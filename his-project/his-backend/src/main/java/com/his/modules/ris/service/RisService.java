@@ -176,7 +176,10 @@ public class RisService {
         if (request.getStatus() != 10) {
             throw new BizException(ErrorCode.A0001, "申请不在待预约状态");
         }
-        RisDevice device = deviceMapper.selectById(req.getDeviceId());
+        // 一百五十六轮 C-1：设备行锁（且为事务内首条普通读前的锁定读）——同设备同时段
+        // 并发预约的 count-then-insert 竞态窗口（实测双双成功）。锁定读不建一致性快照，
+        // 后续冲突 count 的快照在获锁后建立，能看到已提交的并发预约行
+        RisDevice device = deviceMapper.selectByIdForUpdate(req.getDeviceId());
         if (device == null || device.getStatus() == null || device.getStatus() != 1) {
             throw new BizException(ErrorCode.A0001, "设备不可用");
         }

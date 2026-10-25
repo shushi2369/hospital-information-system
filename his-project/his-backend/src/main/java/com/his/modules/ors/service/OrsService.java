@@ -150,13 +150,16 @@ public class OrsService {
     /** 排台（OR-05）：20 → 30，同手术间同日同台次唯一 */
     @Transactional
     public String schedule(Long id, ScheduleRequest req) {
+        // 一百五十六轮 C-1：手术间行锁必须是事务首条读——原 requireRequest 普通读先建
+        // RR 快照，锁后冲突 count 仍看不到并发已提交的排台（同构于 151 轮挂号竞态）。
+        // 锁定读不建快照，后续 count 快照在获锁后建立，并发同室时段串行化后可见
+        OrsOperateRoom room = roomMapper.selectByIdForUpdate(req.getRoomId());
+        if (room == null || room.getStatus() == null || room.getStatus() != 1) {
+            throw new BizException(ErrorCode.A0001, "手术间不可用");
+        }
         OrsSurgeryRequest request = requireRequest(id);
         if (request.getStatus() != 20) {
             throw new BizException(ErrorCode.A0001, "申请未审核通过，不能排台");
-        }
-        OrsOperateRoom room = roomMapper.selectById(req.getRoomId());
-        if (room == null || room.getStatus() == null || room.getStatus() != 1) {
-            throw new BizException(ErrorCode.A0001, "手术间不可用");
         }
         Long clash = scheduleMapper.selectCount(new LambdaQueryWrapper<OrsSchedule>()
                 .eq(OrsSchedule::getRoomId, req.getRoomId())

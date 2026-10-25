@@ -3,6 +3,27 @@
 > 唯一追加式变更日志：每轮修复/变更在顶部追加一节。格式：日期｜commit｜要点。
 > 历史轮次（1~109）的详细记录见 git log 与各轮 commit message；本文件自 110 轮文档整合起维护。
 
+## 2026-10-25 ｜ 156 轮（见 commit）：并发窗口专项——自修复竞态实测双双成功，锁先行修复（RIS/ORS 双实证）
+
+- **审计方法**：151 轮挂号 RR 快照竞态后，对全站 check-then-insert 模式做并发实证
+  ——重点是 149/150 轮自己新增的 RIS 预约冲突校验（D-15）与手术排台双占用校验
+  （D-2）：均为 selectCount 后 insert，无锁无唯一索引。
+- **C-1（P1 实锤）RIS 同设备同时段并发预约双双成功**：两线程同时 appoint 同槽，
+  顺序请求正确拦截但并发双双 OK（TOCTOU 窗口）。修复：RisDeviceMapper 加
+  selectByIdForUpdate，设备行锁置于事务内首条普通读之前（锁定读不建 RR 快照，
+  后续冲突 count 的快照在获锁后建立，151 轮挂号同款修法）。实测 1 OK + 1 拦截。
+- **C-2（P1 同构）ORS 同手术间同时段并发排台**：同构窗口。修复：房间行锁
+  （or_operate_room FOR UPDATE）提到事务首条读（原 requireRequest 普通读先建
+  快照，锁后 count 仍看不到并发已提交行）。实测 1 OK + 1 时间窗拦截。
+- **过程教训**：手写 SQL 两次猜错表名（ors_operate_room/ors_room → 实体
+  @TableName 为 or_operate_room），C9002 直发——**新 SQL 必须先对
+  information_schema/SHOW TABLES 校验表名**（已记运行时记忆）。
+- 回归：单测 323/323 + e2e 十套 363/363（phase2 首跑身份证哈希碰撞被护栏
+  清晰暴露后重跑全绿）+ UI 44/44。
+- **模式沉淀**：冲突校验类代码的三种正确姿势——唯一索引兜底（RIS 台次）、
+  父行锁先行（挂号/预约/排台）、条件更新 0 行断言（状态机）；裸 count-then-insert
+  一律视为竞态嫌疑。
+
 ## 2026-10-25 ｜ 155 轮（见 commit）：安全与数据暴露专项——7 项全绿 + OpenAPI 漂移修复
 
 - **前端 XSS 注入面**：v-html/innerHTML/outerHTML/eval/new Function 全站零使用
