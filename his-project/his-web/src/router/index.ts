@@ -126,6 +126,12 @@ router.beforeEach(async (to) => {
       // / 重定向到第一个可见菜单
       return store.firstMenuPath ? { path: store.firstMenuPath, replace: true } : true
     }
+    // 一百四十六轮 F-1：动态路由注册后校验目标可达——换角色登录后浏览器记住的旧地址
+    // （收藏/历史）不属于新角色时原样放行会渲染 404，应落到新角色自己的首页
+    const resolved = router.resolve({ path: to.path, query: to.query, hash: to.hash })
+    if (resolved.matched.length === 0 || resolved.name === 'NotFound') {
+      return store.firstMenuPath ? { path: store.firstMenuPath, replace: true } : true
+    }
     // 重新解析目标路由（原目标此刻可能匹配的是 NotFound 兜底）
     return { path: to.path, query: to.query, hash: to.hash, replace: true }
   }

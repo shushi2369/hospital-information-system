@@ -90,7 +90,7 @@
             type="warning"
             @click="handleMockEntry(row)"
           >
-            Mock 录入+危急判定
+            仪器录入+危急判定
           </el-button>
           <el-button
             v-if="row.status === 30"
@@ -329,8 +329,8 @@ async function handleReceive(row: LisRequest) {
 async function handleMockEntry(row: LisRequest) {
   try {
     await ElMessageBox.confirm(
-      `将从 Mock 检验仪器取数并录入申请单 ${row.requestNo} 的结果，同时按危急阈值判定危急项。确认执行？`,
-      'Mock 录入+危急判定',
+      `将从检验仪器接口取数并录入申请单 ${row.requestNo} 的结果，同时按危急阈值判定危急项。确认执行？`,
+      '仪器录入+危急判定',
       { type: 'warning', confirmButtonText: '确认录入', cancelButtonText: '取消' }
     )
   } catch {

@@ -23,6 +23,10 @@
         >
           <el-table-column prop="visitNo" label="就诊号" min-width="130" show-overflow-tooltip />
           <el-table-column prop="patientName" label="患者" min-width="80" show-overflow-tooltip />
+          <!-- 一百四十六轮 F-C3：同名患者无法区分，补医生列（DTO 本就有 doctorName） -->
+          <el-table-column prop="doctorName" label="医生" min-width="70" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.doctorName || '-' }}</template>
+          </el-table-column>
           <el-table-column label="就诊日期" width="100" align="center">
             <template #default="{ row }">{{ row.visitDate || '-' }}</template>
           </el-table-column>
@@ -759,7 +763,8 @@ const settleQuery = reactive({
   pageNum: 1,
   pageSize: 10,
   settleDate: '',
-  cashierId: '',
+  // 一百四十六轮 F-C5：默认查自己——收费员不知道自己的数字 ID，手填等于查不了
+  cashierId: String(useUserStore().userInfo?.userId ?? ''),
 })
 
 let _fetchSettlementsSeq = 0 // 一百一十三轮 A-P3-2：列表 GET 竞态守卫

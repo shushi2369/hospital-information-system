@@ -46,6 +46,9 @@ const ROLE_HOME_CANDIDATES: Record<string, string[]> = {
   DOCTOR: ['/clinic/queue', '/clinic/workbench'],
   NURSE: ['/nursing/workbench'],
   CASHIER: ['/registration/*', '/billing/*'],
+  PHARMACIST: ['/pharmacy/dispense'],
+  LIS_USER: ['/lis/workbench'],
+  MRCLERK: ['/mrc/*'],
 }
 
 function hasPagePath(nodes: MenuNode[], pattern: string): boolean {

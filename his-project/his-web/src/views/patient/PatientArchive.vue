@@ -126,7 +126,7 @@
           />
         </el-form-item>
         <el-form-item label="身份证号" prop="idCardNo">
-          <el-input v-model="form.idCardNo" placeholder="18 位身份证号码" maxlength="18" />
+          <el-input v-model="form.idCardNo" placeholder="18 位身份证号码" maxlength="18" @blur="fillBirthFromIdCard" />
         </el-form-item>
         <el-form-item label="联系电话" prop="phone">
           <el-input v-model="form.phone" placeholder="11 位手机号" maxlength="11" />
@@ -290,6 +290,18 @@ function openCreate() {
   form.allergyHistory = ''
   form.pastHistory = ''
   dialogVisible.value = true
+}
+
+/** 一百四十六轮 F-C1：18 位身份证自带出生日期与性别，录完自动回填省去手选 */
+function fillBirthFromIdCard() {
+  const id = form.idCardNo?.trim() ?? ''
+  if (!/^\d{17}[\dXx]$/.test(id)) return
+  const birth = `${id.slice(6, 10)}-${id.slice(10, 12)}-${id.slice(12, 14)}`
+  const d = new Date(birth.replace(/-/g, '/'))
+  if (Number.isNaN(d.getTime())) return
+  if (!form.birthDate) form.birthDate = birth
+  // 性别码（倒数第二位）奇男偶女；仅在用户未改过默认值时回填，避免覆盖已选项
+  if (form.gender === 1 && Number(id.charAt(16)) % 2 === 0) form.gender = 2
 }
 
 async function handleSubmit() {
