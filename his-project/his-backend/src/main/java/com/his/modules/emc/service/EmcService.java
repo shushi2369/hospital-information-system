@@ -80,6 +80,16 @@ public class EmcService {
                                     .map(EmcTriage::getId).toList()))
                     .stream().map(EmcVisit::getTriageId).collect(java.util.stream.Collectors.toSet());
             page.getRecords().forEach(t -> t.setRegistered(triaged.contains(t.getId()) ? 1 : 0));
+            // 患者姓名批量回填（一百四十六轮 F-E1）：原列表患者列恒空（裸 patientId）
+            java.util.List<Long> patientIds = page.getRecords().stream()
+                    .map(EmcTriage::getPatientId).filter(java.util.Objects::nonNull).distinct().toList();
+            if (!patientIds.isEmpty()) {
+                java.util.Map<Long, String> patientNames = new java.util.HashMap<>();
+                for (com.his.modules.patient.app.PatientDTO p : patientAppService.listByIds(patientIds)) {
+                    patientNames.put(p.getId(), p.getName());
+                }
+                page.getRecords().forEach(t -> t.setPatientName(patientNames.get(t.getPatientId())));
+            }
         }
         return PageResult.of(page);
     }

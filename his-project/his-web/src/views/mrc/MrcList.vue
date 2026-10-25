@@ -67,8 +67,17 @@
           <el-button v-if="row.archiveStatus === 10" v-perm="'mrc:homepage:qc'" link type="warning" @click="openQcDialog(row)">
             首页质控
           </el-button>
+          <!-- 一百四十六轮 F-M1：质控通过是归档前置条件（后端 B6302），前端提前禁用
+               并给出原因提示，不再让病案员点了才知道被拦 -->
+          <el-tooltip
+            v-if="row.archiveStatus === 10 && row.qcStatus !== 1"
+            content="质控通过后才可归档，请先完成首页编码与质控"
+            placement="top"
+          >
+            <el-button v-perm="'mrc:archive:do'" link type="info" disabled>归档</el-button>
+          </el-tooltip>
           <el-button
-            v-if="row.archiveStatus === 10"
+            v-else-if="row.archiveStatus === 10"
             v-perm="'mrc:archive:do'"
             link
             type="success"

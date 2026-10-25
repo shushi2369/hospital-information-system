@@ -34,6 +34,10 @@ public class EmcTriage extends BaseEntity {
     @com.baomidou.mybatisplus.annotation.TableField(exist = false)
     private Integer registered;
 
+    /** 非库字段：患者姓名——分诊列表直接核对患者（一百四十六轮 F-E1，原列恒空） */
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private String patientName;
+
     @Version
     private Integer version;
 }

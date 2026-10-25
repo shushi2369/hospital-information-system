@@ -7,6 +7,13 @@ import router from './router'
 import { perm } from './directives/perm'
 import './styles.css'
 
+// 一百四十六轮 F-A3：启动时恢复用户主题选择——原只在切换时写 localStorage，
+// 刷新后永远回亮色，暗色选择形同虚设
+document.documentElement.classList.toggle(
+  'dark',
+  localStorage.getItem('his_theme') === 'dark',
+)
+
 const app = createApp(App)
 
 app.use(createPinia())
