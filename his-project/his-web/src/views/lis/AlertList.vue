@@ -20,6 +20,10 @@
 
     <div class="table-toolbar">
       <span class="toolbar-title">危急值列表</span>
+      <!-- 一百四十六轮 F-A4：待处理积压一眼可见（原列表无任何积压提示） -->
+      <el-tag v-if="pendingCount > 0" type="danger" effect="dark" class="pending-badge">
+        待处理 {{ pendingCount }} 条
+      </el-tag>
       <span class="status-legend">
         闭环流程：待处理 → 已通知（技师登记）→ 已确认（医生）→ 已闭环（填写处置意见）
       </span>
@@ -186,8 +190,20 @@ async function fetchList() {
     })
     list.value = res.list ?? []
     total.value = res.total ?? 0
+    fetchPendingCount()
   } finally {
     loading.value = false
+  }
+}
+
+/** 待处理积压总数（独立于当前分页筛选，登记/确认/闭环后随 fetchList 同步刷新） */
+const pendingCount = ref(0)
+async function fetchPendingCount() {
+  try {
+    const res = await getAlertPage({ pageNum: 1, pageSize: 1, status: 10 })
+    pendingCount.value = res.total ?? 0
+  } catch {
+    pendingCount.value = 0
   }
 }
 
@@ -284,6 +300,10 @@ onMounted(fetchList)
 .critical-value {
   color: #f56c6c;
   font-weight: 700;
+}
+
+.pending-badge {
+  margin-right: 8px;
 }
 
 /* 一百四十五轮 U-5：患者姓名加粗强调，危急值处置第一眼核对对象 */

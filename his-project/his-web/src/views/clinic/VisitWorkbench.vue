@@ -336,6 +336,7 @@
               placeholder="选择药品"
               size="small"
               style="width: 100%"
+              @change="onDrugPicked(row)"
             >
               <el-option
                 v-for="d in drugOptions"
@@ -815,6 +816,12 @@ function drugOf(drugId?: number) {
 
 function addRxRow() {
   rxRows.value.push(emptyRow())
+}
+
+/** 一百四十六轮 F-D1：选药后预填常规频次/用法（qd/口服），医生可改——原全空要挨个手选 */
+function onDrugPicked(row: RxRow) {
+  if (!row.frequency) row.frequency = 'qd'
+  if (!row.usageRoute) row.usageRoute = '口服'
 }
 
 function removeRxRow(index: number) {

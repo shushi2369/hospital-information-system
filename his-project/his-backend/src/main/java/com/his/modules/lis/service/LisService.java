@@ -333,11 +333,21 @@ public class LisService {
 
     /** 申请单分页（L-01）。开单医生名批量回填（一百轮浏览器走查：裸 ID 列） */
     public PageResult<LisRequest> page(LisRequestQuery query) {
+        // 按患者姓名模糊检索（一百四十六轮 F-L2）：技师不知道就诊ID/患者ID。
+        // 两步参数化查询——先查患者 ID 集（likeRight 防通配符注入），再 in 过滤；
+        // 不用 inSql 字符串拼接（escape 不防单引号）
+        java.util.List<Long> nameMatchedIds = query.getPatientName() == null || query.getPatientName().isBlank()
+                ? null : patientAppService.searchIdsByName(query.getPatientName().trim());
+        // 姓名未命中任何患者：直接返回空页（in 空集合会生成非法 SQL）
+        if (nameMatchedIds != null && nameMatchedIds.isEmpty()) {
+            return PageResult.of(new Page<>(query.getPageNum(), query.getPageSize()));
+        }
         Page<LisRequest> page = requestMapper.selectPage(query.toPage(),
                 new LambdaQueryWrapper<LisRequest>()
                         .eq(query.getAdmissionId() != null, LisRequest::getAdmissionId, query.getAdmissionId())
                         .eq(query.getPatientId() != null, LisRequest::getPatientId, query.getPatientId())
                         .eq(query.getStatus() != null, LisRequest::getStatus, query.getStatus())
+                        .in(nameMatchedIds != null, LisRequest::getPatientId, nameMatchedIds)
                         .orderByDesc(LisRequest::getId));
         java.util.Set<Long> doctorIds = new java.util.HashSet<>();
         for (LisRequest r : page.getRecords()) {

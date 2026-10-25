@@ -40,6 +40,14 @@ def check(name, cond, detail=""):
     print(("PASS " if cond else "FAIL ") + name + (("  | " + str(detail)[:130]) if detail and not cond else ""))
 
 
+
+def first(seq, hint):
+    """一百四十八轮护栏化：取首元素，空列表报可定位错误（原裸 [0] IndexError 难定位）。"""
+    if not seq:
+        raise AssertionError("前置数据缺失（空列表）: " + hint)
+    return seq[0]
+
+
 def login(username):
     st, r = call("POST", "/auth/login", body={"username": username, "password": PASSWORD})
     assert r.get("code") == "OK", "登录失败: %s" % r
@@ -69,11 +77,11 @@ def main():
     check("3. EMPI 主索引自动生成", r["code"] == "OK" and r["data"]["total"] >= 1, r)
 
     st, pl = call("GET", "/patients?name=" + urllib.parse.quote("住院患者" + uid), cashier)
-    patient_id = pl["data"]["list"][0]["id"]
+    patient_id = first(pl["data"]["list"], "建档患者搜索:住院患者" + uid)["id"]
 
     # ---- 入院 ----
     st, wards = call("GET", "/inp/wards", cashier)
-    ward_id = wards["data"][0]["id"]
+    ward_id = first(wards["data"], "病区列表")["id"]
     st, beds = call("GET", "/inp/beds?wardId=%d&bedStatus=1" % ward_id, cashier)
     free_beds = beds["data"]
     # 自愈：空闲床位不足 2 张时自动新建（历史中断运行可能遗留占床）
@@ -84,7 +92,7 @@ def main():
         st, beds = call("GET", "/inp/beds?wardId=%d&bedStatus=1" % ward_id, cashier)
         free_beds = beds["data"]
     check("4. 有空闲床位", len(free_beds) >= 2, beds)
-    bed = free_beds[0]
+    bed = first(free_beds, "空闲床位（自动建床后仍不足）")
     st, r = call("POST", "/inp/admissions", cashier, {
         "patientId": patient_id, "deptId": 1, "wardId": ward_id, "bedId": bed["id"],
         "doctorId": 2, "admissionType": 1, "plannedDiagnosis": "肺炎待查",
@@ -114,9 +122,9 @@ def main():
     check("9. 开长期药品医嘱", r["code"] == "OK", r)
     # 队列接口按 id 升序 LIMIT 100，多轮回归堆积后新单被截断——改从住院维度取单
     st, ol = call("GET", "/doc/orders?admissionId=%d&status=10" % admission_id, pharmacist)
-    rx_id = [o["id"] for o in ol["data"]["list"] if o["category"] == 1][0]
+    rx_id = first([o["id"] for o in ol["data"]["list"] if o["category"] == 1], "药品医嘱(category=1)")
     st, detail = call("GET", "/doc/orders/%d" % rx_id, pharmacist)
-    exec_item = [e for e in detail["data"]["executions"] if e["execType"] == 2][0]
+    exec_item = first([e for e in detail["data"]["executions"] if e["execType"] == 2], "医嘱执行单(execType=2)")
     st, r = call("POST", "/doc/executions/%d/do" % exec_item["id"], nurse, idem="p2-ex0-" + uid)
     check("10. 未审核未摆药执行拦截(B6102)", r["code"] == "B6102", r)
     st, r = call("POST", "/doc/orders/%d/review" % rx_id, pharmacist, {"pass": True, "comment": "OK"},
@@ -138,12 +146,12 @@ def main():
     check("15. 开皮试临时医嘱", r["code"] == "OK", r)
     # 队列接口 LIMIT 100 堆积截断——同改从住院维度取单
     st, ol = call("GET", "/doc/orders?admissionId=%d&status=10" % admission_id, pharmacist)
-    rx2_id = [o["id"] for o in ol["data"]["list"] if o["category"] == 1 and o["orderClass"] == 2][0]
+    rx2_id = first([o["id"] for o in ol["data"]["list"] if o["category"] == 1 and o["orderClass"] == 2], "皮试输液医嘱(orderClass=2)")
     call("POST", "/doc/orders/%d/review" % rx2_id, pharmacist, {"pass": True, "comment": "OK"}, idem="p2-rev2-" + uid)
     st, r = call("POST", "/doc/orders/%d/dispense" % rx2_id, pharmacist, idem="p2-dis2-" + uid)
     check("16. 皮试未做摆药拦截(B6104)", r["code"] == "B6104", r)
     st, detail = call("GET", "/doc/orders/%d" % rx2_id, pharmacist)
-    skin_exec = [e for e in detail["data"]["executions"] if e["execType"] == 3][0]
+    skin_exec = first([e for e in detail["data"]["executions"] if e["execType"] == 3], "皮试执行单(execType=3)")
     st, r = call("POST", "/doc/skin-tests/%d" % skin_exec["id"], nurse, {"result": "阳性"}, idem="p2-st-" + uid)
     check("17. 皮试阳性登记成功", r["code"] == "OK", r)
     st, o = call("GET", "/doc/orders/%d" % rx2_id, pharmacist)
@@ -166,7 +174,7 @@ def main():
     treat_order = op["data"]["list"][0] if op["data"]["list"] else None
     if treat_order:
         st, td = call("GET", "/doc/orders/%d" % treat_order["id"], doctor)
-        te = [e for e in td["data"]["executions"] if e["execType"] == 2][0]
+        te = first([e for e in td["data"]["executions"] if e["execType"] == 2], "治疗执行单(execType=2)")
         st, r = call("POST", "/doc/executions/%d/do" % te["id"], nurse, idem="p2-ex3-" + uid)
         check("20. 非药品执行成功（执行即计费）", r["code"] == "OK", r)
 
@@ -188,7 +196,7 @@ def main():
     check("23. 出院申请成功（医嘱已停/无未收费项）", r["code"] == "OK", r)
     st, beds3 = call("GET", "/inp/beds?wardId=%d" % ward_id, cashier)
     released = [b for b in beds3["data"] if b["id"] == bed["id"]]
-    check("24. 出院后床位释放", released[0]["bedStatus"] == 1, released)
+    check("24. 出院后床位释放", bool(released) and released[0]["bedStatus"] == 1, released)
     st, r = call("POST", "/inp/admissions/%d/discharge" % admission_id, doctor,
                  {"dischargeWay": 2, "dischargeDiagnosis": "x"}, idem="p2-dc2-" + uid)
     check("25. 非在院出院拦截(B6003)", r["code"] == "B6003", r)
@@ -219,7 +227,7 @@ def main():
                   {"payMethod": 1}, idem="p2-set2-" + uid)
     check("27. 重复结算拦截(B3001)", r2["code"] == "B3001", r2)
     st, bl = call("GET", "/billing/bills?billNo=" + bill_no, cashier)
-    bill_id = bl["data"]["list"][0]["id"]
+    bill_id = first(bl["data"]["list"], "住院账单按单号搜索")["id"]
     st, bd = call("GET", "/billing/bills/%d" % bill_id, cashier)
     check("28. 结算账单含住院费用明细", len(bd["data"]["details"]) >= 2, bd["data"]["details"])
 

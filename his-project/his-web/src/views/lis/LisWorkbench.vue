@@ -2,6 +2,17 @@
   <div class="page-card">
     <!-- 筛选区 -->
     <el-form class="search-bar" inline @submit.prevent>
+      <el-form-item label="患者姓名">
+        <!-- 一百四十六轮 F-L2：技师不知道就诊ID/患者ID，姓名才是自然检索入口 -->
+        <el-input
+          v-model="query.patientName"
+          placeholder="按患者姓名模糊搜索"
+          clearable
+          style="width: 150px"
+          @keyup.enter="handleSearch"
+          @clear="handleSearch"
+        />
+      </el-form-item>
       <el-form-item label="就诊ID">
         <el-input-number
           v-model="query.admissionId"
@@ -243,6 +254,7 @@ const total = ref(0)
 const query = reactive({
   pageNum: 1,
   pageSize: 10,
+  patientName: '',
   admissionId: undefined as number | undefined,
   patientId: undefined as number | undefined,
   status: undefined as number | undefined,
@@ -254,6 +266,7 @@ async function fetchList() {
     const res = await getRequestPage({
       pageNum: query.pageNum,
       pageSize: query.pageSize,
+      patientName: query.patientName || undefined,
       admissionId: query.admissionId,
       patientId: query.patientId,
       status: query.status,

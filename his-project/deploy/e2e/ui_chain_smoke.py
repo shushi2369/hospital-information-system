@@ -75,6 +75,14 @@ def login(username):
     return api("/auth/login", body={"username": username, "password": PASSWORD})["data"]["token"]
 
 
+
+def first(seq, hint):
+    """一百四十八轮护栏化：取首元素，空列表报可定位错误（147 轮复现的裸 [0] IndexError）。"""
+    if not seq:
+        raise AssertionError("前置数据缺失（空列表）: " + hint)
+    return seq[0]
+
+
 def ensure_free_bed(admin, uid, tag="IP"):
     """保证病区 1 有空床并返回一个（没有则创建）"""
     beds = api("/inp/beds?wardId=1&bedStatus=1", admin)
@@ -84,7 +92,7 @@ def ensure_free_bed(admin, uid, tag="IP"):
         api("/inp/beds", admin, {"wardId": 1, "bedNo": "UI%s-%s-%d" % (tag, uid, n),
             "chargeItemId": 10}, idem="ui-%s-bed-%s-%d" % (tag, uid, n))
         beds = api("/inp/beds?wardId=1&bedStatus=1", admin)
-    return beds["data"][0]
+    return first(beds["data"], "UI自建空闲床位（循环建床后仍无）")
 
 
 def seed_admission(admin, cashier, uid, name_prefix, ascii_tag, diagnosis, seq):
@@ -102,7 +110,7 @@ def seed_admission(admin, cashier, uid, name_prefix, ascii_tag, diagnosis, seq):
         if not pl.get("data", {}).get("list"):
             print("[seed-debug] create重放=", json.dumps(cr, ensure_ascii=False)[:200])
             raise SystemExit("[seed-debug] 患者建档后查询仍为空")
-    pid = pl["data"]["list"][0]["id"]
+    pid = first(pl["data"]["list"], "住院种子患者查询:" + name_prefix)["id"]
     bed = ensure_free_bed(admin, uid)
     r = api("/inp/admissions", admin, {
         "patientId": pid, "deptId": 1, "wardId": bed["wardId"], "bedId": bed["id"],
@@ -142,7 +150,7 @@ def main():
                 "phone": raw_phone}, idem="ui-pt-" + uid)
         check("PHI·建档 OK", r["code"] == "OK", )
         pl = api("/patients?name=" + urllib.parse.quote("链路脱敏" + uid), cashier)
-        pid = pl["data"]["list"][0]["id"]
+        pid = first(pl["data"]["list"], "PHI脱敏患者查询")["id"]
         page.reload()
         page.wait_for_timeout(1200)
         page.evaluate("(t) => localStorage.setItem('his_token', t)", admin)
@@ -169,7 +177,7 @@ def main():
                 "birthDate": "1990-01-01", "idCardNo": "34010419900102" + uid[-4:],
                 "phone": "136" + uid[:8]}, idem="ui-ch-pt-" + uid)
         pl = api("/patients?name=" + urllib.parse.quote("链路收费" + uid), cashier)
-        pid = pl["data"]["list"][0]["id"]
+        pid = first(pl["data"]["list"], "收费链患者查询:链路收费" + uid)["id"]
         r = api("/registrations", cashier, {"patientId": pid, "doctorId": 2,
                 "regDate": time.strftime("%Y-%m-%d"), "period": 2, "regType": 1}, idem="ui-ch-reg-" + uid)
         rl = api("/registrations?patientId=%d&regDate=%s" % (pid, time.strftime("%Y-%m-%d")), cashier)
@@ -214,7 +222,7 @@ def main():
         pl = api("/patients?name=" + urllib.parse.quote("链路接诊" + uid), cashier)
         # 一百一十九轮：前置断言（原静默 IndexError，建档偶发失败时难以定位）
         assert pl.get("code") == "OK" and (pl.get("data") or {}).get("list"),             "接诊链前置失败：患者建档/查询异常 " + json.dumps(pl, ensure_ascii=False)[:200]
-        pid2 = pl["data"]["list"][0]["id"]
+        pid2 = first(pl["data"]["list"], "接诊链患者查询:链路接诊" + uid)["id"]
         r = api("/registrations", cashier, {"patientId": pid2, "doctorId": 2,
                 "regDate": time.strftime("%Y-%m-%d"), "period": 1, "regType": 1}, idem="ui-jz-reg-" + uid)
         rl = api("/registrations?patientId=%d&regDate=%s" % (pid2, time.strftime("%Y-%m-%d")), cashier)
@@ -305,7 +313,7 @@ def main():
             # 推到 3 天后拿全新空档；手术本就提前排程，对话框自动带入 plannedDate 无需日期控件交互
             "plannedDate": time.strftime("%Y-%m-%d", time.localtime(time.time() + 3 * 86400)),
             "anesthesiaMethod": 1,
-            "surgeryItemId": op_items[0]["id"], "anesthesiaItemId": an_items[0]["id"]},
+            "surgeryItemId": first(op_items, "手术项目字典")["id"], "anesthesiaItemId": first(an_items, "麻醉项目字典")["id"]},
             idem="ui-or-req-" + uid)
         check("手术·申请创建 OK", r["code"] == "OK")
         # 审核(or:request:review)是医生权限，OR_NURSE 的 v-perm 会隐藏"通过"按钮 → 全链用 admin 走 UI
@@ -364,7 +372,7 @@ def main():
                 "birthDate": "1990-01-01", "idCardNo": "3401041990010%s7" % uid[-4:],
                 "phone": "132" + uid[:8]}, idem="ui-emc-pt-" + uid)
         pl = api("/patients?name=" + urllib.parse.quote("链路急诊" + uid), cashier)
-        pid_emc = pl["data"]["list"][0]["id"]
+        pid_emc = first(pl["data"]["list"], "急诊链患者查询:链路急诊" + uid)["id"]
         complaint = "UI链路胸痛" + uid
         page.evaluate("(t) => localStorage.setItem('his_token', t)", emc_nurse)
         page.goto(BASE + "/emc/workbench")
