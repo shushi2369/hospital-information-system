@@ -31,10 +31,8 @@ public final class PatientNameBackfill {
             if (row.getPatientId() != null) ids.add(row.getPatientId());
         }
         if (ids.isEmpty()) return;
-        Map<Long, PatientDTO> patients = new HashMap<>();
-        for (PatientDTO p : patientAppService.listByIds(new ArrayList<>(ids))) {
-            patients.put(p.getId(), p);
-        }
+        // 一百六十轮 D-40：链归一取档——EMPI 合并后列表与单条详情同口径（原直读源档显示旧名）
+        Map<Long, PatientDTO> patients = patientAppService.listByIdsChainAware(new ArrayList<>(ids));
         for (PatientIdCarrier row : rows) {
             PatientDTO p = patients.get(row.getPatientId());
             row.setPatientName(p == null ? null : p.getName());

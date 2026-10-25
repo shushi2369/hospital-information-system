@@ -67,4 +67,25 @@ class PatientAppServiceTest {
         assertEquals(101L, service.getById(101L).getId());
         Mockito.verify(patientMapper).selectById(101L);
     }
+
+    /** 一百六十轮 D-40：EMPI 链归一批量取档——源 id 键应映射到归一目标档案 */
+    @org.junit.jupiter.api.Test
+    void listByIdsChainAware_resolvesMergedSourceToTarget() {
+        com.his.modules.plt.entity.PltMasterIndex src = new com.his.modules.plt.entity.PltMasterIndex();
+        src.setId(100L); src.setPatientId(54861L); src.setMergeFlag(1); src.setMergedInto(200L);
+        com.his.modules.plt.entity.PltMasterIndex dst = new com.his.modules.plt.entity.PltMasterIndex();
+        dst.setId(200L); dst.setPatientId(54862L); dst.setMergeFlag(0);
+        com.his.modules.plt.entity.PltMasterIndex plain = new com.his.modules.plt.entity.PltMasterIndex();
+        plain.setId(300L); plain.setPatientId(7L); plain.setMergeFlag(0);
+        when(pltMasterIndexMapper.selectList(any())).thenReturn(java.util.List.of(src, plain));
+        when(pltMasterIndexMapper.selectBatchIds(any())).thenReturn(java.util.List.of(dst));
+        PatPatient target = new PatPatient(); target.setId(54862L); target.setName("合并目标");
+        PatPatient self = new PatPatient(); self.setId(7L); self.setName("普通患者");
+        when(patientMapper.selectBatchIds(any())).thenReturn(java.util.List.of(target, self));
+
+        var out = service.listByIdsChainAware(java.util.List.of(54861L, 7L));
+
+        assertEquals("合并目标", out.get(54861L).getName());
+        assertEquals("普通患者", out.get(7L).getName());
+    }
 }

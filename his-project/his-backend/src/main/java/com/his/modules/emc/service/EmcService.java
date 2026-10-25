@@ -84,11 +84,13 @@ public class EmcService {
             java.util.List<Long> patientIds = page.getRecords().stream()
                     .map(EmcTriage::getPatientId).filter(java.util.Objects::nonNull).distinct().toList();
             if (!patientIds.isEmpty()) {
-                java.util.Map<Long, String> patientNames = new java.util.HashMap<>();
-                for (com.his.modules.patient.app.PatientDTO p : patientAppService.listByIds(patientIds)) {
-                    patientNames.put(p.getId(), p.getName());
-                }
-                page.getRecords().forEach(t -> t.setPatientName(patientNames.get(t.getPatientId())));
+                // 一百六十轮 D-40：链归一口径（对齐 PatientNameBackfill）
+                java.util.Map<Long, com.his.modules.patient.app.PatientDTO> patients =
+                        patientAppService.listByIdsChainAware(patientIds);
+                page.getRecords().forEach(t -> {
+                    com.his.modules.patient.app.PatientDTO p = patients.get(t.getPatientId());
+                    t.setPatientName(p == null ? null : p.getName());
+                });
             }
         }
         return PageResult.of(page);

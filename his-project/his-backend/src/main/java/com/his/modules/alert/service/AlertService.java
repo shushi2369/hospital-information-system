@@ -125,12 +125,12 @@ public class AlertService {
         java.util.List<Long> patientIds = page.getRecords().stream()
                 .map(AlertCritical::getPatientId).filter(java.util.Objects::nonNull).distinct().toList();
         if (!patientIds.isEmpty()) {
-            Map<Long, String> patientNames = new java.util.HashMap<>();
-            for (com.his.modules.patient.app.PatientDTO p : patientAppService.listByIds(patientIds)) {
-                patientNames.put(p.getId(), p.getName());
-            }
+            // 一百六十轮 D-40：链归一口径（对齐 PatientNameBackfill）
+            Map<Long, com.his.modules.patient.app.PatientDTO> patients =
+                    patientAppService.listByIdsChainAware(patientIds);
             for (AlertCritical a : page.getRecords()) {
-                a.setPatientName(patientNames.get(a.getPatientId()));
+                com.his.modules.patient.app.PatientDTO p = patients.get(a.getPatientId());
+                a.setPatientName(p == null ? null : p.getName());
             }
         }
         return PageResult.of(page);
