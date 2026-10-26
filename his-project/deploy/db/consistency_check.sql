@@ -149,8 +149,9 @@ SELECT 'orphan_ae_department' AS chk, e.id FROM ae_event e
 LEFT JOIN bas_department d ON e.department_id = d.id WHERE d.id IS NULL LIMIT 5;
 
 -- 19. 状态一致性抽查：公卫卡/会诊/不良事件（时间戳与状态匹配）
+-- 一百六十三轮 D-44：作废(50)卡从未上报，report_time 为空合法——原 >= 30 误伤
 SELECT 'inconsistent_pub_30_no_report_time' AS chk, c.id FROM pub_infectious_card c
-WHERE c.status >= 30 AND c.report_time IS NULL LIMIT 5;
+WHERE c.status IN (30, 40) AND c.report_time IS NULL LIMIT 5;
 SELECT 'inconsistent_pub_40_no_receipt' AS chk, c.id FROM pub_infectious_card c
 WHERE c.status = 40 AND (c.receipt_no IS NULL OR c.receipt_time IS NULL) LIMIT 5;
 SELECT 'inconsistent_cnt_20_no_accept_time' AS chk, q.id FROM cnt_request q
@@ -213,10 +214,10 @@ WHERE m.archive_status IN (20, 30) AND e.status IN (10, 40) LIMIT 5;
 SELECT 'deposit_total_mismatch' AS chk, a.id FROM inp_admission a
 JOIN (SELECT admission_id, SUM(amount) s FROM inp_deposit GROUP BY admission_id) d ON d.admission_id = a.id
 WHERE a.deposit_total <> d.s LIMIT 5;
--- 已结算住院的押金余额不得低于账单额（退押金上限校验的落库不变量）
-SELECT 'settled_deposit_below_bill' AS chk, a.id FROM inp_admission a
-JOIN bil_charge_bill b ON b.admission_id = a.id
-WHERE a.status = 30 AND a.deposit_total < b.total_amount LIMIT 5;
+-- 一百六十三轮 D-44：押金<账单（少补）是结算设计口径（差额线下补缴，B6007 已防退押
+-- 超上限），原段把合法"少补"当违规误报。改查真不变量：押金余额不得为负（过度退押）。
+SELECT 'settled_deposit_negative' AS chk, a.id FROM inp_admission a
+WHERE a.status = 30 AND a.deposit_total < 0 LIMIT 5;
 
 -- ============================================================
 -- 22. 八十四轮：孤儿引用 + RPT 恒等
@@ -237,8 +238,10 @@ SELECT 'refund_amount_mismatch' AS chk, b.id FROM bil_charge_bill b
 LEFT JOIN (SELECT bill_id, SUM(refund_amount) s FROM bil_refund_bill GROUP BY bill_id) r ON r.bill_id = b.id
 WHERE b.refund_amount <> IFNULL(r.s, 0) LIMIT 5;
 -- 血袋终态互证：已发/已用血袋必须有且仅有一条发血单；在库血袋不得有发血记录
+-- 一百六十三轮 D-44：报废(3)是弃用处置，本就无发血单——原 IN (2,3) 使效期巡检任务
+-- 每日报废的合法袋被误报（实测 137 袋假阳性淹没真信号）。仅已发用(2)须恰一条发血单。
 SELECT 'issued_bag_without_issue' AS chk, g.id FROM bb_blood_bag g
-WHERE g.status IN (2, 3) AND (SELECT COUNT(*) FROM bb_issue i WHERE i.bag_id = g.id) <> 1 LIMIT 5;
+WHERE g.status = 2 AND (SELECT COUNT(*) FROM bb_issue i WHERE i.bag_id = g.id) <> 1 LIMIT 5;
 SELECT 'instock_bag_with_issue' AS chk, g.id FROM bb_blood_bag g
 WHERE g.status = 1 AND EXISTS (SELECT 1 FROM bb_issue i WHERE i.bag_id = g.id) LIMIT 5;
 -- 床位↔在院互斥：非空闲床无在院指向（泄漏）｜在院患者的床显示空闲（幽灵占用）

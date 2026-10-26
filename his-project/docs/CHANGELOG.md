@@ -3,6 +3,29 @@
 > 唯一追加式变更日志：每轮修复/变更在顶部追加一节。格式：日期｜commit｜要点。
 > 历史轮次（1~109）的详细记录见 git log 与各轮 commit message；本文件自 110 轮文档整合起维护。
 
+## 2026-10-26 ｜ 163 轮（见 commit）：双代理并发续查+巡检口径收敛——修复 4 项（P1×1）
+
+- **A 代理（新功能竞态专项）**：8 组并发实证，**1 项 P1 实锤**——公卫 void-vs-report
+  并发双双成功：`update(null, wrapper)` 不带实体时 @Version 不生效，void 不递增
+  version，并发 report 的乐观锁检测不到作废（终态"既作废又上报"，事件流两条并存，
+  台账自相矛盾）。**D-43 修复**：void 条件更新补 `setSql("version = version + 1")`，
+  并发 report 被乐观锁正确拦截。实测：终态唯一（50/version=1/report_time=NULL）、
+  事件流仅 voided。
+- **全绿 6 组**：LIS 双 void/采集 vs 作废/双 collect（uk 兜底）/采集 vs 接收、
+  公卫双 void、血袋任务 vs 配血（效期+状态双拦）、押金提醒跨越恰落 1 条
+  （行锁内检测）、EMPI 链归一 vs merge 并发（不串档）、RemotePicker 三端点
+  并发/注入 8 载荷全挡。
+- **B 代理（定时任务运行时验证）**：@EnableScheduling 注册 ✓ 三任务秒级准点 ✓
+  床位费昨日 981/981 零缺失零重复（uk_df_bed_fee 有效）✓ 启动补偿 9 次 0 失败 ✓
+  血袋过期在库保持 0 ✓ 今日 0 ERROR ✓。
+- **D-44 巡检口径收敛（B 代理 P1/P2 假阳性 3 段）**：① 血袋段 IN(2,3)→仅 2
+  （报废本无发血单，效期任务每日报废推高误报 137 袋）；② 公卫段 >=30 排除 50
+  （作废卡从未上报 report_time 空合法——162 轮作废即触发的自伤假阳性）；③
+  押金段改查负余额（押金<账单是"少补"设计口径，B6007 已防退押超上限）。
+- **D-45** patient-search 空白 keyword 拒绝（对齐无过滤词 400 口径）。
+- **defer 新增**：MissingServletRequestParameter 误记 ERROR 降级 WARN（日志分类）。
+- 回归：单测 324/324 + e2e 十套 363/363 + UI 44/44。
+
 ## 2026-10-26 ｜ 162 轮（见 commit）：defer 清偿第二批——公卫卡作废出口 + 日志分页治理
 
 - **D-41（150 轮 B 代理 P2-4 挂账清偿）公卫卡作废出口**：POST /pub/cards/{id}/void

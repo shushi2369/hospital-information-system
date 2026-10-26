@@ -194,7 +194,11 @@ public class PubService {
         int updated = cardMapper.update(null, new LambdaUpdateWrapper<PubInfectiousCard>()
                 .eq(PubInfectiousCard::getId, id)
                 .eq(PubInfectiousCard::getStatus, 10)
-                .set(PubInfectiousCard::getStatus, 50));
+                .set(PubInfectiousCard::getStatus, 50)
+                // 一百六十三轮 D-43：version 同步递增——update(null, wrapper) 不带实体时
+                // @Version 不生效，并发 report 的乐观锁（updateById WHERE version=旧值）
+                // 检测不到本作废，实测双双成功终态"既作废又上报"（157 轮并发审计 P1）
+                .setSql("version = version + 1"));
         if (updated != 1) {
             throw new BizException(ErrorCode.A0008, "报告卡状态已变化，请刷新后重试");
         }

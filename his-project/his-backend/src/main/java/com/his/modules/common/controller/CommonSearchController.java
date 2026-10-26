@@ -1,6 +1,8 @@
 package com.his.modules.common.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.his.common.BizException;
+import com.his.common.ErrorCode;
 import com.his.common.R;
 import com.his.infrastructure.util.LikeEscapeUtil;
 import com.his.modules.basedata.entity.Doctor;
@@ -37,6 +39,9 @@ public class CommonSearchController {
     /** 患者模糊检索（姓名/建档号前缀），最小字段 */
     @GetMapping("/patient-search")
     public R<List<Map<String, Object>>> patientSearch(@RequestParam String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            throw new BizException(ErrorCode.A0001, "检索关键词不能为空");
+        }
         String kw = LikeEscapeUtil.escape(keyword.trim());
         List<PatPatient> rows = patientMapper.selectList(new LambdaQueryWrapper<PatPatient>()
                 .eq(PatPatient::getStatus, 1)
