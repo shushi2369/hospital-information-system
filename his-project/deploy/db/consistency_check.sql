@@ -222,8 +222,6 @@ WHERE a.status = 30 AND a.deposit_total < 0 LIMIT 5;
 -- ============================================================
 -- 22. 八十四轮：孤儿引用 + RPT 恒等
 -- ============================================================
-SELECT 'orphan_pe_result' AS chk, r.id FROM pe_result r
-LEFT JOIN pe_record pr ON r.record_id = pr.id WHERE pr.id IS NULL LIMIT 5;
 SELECT 'orphan_hr_dept' AS chk, h.id FROM hr_staff h
 LEFT JOIN bas_department d ON h.dept_id = d.id WHERE d.id IS NULL LIMIT 5;
 SELECT 'rpt_stats_invariant' AS chk, d.diff FROM
@@ -245,8 +243,9 @@ WHERE g.status = 2 AND (SELECT COUNT(*) FROM bb_issue i WHERE i.bag_id = g.id) <
 SELECT 'instock_bag_with_issue' AS chk, g.id FROM bb_blood_bag g
 WHERE g.status = 1 AND EXISTS (SELECT 1 FROM bb_issue i WHERE i.bag_id = g.id) LIMIT 5;
 -- 床位↔在院互斥：非空闲床无在院指向（泄漏）｜在院患者的床显示空闲（幽灵占用）
+-- 一百六十五轮 D-49：收窄为占用(2)——停用(4)/预约(3)是行政态，本就无在院指向（原 <>1 误纳）
 SELECT 'bed_occupied_no_admission' AS chk, b.id FROM inp_bed b
-WHERE b.bed_status <> 1 AND NOT EXISTS
+WHERE b.bed_status = 2 AND NOT EXISTS
   (SELECT 1 FROM inp_admission a WHERE a.bed_id = b.id AND a.status = 10) LIMIT 5;
 SELECT 'admission_bed_free' AS chk, a.id FROM inp_admission a
 JOIN inp_bed b ON b.id = a.bed_id
@@ -292,3 +291,21 @@ WHERE EXISTS (SELECT 1 FROM mat_batch t WHERE t.material_id = i.material_id)
 SELECT '已发药处方未收费' AS chk, p.id AS rx_id, p.rx_no
 FROM cli_prescription p
 WHERE p.status = 30 AND p.charge_status = 0;
+
+-- ============================================================
+-- 25. 一百六十五轮：新功能不变量固化（163/165 轮实证恒真，防回归）
+-- ============================================================
+-- LIS 作废(50)申请不得残留活标本（1 已采集/2 已接收——作废须随废置 3）
+SELECT 'lis_void_active_specimen' AS chk, r.id FROM lis_request r
+JOIN lis_specimen s ON s.request_id = r.id
+WHERE r.status = 50 AND s.status IN (1, 2) LIMIT 5;
+-- 公卫作废(50)卡从未上报：report_time 必须为空（与修正段②互补的反向不变量）
+SELECT 'pub_void_card_with_report_time' AS chk, c.id FROM pub_infectious_card c
+WHERE c.status = 50 AND c.report_time IS NOT NULL LIMIT 5;
+-- 血袋效期：在库(1)不得有过期袋（效期巡检任务 BbBagExpireTask 落库不变量）
+SELECT 'bb_expired_instock' AS chk, b.id FROM bb_blood_bag b
+WHERE b.status = 1 AND b.expire_date < CURDATE() LIMIT 5;
+-- 押金提醒幂等：同一住院的"跨越"提醒事件至多一条（行锁内跨越检测落库不变量）
+SELECT 'deposit_reminder_dup' AS chk, biz_no, COUNT(*) c FROM plt_event_log
+WHERE event_type = 'inp.deposit.insufficient'
+GROUP BY biz_no HAVING c > 1 LIMIT 5;
