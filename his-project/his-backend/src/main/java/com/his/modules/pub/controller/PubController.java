@@ -38,6 +38,17 @@ public class PubController {
         return R.ok();
     }
 
+    /** 待上报卡作废（一百六十二轮 D-41）：误触发卡人工判废出口 */
+    @PostMapping("/cards/{id}/void")
+    @PreAuthorize("@ss.hasPerm('pub:card:report')")
+    @Idempotent
+    @AuditLog(module = "pub", action = "报告卡作废", bizType = "pub_card")
+    public R<Void> voidCard(@PathVariable Long id,
+                            @org.springframework.web.bind.annotation.RequestParam(required = false) String reason) {
+        pubService.voidPendingCard(id, reason);
+        return R.ok();
+    }
+
     @PostMapping("/cards/{id}/approve")
     @PreAuthorize("@ss.hasPerm('pub:card:report')")
     @Idempotent

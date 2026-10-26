@@ -49,7 +49,10 @@ public class AuditQueryService {
                 .eq(bizId != null && !bizId.isBlank(), SysOperationLog::getBizId, bizId)
                 .ge(startDate != null, SysOperationLog::getCreatedAt, startDate == null ? null : startDate.atStartOfDay())
                 .lt(endDate != null, SysOperationLog::getCreatedAt, endDate == null ? null : endDate.plusDays(1).atStartOfDay())
-                .orderByDesc(SysOperationLog::getCreatedAt);
+                // 一百六十二轮 D-42：id 做稳定分页 tiebreaker（秒级 created_at 并发落库同值，
+                // 无 tiebreaker 翻页会重排跳行；索引 (created_at) 前缀仍可倒序扫描）
+                .orderByDesc(SysOperationLog::getCreatedAt)
+                .orderByDesc(SysOperationLog::getId);
         return operationLogMapper.selectPage(query.toPage(), wrapper);
     }
 

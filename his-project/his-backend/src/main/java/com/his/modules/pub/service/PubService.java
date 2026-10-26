@@ -180,6 +180,28 @@ public class PubService {
         pltService.recordEvent("pub.card.reported", card.getCardNo(), "{}");
     }
 
+    /**
+     * 待上报卡作废（一百六十二轮 D-41）：诊断删除撤回之外的第二个 10→50 出口——
+     * 误触发卡（诊断文案恰含字典病名）由公卫科人工判废。仅限待上报(10)：
+     * 已上报(20/30/40)的真作废须走疾控订正报告流程（合规级，defer）。
+     */
+    @Transactional
+    public void voidPendingCard(Long id, String reason) {
+        PubInfectiousCard card = requireCard(id);
+        if (card.getStatus() != 10) {
+            throw new BizException(ErrorCode.A0001, "仅待上报的报告卡可作废（已上报卡须走疾控订正流程）");
+        }
+        int updated = cardMapper.update(null, new LambdaUpdateWrapper<PubInfectiousCard>()
+                .eq(PubInfectiousCard::getId, id)
+                .eq(PubInfectiousCard::getStatus, 10)
+                .set(PubInfectiousCard::getStatus, 50));
+        if (updated != 1) {
+            throw new BizException(ErrorCode.A0008, "报告卡状态已变化，请刷新后重试");
+        }
+        pltService.recordEvent("pub.card.voided", card.getCardNo(),
+                "{\"reason\":\"" + com.his.infrastructure.util.JsonEscapeUtil.escape(reason) + "\"}");
+    }
+
     /** 审核通过（PUB-02）：20 → 30 */
     @Transactional
     public void approve(Long id) {
