@@ -63,6 +63,9 @@ public class CommonSearchController {
     /** 在职人员检索（取血护士/核查第二签名/输血核对等 sys_user 场景），最小字段 */
     @GetMapping("/staff-search")
     public R<List<Map<String, Object>>> staffSearch(@RequestParam String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            throw new BizException(ErrorCode.A0001, "检索关键词不能为空");
+        }
         String kw = LikeEscapeUtil.escape(keyword.trim());
         List<SysUser> rows = userMapper.selectList(new LambdaQueryWrapper<SysUser>()
                 .eq(SysUser::getStatus, 1)
@@ -83,6 +86,9 @@ public class CommonSearchController {
     /** 启用医生检索（排台主刀等 bas_doctor 场景），最小字段 */
     @GetMapping("/doctor-search")
     public R<List<Map<String, Object>>> doctorSearch(@RequestParam String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            throw new BizException(ErrorCode.A0001, "检索关键词不能为空");
+        }
         String kw = LikeEscapeUtil.escape(keyword.trim());
         List<Doctor> rows = doctorMapper.selectList(new LambdaQueryWrapper<Doctor>()
                 .eq(Doctor::getStatus, 1)

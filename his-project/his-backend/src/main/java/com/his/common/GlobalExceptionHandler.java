@@ -59,6 +59,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(R.fail(ErrorCode.A0001, "请求体格式错误"));
     }
 
+    /** 一百六十四轮 D-46：Spring 6.1 方法级参数校验（@Min/@Max 直标 @RequestParam）
+     *  抛 HandlerMethodValidationException——原落入兜底 500"系统繁忙"。
+     *  LIS publish mutualFlag/mutualNote 实测触发（163 轮 B 代理 P2-1）。
+     */
+    @ExceptionHandler(org.springframework.web.method.annotation.HandlerMethodValidationException.class)
+    public ResponseEntity<R<Object>> handleMethodValidation(org.springframework.web.method.annotation.HandlerMethodValidationException e) {
+        return ResponseEntity.badRequest().body(R.fail(ErrorCode.A0001, "请求参数校验失败"));
+    }
+
     /** 一百四十八轮 D-7：@RequestParam 缺失原落入兜底 500"系统繁忙"，误导排障——语义是 400 缺参 */
     @ExceptionHandler(org.springframework.web.bind.MissingServletRequestParameterException.class)
     public ResponseEntity<R<Object>> handleMissingParam(org.springframework.web.bind.MissingServletRequestParameterException e) {

@@ -65,6 +65,8 @@ public class CdssController {
             @RequestParam(required = false) Long visitId,
             @RequestParam Long patientId,
             @RequestParam java.util.List<Long> drugIds) {
+        // 一百六十四轮 D-48 契约注记：drugIds 当前仅透传（配伍/剂量引擎以住院侧为准，
+        // 门诊用药核查 defer）——本端点现只产出患者过敏史告警，勿误依赖药品维度结果
         return R.ok(cdssService.checkOutpatientRx(visitId, patientId,
                 com.his.infrastructure.security.CurrentUser.id(), drugIds));
     }
