@@ -1,4 +1,4 @@
-import { get, type PageResult } from './request'
+import { get, post, type PageResult } from './request'
 
 /**
  * 患者主索引（EMPI）模块（阶段四 /plt）。权限：plt:*（管理员）。

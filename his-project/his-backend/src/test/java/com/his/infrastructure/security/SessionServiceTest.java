@@ -30,6 +30,7 @@ class SessionServiceTest {
         LoginUser user = new LoginUser();
         user.setUserId(1L);
         user.setUsername("admin");
+        user.setSessionId("current-session");
         user.setRoleCodes(java.util.Set.of("ADMIN"));
         return new ObjectMapper().writeValueAsString(user);
     }
@@ -43,7 +44,7 @@ class SessionServiceTest {
         doThrow(new RuntimeException("redis busy")).when(redis).expire(anyString(), any());
 
         SessionService service = new SessionService(redis, new ObjectMapper());
-        LoginUser user = service.get(1L);
+        LoginUser user = service.get(1L, "current-session");
 
         assertNotNull(user);
         assertEquals(1L, user.getUserId());
@@ -59,7 +60,7 @@ class SessionServiceTest {
         SessionService service = service(vo);
         when(vo.get("sess:1")).thenReturn(null);
 
-        assertNull(service.get(1L));
+        assertNull(service.get(1L, "current-session"));
     }
 
     @Test
@@ -67,6 +68,6 @@ class SessionServiceTest {
         ValueOperations<String, String> vo = mock(ValueOperations.class);
         when(vo.get("sess:1")).thenThrow(new RuntimeException("connection reset"));
 
-        assertNull(service(vo).get(1L));
+        assertNull(service(vo).get(1L, "current-session"));
     }
 }

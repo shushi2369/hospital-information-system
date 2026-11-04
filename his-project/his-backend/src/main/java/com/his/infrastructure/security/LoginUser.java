@@ -13,6 +13,8 @@ import java.util.Set;
 @Setter
 public class LoginUser implements Serializable {
     private Long userId;
+    /** 同一轮账户会话的随机标识，撤销或过期后重新生成。 */
+    private String sessionId;
     private String username;
     private String realName;
     private Set<Long> roleIds;

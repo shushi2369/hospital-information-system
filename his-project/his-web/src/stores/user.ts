@@ -10,6 +10,8 @@ interface UserState {
   menus: MenuNode[]
   /** 动态路由是否已注册 */
   routesLoaded: boolean
+  /** 菜单请求在途状态，不能放入 actions（开发工具会把其包装为函数）。 */
+  _menusPromise: Promise<void> | null
 }
 
 /** 目录 path 以 / 开头作前缀；页面 path 为相对路径，逐级拼接为完整路由 */
@@ -45,22 +47,26 @@ function findFirstPagePath(nodes: MenuNode[]): string {
 const ROLE_HOME_CANDIDATES: Record<string, string[]> = {
   DOCTOR: ['/clinic/queue', '/clinic/workbench'],
   NURSE: ['/nursing/workbench'],
-  CASHIER: ['/registration/*', '/billing/*'],
+  CASHIER: ['/regdesk/registrations', '/regdesk/billing'],
   PHARMACIST: ['/pharmacy/dispense'],
   LIS_USER: ['/lis/workbench'],
   MRCLERK: ['/mrc/*'],
 }
 
-function hasPagePath(nodes: MenuNode[], pattern: string): boolean {
+function findPagePath(nodes: MenuNode[], pattern: string): string {
   const exact = !pattern.endsWith('/*')
-  const prefix = pattern.slice(0, -2)
+  const prefix = pattern.slice(0, -1)
   for (const node of nodes) {
     if (node.menuType === 2) {
-      if (exact ? node.fullPath === pattern : (node.fullPath ?? '').startsWith(prefix)) return true
+      const path = node.fullPath ?? ''
+      if (exact ? path === pattern : path.startsWith(prefix)) return path
     }
-    if (node.children && hasPagePath(node.children, pattern)) return true
+    if (node.children) {
+      const path = findPagePath(node.children, pattern)
+      if (path) return path
+    }
   }
-  return false
+  return ''
 }
 
 export const useUserStore = defineStore('user', {
@@ -70,6 +76,7 @@ export const useUserStore = defineStore('user', {
     permissions: [],
     menus: [],
     routesLoaded: false,
+    _menusPromise: null,
   }),
 
   getters: {
@@ -79,7 +86,8 @@ export const useUserStore = defineStore('user', {
       const roles = state.userInfo?.roleCodes ?? []
       const wanted = ROLE_HOME_CANDIDATES[roles[0] ?? ''] ?? []
       for (const p of wanted) {
-        if (hasPagePath(state.menus, p)) return p
+        const path = findPagePath(state.menus, p)
+        if (path) return path
       }
       return findFirstPagePath(state.menus)
     },
@@ -119,7 +127,6 @@ export const useUserStore = defineStore('user', {
     },
 
     /** 拉取菜单树并补全完整路径（一百一十五轮 F7：in-flight 复用——导航竞态下双倍请求） */
-    _menusPromise: null as Promise<void> | null,
     async loadMenus() {
       if (this.menus.length > 0) return
       if (this._menusPromise) return this._menusPromise

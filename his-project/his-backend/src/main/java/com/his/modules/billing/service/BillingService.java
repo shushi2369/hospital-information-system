@@ -297,6 +297,11 @@ public class BillingService {
             }
         }
         for (Map.Entry<Long, List<BilChargeDetail>> group : rxGroups.entrySet()) {
+            // 同一账单可含多张处方或检查项目，整方规则仅约束本次选择退费的处方。
+            // 未选择的处方仍可继续发药，不应强制其与其它项目一同退费。
+            if (group.getValue().stream().noneMatch(d -> requestedQtyByDetail.containsKey(d.getId()))) {
+                continue;
+            }
             boolean allFull = group.getValue().stream().allMatch(d -> {
                 BigDecimal refunded = refundedQty.getOrDefault(d.getId(), BigDecimal.ZERO)
                         .add(requestedQtyByDetail.getOrDefault(d.getId(), BigDecimal.ZERO));

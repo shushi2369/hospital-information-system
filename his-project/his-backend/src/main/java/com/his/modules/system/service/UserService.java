@@ -149,6 +149,7 @@ public class UserService {
         }
     }
 
+    @Transactional
     public void updateStatus(Long id, Integer status) {
         if (status != null && status != 0 && status != 1) {
             throw new BizException(ErrorCode.A0001, "状态取值 0 停用 / 1 启用");
@@ -163,6 +164,7 @@ public class UserService {
         }
     }
 
+    @Transactional
     public void resetPassword(Long id, String newPassword) {
         requireNotProtected(id, "内置超级管理员密码不可经管理端重置");
         validatePasswordStrength(newPassword);
@@ -175,7 +177,7 @@ public class UserService {
     /** 内置超管保护（一百一十二轮子代理 B01 P0）：id=1 / username=admin 的账号
      *  禁止经管理端修改/停用/重置密码，防锁死真超管后被接管 */
     private void requireNotProtected(Long id, String message) {
-        SysUser user = userMapper.selectById(id);
+        SysUser user = userMapper.selectByIdForUpdate(id);
         if (user != null && (user.getId() == 1L || "admin".equals(user.getUsername()))) {
             throw new BizException(ErrorCode.A0003, message);
         }
@@ -198,7 +200,7 @@ public class UserService {
     }
 
     private SysUser requireUser(Long id) {
-        SysUser user = userMapper.selectById(id);
+        SysUser user = userMapper.selectByIdForUpdate(id);
         if (user == null) {
             throw new BizException(ErrorCode.A0001, "用户不存在");
         }

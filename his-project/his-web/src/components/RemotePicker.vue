@@ -47,6 +47,7 @@ interface Opt { id: number; label: string; sub: string }
 
 const options = ref<Opt[]>([])
 const loading = ref(false)
+let searchSequence = 0
 
 const ENDPOINT: Record<string, string> = {
   patient: '/common/patient-search',
@@ -55,22 +56,26 @@ const ENDPOINT: Record<string, string> = {
 }
 
 async function search(keyword: string) {
+  // 清空输入也使在途请求失效；只有最新检索可以更新结果和加载状态。
+  const sequence = ++searchSequence
   if (!keyword || !keyword.trim()) {
     options.value = []
+    loading.value = false
     return
   }
   loading.value = true
   try {
     const rows = (await get<Array<Record<string, unknown>>>(ENDPOINT[props.kind], { keyword: keyword.trim() })) ?? []
+    if (sequence !== searchSequence) return
     options.value = rows.map((r) => ({
       id: Number(r.id),
       label: String(r.name ?? ''),
       sub: String(r.patientNo ?? r.username ?? r.title ?? ''),
     }))
   } catch {
-    options.value = []
+    if (sequence === searchSequence) options.value = []
   } finally {
-    loading.value = false
+    if (sequence === searchSequence) loading.value = false
   }
 }
 

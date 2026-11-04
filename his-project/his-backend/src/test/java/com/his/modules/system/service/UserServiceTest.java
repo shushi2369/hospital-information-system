@@ -39,7 +39,7 @@ class UserServiceTest extends UnitTestBase {
 
     @Test
     void superadmin_cannotBeDisabled() {
-        when(userMapper.selectById(1L)).thenReturn(user(1L, "admin"));
+        when(userMapper.selectByIdForUpdate(1L)).thenReturn(user(1L, "admin"));
         BizException ex = assertThrows(BizException.class,
                 () -> svc().updateStatus(1L, 0));
         assertEquals(com.his.common.ErrorCode.A0003, ex.getErrorCode());
@@ -47,7 +47,7 @@ class UserServiceTest extends UnitTestBase {
 
     @Test
     void superadmin_passwordCannotBeResetViaAdmin() {
-        when(userMapper.selectById(1L)).thenReturn(user(1L, "admin"));
+        when(userMapper.selectByIdForUpdate(1L)).thenReturn(user(1L, "admin"));
         BizException ex = assertThrows(BizException.class,
                 () -> svc().resetPassword(1L, "NewPass123"));
         assertEquals(com.his.common.ErrorCode.A0003, ex.getErrorCode());
@@ -55,7 +55,7 @@ class UserServiceTest extends UnitTestBase {
 
     @Test
     void superadmin_profileCannotBeModified() {
-        when(userMapper.selectById(1L)).thenReturn(user(1L, "admin"));
+        when(userMapper.selectByIdForUpdate(1L)).thenReturn(user(1L, "admin"));
         com.his.modules.system.dto.UserUpdateRequest req =
                 new com.his.modules.system.dto.UserUpdateRequest();
         BizException ex = assertThrows(BizException.class,
@@ -67,7 +67,7 @@ class UserServiceTest extends UnitTestBase {
     void nonAdmin_cannotGrantAdminRole() {
         setupAs(9L, "DOCTOR"); // 非管理员操作者
         SysUser target = user(9L, "dr.li");
-        when(userMapper.selectById(9L)).thenReturn(target);
+        when(userMapper.selectByIdForUpdate(9L)).thenReturn(target);
         when(userMapper.updateById(any())).thenReturn(1);
         com.his.modules.system.dto.UserUpdateRequest req =
                 new com.his.modules.system.dto.UserUpdateRequest();
@@ -82,7 +82,7 @@ class UserServiceTest extends UnitTestBase {
     @Test
     void updateStatus_rejectsInvalidValue() {
         SysUser target = user(9L, "dr.li");
-        when(userMapper.selectById(9L)).thenReturn(target);
+        when(userMapper.selectByIdForUpdate(9L)).thenReturn(target);
         BizException ex = assertThrows(BizException.class,
                 () -> svc().updateStatus(9L, 3));
         assertEquals(com.his.common.ErrorCode.A0001, ex.getErrorCode());
@@ -91,7 +91,7 @@ class UserServiceTest extends UnitTestBase {
     @Test
     void disable_kicksSessionImmediately() {
         SysUser target = user(9L, "dr.li");
-        when(userMapper.selectById(9L)).thenReturn(target);
+        when(userMapper.selectByIdForUpdate(9L)).thenReturn(target);
         when(userMapper.updateById(any())).thenReturn(1);
         svc().updateStatus(9L, 0);
         verify(sessionService).removeStrict(9L);
@@ -116,7 +116,7 @@ class UserServiceTest extends UnitTestBase {
     @Test
     void password_validAccepted() {
         SysUser target = user(9L, "dr.li");
-        when(userMapper.selectById(9L)).thenReturn(target);
+        when(userMapper.selectByIdForUpdate(9L)).thenReturn(target);
         when(userMapper.updateById(any())).thenReturn(1);
         when(encoder.encode("GoodPass123")).thenReturn("hash");
         assertDoesNotThrow(() -> svc().resetPassword(9L, "GoodPass123"));

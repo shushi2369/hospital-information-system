@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.util.stream.Collectors;
 
 /**
- * 每请求认证：验签 JWT → 校验 Redis 会话存在 → 注入权限码 authorities。
+ * 每请求认证：验签 JWT → 校验 Redis 会话代际 → 注入权限码 authorities。
  */
 @Component
 @RequiredArgsConstructor
@@ -33,7 +33,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             try {
                 Claims claims = jwtUtil.parse(header.substring(7));
                 Long userId = Long.valueOf(claims.getSubject());
-                LoginUser user = sessionService.get(userId);
+                LoginUser user = sessionService.get(userId, claims.get("sid", String.class));
                 if (user != null && user.getPermissions() != null) {
                     var authorities = user.getPermissions().stream()
                             .map(SimpleGrantedAuthority::new)

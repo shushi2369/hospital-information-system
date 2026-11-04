@@ -34,9 +34,9 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: maven
-      - name: Run backend tests (unit tests + Flyway migration)
+      - name: 后端单元测试与数据库、Redis 会话回归
         working-directory: his-project/his-backend
-        run: mvn -B test
+        run: mvn -B test -Dhis.test.redis=true -Dhis.test.mysql=true -Dhis.test.mysql.server-url=jdbc:mysql://127.0.0.1:3306/
         env:
           SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/his?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
           SPRING_DATASOURCE_USERNAME: root
@@ -57,12 +57,18 @@ jobs:
       - name: Install dependencies
         working-directory: his-project/his-web
         run: npm install
+      - name: 前端类型检查
+        working-directory: his-project/his-web
+        run: npm run typecheck
       - name: Build
         working-directory: his-project/his-web
         run: npm run build
+      - name: 前端缺陷回归
+        working-directory: his-project/his-web
+        run: npm test
 
   consistency-check:
-    name: 数据一致性巡检（75 段，应 0 行）
+    name: 数据一致性巡检（所有查询均应返回 0 行）
     runs-on: ubuntu-latest
     needs: backend-test
     services:
@@ -89,9 +95,8 @@ jobs:
         working-directory: his-project/his-backend
         run: |
           mvn -B spring-boot:run &
-          # 本 job 无 Redis 服务，不能用登录接口探活；轮询"迁移文件数 == 已成功迁移数"（自维护，
-          # 不再钉死单个版本号——88轮审计：钉 V37 会在 V38+ 未执行完时放行，巡检撞"表不存在"）
-          EXPECTED=$(ls src/main/resources/db/migration/V*.sql | wc -l)
+          # 默认加载正式与演示两个目录；只数正式迁移会在末尾迁移执行前提前放行。
+          EXPECTED=$(find src/main/resources/db/migration src/main/resources/db/demo -maxdepth 1 -name 'V*.sql' | wc -l)
           for i in $(seq 1 60); do
             APPLIED=$(mysql -h 127.0.0.1 -uroot -proot123 his -N -e "SELECT COUNT(*) FROM flyway_schema_history WHERE success=1 AND script LIKE 'V%.sql'" 2>/dev/null || true)
             FAILED=$(mysql -h 127.0.0.1 -uroot -proot123 his -N -e "SELECT COUNT(*) FROM flyway_schema_history WHERE success=0" 2>/dev/null || true)
@@ -105,9 +110,17 @@ jobs:
           SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/his?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
           SPRING_DATASOURCE_USERNAME: root
           SPRING_DATASOURCE_PASSWORD: root123
-      - name: Run consistency check (75 segments, expect 0 violations)
+      - name: 数据一致性巡检（发现违规即失败）
         run: |
-          mysql -h 127.0.0.1 -uroot -proot123 his < his-project/deploy/db/consistency_check.sql
+          # mysql 查询成功不代表数据无违规，必须检查实际返回行数。
+          RESULT_FILE="$RUNNER_TEMP/一致性巡检结果.txt"
+          mysql --batch --skip-column-names -h 127.0.0.1 -uroot his < his-project/deploy/db/consistency_check.sql > "$RESULT_FILE"
+          if [ -s "$RESULT_FILE" ]; then
+            cat "$RESULT_FILE"
+            echo "数据一致性巡检失败：检测到违规记录"
+            exit 1
+          fi
+          echo "数据一致性巡检通过：所有查询均返回 0 行"
         env:
           MYSQL_PWD: root123
 
@@ -163,3 +176,4 @@ jobs:
             python3 "$s.py" || exit 1
             echo "::endgroup::"
           done
+          python3 会话安全回归.py

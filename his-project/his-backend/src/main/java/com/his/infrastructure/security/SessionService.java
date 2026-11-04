@@ -6,9 +6,12 @@ import com.his.common.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.UUID;
 
 /**
  * Redis 会话（key=sess:{userId}，TTL 30 分钟，访问滑动续期）。
@@ -20,13 +23,35 @@ import java.time.Duration;
 public class SessionService {
     private static final String KEY_PREFIX = "sess:";
     private static final Duration TTL = Duration.ofMinutes(30);
+    // 读取现有代际与保存必须原子执行，避免并发登录互踢或撤销后写回旧代际。
+    private static final DefaultRedisScript<String> SAVE_SCRIPT = new DefaultRedisScript<>("""
+            local sessionId = ARGV[3]
+            local existing = redis.call('GET', KEYS[1])
+            if existing then
+                local ok, previous = pcall(cjson.decode, existing)
+                if ok and type(previous) == 'table' and type(previous.sessionId) == 'string'
+                        and previous.sessionId ~= '' then
+                    sessionId = previous.sessionId
+                end
+            end
+            local json = string.gsub(ARGV[1], '"sessionId"%s*:%s*"[^"]*"',
+                    '"sessionId":' .. cjson.encode(sessionId), 1)
+            redis.call('SET', KEYS[1], json, 'EX', ARGV[2])
+            return sessionId
+            """, String.class);
 
     private final StringRedisTemplate redis;
     private final ObjectMapper objectMapper;
 
     public void save(LoginUser user) {
         try {
-            redis.opsForValue().set(KEY_PREFIX + user.getUserId(), objectMapper.writeValueAsString(user), TTL);
+            user.setSessionId(UUID.randomUUID().toString());
+            String sessionId = redis.execute(SAVE_SCRIPT, List.of(KEY_PREFIX + user.getUserId()),
+                    objectMapper.writeValueAsString(user), String.valueOf(TTL.toSeconds()), user.getSessionId());
+            if (sessionId == null || sessionId.isBlank()) {
+                throw new IllegalStateException("会话标识写入失败");
+            }
+            user.setSessionId(sessionId);
         } catch (Exception e) {
             log.error("会话写入失败", e);
             throw new BizException(ErrorCode.C9001, "会话写入失败");
@@ -34,7 +59,10 @@ public class SessionService {
     }
 
     /** 会话不存在返回 null（由过滤器按未登录处理） */
-    public LoginUser get(Long userId) {
+    public LoginUser get(Long userId, String sessionId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            return null;
+        }
         String key = KEY_PREFIX + userId;
         String json;
         try {
@@ -48,6 +76,17 @@ public class SessionService {
         if (json == null) {
             return null;
         }
+        LoginUser user;
+        try {
+            user = objectMapper.readValue(json, LoginUser.class);
+        } catch (Exception e) {
+            log.error("会话反序列化失败", e);
+            return null;
+        }
+        // 失效令牌不能读取权限，更不能替后来重新登录的会话续期。
+        if (user == null || !userId.equals(user.getUserId()) || !sessionId.equals(user.getSessionId())) {
+            return null;
+        }
         try {
             // 六十四轮：续期失败不再杀死会话——滑动 TTL 丢失是小损失，
             // 返回 null 则合法会话被瞬时抖动误杀（批跑幻影 401 的根因）
@@ -55,12 +94,7 @@ public class SessionService {
         } catch (Exception e) {
             log.warn("会话续期失败（下次访问重试）: {}", e.getMessage());
         }
-        try {
-            return objectMapper.readValue(json, LoginUser.class);
-        } catch (Exception e) {
-            log.error("会话反序列化失败", e);
-            return null;
-        }
+        return user;
     }
 
     public void remove(Long userId) {

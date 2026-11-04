@@ -95,7 +95,7 @@
             v-model="pwdForm.newPassword"
             type="password"
             show-password
-            placeholder="6-32 位，建议字母+数字组合"
+            placeholder="8-32 位，须同时包含字母和数字"
           />
         </el-form-item>
         <el-form-item label="确认新密码" prop="confirmPassword">
@@ -179,7 +179,8 @@ const pwdRules: FormRules = {
   oldPassword: [{ required: true, message: '请输入原密码', trigger: 'blur' }],
   newPassword: [
     { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 6, max: 32, message: '密码长度为 6-32 位', trigger: 'blur' },
+    { min: 8, max: 32, message: '密码长度为 8-32 位', trigger: 'blur' },
+    { pattern: /^(?=.*[A-Za-z])(?=.*[0-9]).+$/, message: '密码须同时包含字母和数字', trigger: 'blur' },
   ],
   confirmPassword: [
     { required: true, message: '请再次输入新密码', trigger: 'blur' },
@@ -213,8 +214,12 @@ async function handleChangePassword() {
   pwdSubmitting.value = true
   try {
     await userStore.changePassword(pwdForm.oldPassword, pwdForm.newPassword)
-    ElMessage.success('密码修改成功')
+    // 后端已使当前会话失效，立即同步前端状态，避免下一次业务操作才被动退出。
+    userStore.resetAuth()
+    clearDynamicRoutes()
+    ElMessage.success('密码修改成功，请重新登录')
     pwdDialogVisible.value = false
+    await router.replace('/login')
   } catch {
     // 错误提示已在拦截器中统一处理
   } finally {

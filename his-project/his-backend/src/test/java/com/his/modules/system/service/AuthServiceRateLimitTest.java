@@ -76,19 +76,19 @@ class AuthServiceRateLimitTest {
 
     @Test
     void consecutiveFails_triggerLimitEvenWithCorrectPassword() {
-        when(userMapper.selectByUsername("nurse.wang")).thenReturn(activeUser("Right-1"));
+        when(userMapper.selectByUsernameForUpdate("nurse.wang")).thenReturn(activeUser("Right-1"));
         // 第 6 次尝试：计数 6 > 5 → 即使这次密码正确也必须拒（防爆破在成功边上停手）
         when(valueOps.increment(anyString())).thenReturn(6L);
 
         BizException e = assertThrows(BizException.class, () -> service.login(
                 loginReq("Right-1"), request()));
         assertEquals(ErrorCode.A0007, e.getErrorCode());
-        verify(userMapper, never()).selectByUsername(anyString()); // 限流先于查库
+        verify(userMapper, never()).selectByUsernameForUpdate(anyString()); // 限流先于查库
     }
 
     @Test
     void successfulLogin_clearsFailCounter() {
-        when(userMapper.selectByUsername("nurse.wang")).thenReturn(activeUser("Right-1"));
+        when(userMapper.selectByUsernameForUpdate("nurse.wang")).thenReturn(activeUser("Right-1"));
         when(valueOps.increment(anyString())).thenReturn(1L); // 首次尝试
         when(roleMapper.selectRoleCodesByUserId(7L)).thenReturn(List.of("NURSE"));
 
@@ -101,7 +101,7 @@ class AuthServiceRateLimitTest {
 
     @Test
     void redisOutage_failOpenInsteadOfLockout() {
-        when(userMapper.selectByUsername("nurse.wang")).thenReturn(activeUser("Right-1"));
+        when(userMapper.selectByUsernameForUpdate("nurse.wang")).thenReturn(activeUser("Right-1"));
         when(valueOps.increment(anyString())).thenThrow(new IllegalStateException("redis down"));
 
         // Redis 挂掉：限流 fail-open（放行到密码校验），错误密码仍报 A0002 而非 C9001/A0007

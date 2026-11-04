@@ -106,6 +106,8 @@ service.interceptors.response.use(
     return Promise.reject({ code: res && res.code, message })
   },
   (error: AxiosError) => {
+    // 本地重复提交已由请求拦截器提示；保留错误语义，避免再误报网络异常。
+    if (error.code === 'DUP') return Promise.reject(error)
     const inflight = (error.config as (InternalAxiosRequestConfig & { _inflightKey?: string }) | undefined)?._inflightKey
     if (inflight) pendingWrites.delete(String(inflight))
     const status = error.response?.status
@@ -166,7 +168,7 @@ function resetAuthState() {
 }
 
 /** GET 请求 */
-export function get<T = unknown>(url: string, params?: Record<string, unknown>): Promise<T> {
+export function get<T = unknown>(url: string, params?: object): Promise<T> {
   return service.get(url, { params }) as unknown as Promise<T>
 }
 

@@ -3,7 +3,9 @@ package com.his.modules.mat.service;
 import com.his.common.BizException;
 import com.his.modules.mat.dto.MatRequisitionRequest;
 import com.his.modules.mat.entity.MatMaterial;
+import com.his.modules.mat.entity.MatBatch;
 import com.his.modules.mat.entity.MatPurchase;
+import com.his.modules.mat.entity.MatRequisition;
 import com.his.modules.mat.entity.MatStock;
 import com.his.modules.mat.mapper.MatBatchMapper;
 import com.his.modules.mat.mapper.MatMaterialMapper;
@@ -14,6 +16,9 @@ import com.his.modules.plt.service.PltService;
 import com.his.infrastructure.util.IdGenerator;
 import com.his.modules.basedata.app.BasedataAppService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
 
@@ -103,6 +108,40 @@ class MatServiceTest extends com.his.UnitTestBase {
 
         assertEquals("LY0001", service.requisition(req(1L, 3)));
         verify(requisitionMapper).insert(any(com.his.modules.mat.entity.MatRequisition.class));
+    }
+
+    /** 批号经入库录入后必须原样留在合法 JSON 中，否则领用单无法写入 JSON 类型的拆批列。 */
+    @ParameterizedTest
+    @ValueSource(strings = {"批次正常", "批次\"引号", "批次\\反斜杠", "批次\n换行"})
+    void requisition_preservesBatchNumberInValidBreakdownJson(String batchNo) throws Exception {
+        when(materialMapper.selectById(1L)).thenReturn(material(1L));
+        when(basedataAppService.getDepartment(1L))
+                .thenReturn(new com.his.modules.basedata.app.DepartmentDTO());
+        MatStock stock = new MatStock();
+        stock.setMaterialId(1L);
+        stock.setQuantity(5);
+        when(stockMapper.selectOne(any())).thenReturn(stock);
+        MatBatch batch = new MatBatch();
+        batch.setId(2L);
+        batch.setMaterialId(1L);
+        batch.setBatchNo(batchNo);
+        batch.setQuantity(5);
+        batch.setStatus(1);
+        batch.setExpireDate(java.time.LocalDate.now().plusDays(30));
+        when(batchMapper.selectList(any())).thenReturn(java.util.List.of(), java.util.List.of(batch));
+        when(stockMapper.deductAvailable(1L, 3)).thenReturn(1);
+        when(batchMapper.update(any(), any())).thenReturn(1);
+        when(idGenerator.next("LY")).thenReturn("LY0001");
+
+        assertEquals("LY0001", service.requisition(req(1L, 3)));
+
+        ArgumentCaptor<MatRequisition> captured = ArgumentCaptor.forClass(MatRequisition.class);
+        verify(requisitionMapper).insert(captured.capture());
+        var breakdown = new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(captured.getValue().getBreakdown());
+        assertEquals(1, breakdown.size());
+        assertEquals(batchNo, breakdown.get(0).get("batchNo").asText());
+        assertEquals(3, breakdown.get(0).get("quantity").asInt());
     }
 
     @Test

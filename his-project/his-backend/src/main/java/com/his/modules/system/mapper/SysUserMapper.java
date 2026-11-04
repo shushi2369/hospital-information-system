@@ -11,6 +11,13 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
     @Select("SELECT * FROM sys_user WHERE username = #{username}")
     SysUser selectByUsername(String username);
 
+    /** 与改密、禁用和权限变更共用用户行锁，禁止旧凭据通过校验后重新建立会话。 */
+    @Select("SELECT * FROM sys_user WHERE username = #{username} FOR UPDATE")
+    SysUser selectByUsernameForUpdate(String username);
+
+    @Select("SELECT * FROM sys_user WHERE id = #{id} FOR UPDATE")
+    SysUser selectByIdForUpdate(Long id);
+
     /** 护士排班下拉：只取启用状态的 NURSE 角色账号（原页面用 /system/users，护士无该权限且混入全部用户） */
     @Select("SELECT DISTINCT u.id, u.username, u.real_name, u.status FROM sys_user u "
             + "JOIN sys_user_role ur ON ur.user_id = u.id "

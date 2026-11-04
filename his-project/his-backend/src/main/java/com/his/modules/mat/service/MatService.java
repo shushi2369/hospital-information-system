@@ -365,7 +365,7 @@ public class MatService {
                 continue; // 并发被其他请求先扣：跳过本批，由后续批次补足
             }
             if (sb.length() > 1) sb.append(",");
-            sb.append("{\"batchNo\":\"").append(b.getBatchNo())
+            sb.append("{\"batchNo\":\"").append(JsonEscapeUtil.escape(b.getBatchNo()))
               .append("\",\"quantity\":").append(take).append("}");
             remain -= take;
         }

@@ -217,6 +217,52 @@ class BillingServiceTest extends UnitTestBase {
         verify(refundBillMapper, never()).insert(any(BilRefundBill.class));
     }
 
+    /** 同账单有多张处方时，整方规则只约束本次选择的处方，不强制退掉其它处方。 */
+    @Test
+    void refund_oneWholePrescriptionLeavesOtherPrescriptionUnchanged() {
+        stubRefundCommon(bill());
+        BilChargeDetail selected = detail(11L, 7, BigDecimal.ONE, "10.00");
+        BilChargeDetail untouched = detail(12L, 7, BigDecimal.ONE, "10.00");
+        when(chargeDetailMapper.selectList(any())).thenReturn(List.of(selected, untouched));
+        when(clinicAppService.prescriptionIdByItemIds(anyList())).thenReturn(Map.of(111L, 9L, 112L, 10L));
+        when(clinicAppService.lockPrescriptionsForRefund(anyCollection())).thenReturn(Map.of(9L, 20, 10L, 20));
+        when(clinicAppService.voidPrescriptionForRefund(9L)).thenReturn(true);
+        when(billMapper.updateById(any(BilChargeBill.class))).thenReturn(1);
+        when(idGenerator.next("TF")).thenReturn("TF-单处方退费");
+
+        assertEquals("TF-单处方退费", service.refund(refundReq(line(11L, "1"))));
+
+        verify(refundBillMapper).insert(argThat((BilRefundBill b) ->
+                b.getRefundAmount().compareTo(new BigDecimal("10.00")) == 0));
+        verify(clinicAppService).voidPrescriptionForRefund(9L);
+        verify(clinicAppService, never()).voidPrescriptionForRefund(10L);
+        verify(chargeDetailMapper, never()).updateById(untouched);
+        assertEquals(0, untouched.getRefundStatus());
+    }
+
+    /** 仅退检查项目时，同账单未选择退费的药品处方不能阻止检查退费。 */
+    @Test
+    void refund_examDoesNotRequireUnselectedPrescriptionRefund() {
+        stubRefundCommon(bill());
+        BilChargeDetail exam = detail(11L, 3, BigDecimal.ONE, "10.00");
+        exam.setSourceType(3);
+        BilChargeDetail untouched = detail(12L, 7, BigDecimal.ONE, "10.00");
+        when(chargeDetailMapper.selectList(any())).thenReturn(List.of(exam, untouched));
+        when(clinicAppService.prescriptionIdByItemIds(anyList())).thenReturn(Map.of(112L, 10L));
+        when(clinicAppService.lockPrescriptionsForRefund(anyCollection())).thenReturn(Map.of(10L, 20));
+        when(clinicAppService.lockExamsForRefund(anyCollection()))
+                .thenReturn(new ClinicAppService.ExamRefundSnapshot(Map.of(111L, 20), Map.of()));
+        when(clinicAppService.voidExamForRefund(111L)).thenReturn(true);
+        when(billMapper.updateById(any(BilChargeBill.class))).thenReturn(1);
+        when(idGenerator.next("TF")).thenReturn("TF-检查退费");
+
+        assertEquals("TF-检查退费", service.refund(refundReq(line(11L, "1"))));
+
+        verify(clinicAppService).voidExamForRefund(111L);
+        verify(clinicAppService, never()).voidPrescriptionForRefund(any());
+        assertEquals(0, untouched.getRefundStatus());
+    }
+
     @Test
     void settle_duplicateSameDayRejected() {
         when(settlementMapper.selectCount(any())).thenReturn(1L);

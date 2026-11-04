@@ -1,4 +1,5 @@
 import request from './request'
+import type { PageResult } from './request'
 
 export interface RptUpload {
   id: number

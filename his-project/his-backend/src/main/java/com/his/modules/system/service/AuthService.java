@@ -25,6 +25,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -52,6 +53,8 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final org.springframework.data.redis.core.StringRedisTemplate redis;
 
+    // 失败登录审计需要提交；成功登录的密码校验与会话建立始终持有账户行锁。
+    @Transactional(noRollbackFor = BizException.class)
     public LoginResponse login(LoginRequest req, HttpServletRequest request) {
         String ip = request.getRemoteAddr();
         String ua = request.getHeader("User-Agent");
@@ -72,7 +75,7 @@ public class AuthService {
             throw new BizException(ErrorCode.A0007);
         }
 
-        SysUser user = userMapper.selectByUsername(req.getUsername());
+        SysUser user = userMapper.selectByUsernameForUpdate(req.getUsername());
         if (user == null || !passwordEncoder.matches(req.getPassword(), user.getPasswordHash())) {
             // 一百一十四轮 S-01：per-IP 失败计数——原仅"用户名+IP"维度，单 IP 换用户名字典
             // 可无限速撞库（每用户名各 5 次/分钟）；只计失败不计成功，正常用户与 e2e 不受影响
@@ -130,7 +133,7 @@ public class AuthService {
         saveLoginLog(user.getUsername(), ip, ua, true, "登录成功");
 
         LoginResponse resp = new LoginResponse();
-        resp.setToken(jwtUtil.generate(user.getId(), user.getUsername()));
+        resp.setToken(jwtUtil.generate(user.getId(), user.getUsername(), loginUser.getSessionId()));
         resp.setUserId(user.getId());
         resp.setUsername(user.getUsername());
         resp.setRealName(user.getRealName());
@@ -140,7 +143,7 @@ public class AuthService {
     }
 
     public void logout() {
-        sessionService.remove(CurrentUser.id());
+        sessionService.removeStrict(CurrentUser.id());
     }
 
     public LoginUser me() {
@@ -155,8 +158,9 @@ public class AuthService {
         return MenuService.buildTree(menuMapper.selectMenusByRoleIds(List.copyOf(roleIds)));
     }
 
+    @Transactional
     public void changePassword(PasswordChangeRequest req) {
-        SysUser user = userMapper.selectById(CurrentUser.id());
+        SysUser user = userMapper.selectByIdForUpdate(CurrentUser.id());
         if (user == null) {
             throw new BizException(ErrorCode.A0002);
         }
@@ -168,8 +172,8 @@ public class AuthService {
         update.setId(user.getId());
         update.setPasswordHash(passwordEncoder.encode(req.getNewPassword()));
         userMapper.updateById(update);
-        // 修改密码后强制重新登录
-        sessionService.remove(user.getId());
+        // 删除失败时回滚密码；行锁保证并发登录不会写回基于旧密码的新会话。
+        sessionService.removeStrict(user.getId());
     }
 
     private void saveLoginLog(String username, String ip, String ua, boolean success, String message) {
@@ -182,7 +186,6 @@ public class AuthService {
             logEntity.setUserAgent(truncate(ua, 256));
             logEntity.setMessage(truncate(message, 128));
             logEntity.setSuccess(success ? 1 : 0);
-            logEntity.setMessage(message);
             loginLogMapper.insert(logEntity);
         } catch (Exception e) {
             log.error("登录日志写入失败", e);

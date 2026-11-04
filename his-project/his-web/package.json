@@ -6,6 +6,8 @@
   "description": "医院信息系统（HIS）一期 · 阶段一基础底座前端工程",
   "scripts": {
     "dev": "vite",
+    "test": "node --test",
+    "typecheck": "tsc --noEmit",
     "build": "vite build",
     "preview": "vite preview"
   },

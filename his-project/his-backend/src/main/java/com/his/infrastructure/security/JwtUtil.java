@@ -11,7 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
 /**
- * JWT 签发与验签（HS256，payload 仅 userId/username，《01》§6.1）。
+ * JWT 签发与验签（HS256，payload 含 userId/username 与账户会话代际 sid）。
  */
 @Component
 public class JwtUtil {
@@ -31,11 +31,12 @@ public class JwtUtil {
         this.expireMinutes = expireMinutes;
     }
 
-    public String generate(Long userId, String username) {
+    public String generate(Long userId, String username, String sessionId) {
         Date now = new Date();
         return Jwts.builder()
                 .subject(String.valueOf(userId))
                 .claim("username", username)
+                .claim("sid", sessionId)
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + expireMinutes * 60_000))
                 .signWith(key)

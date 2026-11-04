@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { createRouter, createWebHistory, type RouteRecordRaw, type RouteRecordSingleView } from 'vue-router'
 import Layout from '@/views/layout/Layout.vue'
 import NotFound from '@/views/NotFound.vue'
 import Login from '@/views/Login.vue'
@@ -69,14 +69,14 @@ function resolveViewComponent(component?: string | null) {
 
 /** 把菜单树（menuType=2 页面节点）映射为 Layout 的子路由 */
 export function buildDynamicRoutes(menus: MenuNode[]): RouteRecordRaw[] {
-  const routes: RouteRecordRaw[] = []
+  const routes: RouteRecordSingleView[] = []
   const walk = (nodes: MenuNode[]) => {
     nodes.forEach((node) => {
       if (node.menuType === 2 && node.fullPath) {
         routes.push({
           path: node.fullPath,
           name: `menu-${node.id}`,
-          component: (resolveViewComponent(node.component) ?? NotFound) as RouteRecordRaw['component'],
+          component: (resolveViewComponent(node.component) ?? NotFound) as RouteRecordSingleView['component'],
           meta: { title: node.menuName, menuId: node.id },
         })
       }
